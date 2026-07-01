@@ -72,7 +72,25 @@ source of truth cache/presence async workers   media files       message index
 | `search` | 消息索引和搜索 |
 | `audit` | append-only 审计日志 |
 | `rate_limit` | 用户、IP、会话维度限流 |
-| `observability` | metrics、logs、tracing |
+| `entitlement` | 付费频道访问控制 |
+| `payment` | 账本与 settle → grant |
+| `worker` | 搜索索引、fanout push、webhook 重试 |
+| `observability` | metrics、logs、tracing stub |
+
+## 异步与 Worker
+
+| Worker | 输入 | 输出 |
+|--------|------|------|
+| Outbox drainer | outbox 表 | Kafka / memory bus |
+| MessageCreatedHandler | message.created | 搜索索引 |
+| FanoutWorker | message.created | 离线 push（batch 256） |
+| Webhook retry | failed deliveries | 外部 webhook |
+
+Worker 通过 `docker compose --profile app` 与 API 同栈部署。
+
+## 边缘路由
+
+可选 `gateway` profile（nginx）将 `/api/*` 与 `/ws` 代理至 monolith — 见 `deploy/gateway/` 与 ADR 0027。
 
 ## 关键取舍
 

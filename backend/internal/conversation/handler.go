@@ -1,7 +1,6 @@
 package conversation
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -23,9 +22,7 @@ type Handler struct {
 }
 
 // EntitlementGate checks paid channel access before subscribe.
-type EntitlementGate interface {
-	CanSubscribe(ctx context.Context, userID, channelID uuid.UUID) error
-}
+type EntitlementGate = entitlement.Gate
 
 // NewHandler creates a conversation handler.
 func NewHandler(repo *Repository) *Handler {

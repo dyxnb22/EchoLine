@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Engineering review #02: docs, architecture, RBAC, validate
+
+任务：文档对齐、架构审核、业务流程校准、深度 code review。
+
+安全：entitlement grant admin-only、require owner-only（ADR 0030）；validate 包统一输入长度。
+
+测试：entitlement handler_test、integration_entitlement_test、validate limits_test。
+
+前端：api/http.ts 集中 HTTP + AuthContext bindAuthFetch。
+
+文档：business-flows、engineering-standards、architecture/api/reliability/security/README 对齐；engineering-review-02。
+
+测试：go test + npm build + playwright（待跑）。
+
+阻塞：云 VM 无 Docker 全量 smoke。
+
+下一步：api.ts 全量迁移 authedRequest（可选）。
+
 ## 2026-07-01 Final completion: T001–T440 + backlog + extensions + code review
 
 任务：`FINAL_COMPLETION_MANIFEST.md` — 全量编号任务收尾、backlog、extensions roadmap、全量 code review。

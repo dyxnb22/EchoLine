@@ -12,7 +12,7 @@ This checklist covers the security controls implemented or planned in EchoLine, 
 - [x] **JWT middleware**: All protected routes require `Authorization: Bearer <token>`.
 - [x] **Membership check**: Every message send, read, and search verifies the requesting user is a member of the target conversation.
 - [x] **Group role checks**: Group kick/invite/promote requires owner or admin role.
-- [x] **Channel publish**: Only owner/admin can send to a channel.
+- [x] **Channel entitlement RBAC**: owner sets paid flag; admin grants; payment settle auto-grants (ADR 0030).
 - [ ] **JWT rotation**: Implement JWKS endpoint for key rotation without service restart.
 - [ ] **Token binding**: Bind refresh token to device fingerprint to prevent refresh token theft.
 
@@ -34,7 +34,7 @@ This checklist covers the security controls implemented or planned in EchoLine, 
 - [x] **SQL injection prevention**: All queries use parameterized statements via `pgx`.
 - [x] **UUID validation**: All ID parameters validated as valid UUID format before DB query.
 - [x] **Content-Type enforcement**: API requires `application/json`; rejects unexpected content types.
-- [ ] **Input length limits**: Enforce max lengths on `username` (64), `body` (65535), `display_name` (128).
+- [x] **Input length limits**: `username` 64, `display_name` 128, `body` 65535 via `internal/validate`.
 - [ ] **XSS prevention in web client**: React JSX escapes by default; verify no `dangerouslySetInnerHTML` on user content.
 - [ ] **File type validation**: Verify uploaded file MIME type matches declared type; reject executable MIME types.
 
@@ -109,8 +109,8 @@ This checklist covers the security controls implemented or planned in EchoLine, 
 
 ## Dependency Security
 
-- [ ] **Go module vulnerability scan**: Run `govulncheck ./...` in CI.
-- [ ] **npm audit**: Run `npm audit` in CI for frontend dependencies.
+- [x] **govulncheck**: Run `govulncheck ./...` in CI (security job).
+- [x] **npm audit**: Run `npm audit` in CI for frontend dependencies.
 - [ ] **Base image scanning**: Scan Docker base images with Trivy or Grype.
 - [ ] **Dependency pinning**: Pin dependency versions; use Dependabot or Renovate for updates.
 

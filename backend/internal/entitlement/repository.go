@@ -11,11 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var (
-	ErrEntitlementRequired = errors.New("channel requires paid entitlement")
-	ErrNotPaidChannel      = errors.New("conversation is not a paid channel")
-)
-
 // Repository manages channel access entitlements.
 type Repository struct {
 	pool *pgxpool.Pool

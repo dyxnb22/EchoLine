@@ -16,6 +16,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/metrics"
+	"github.com/echoline/echoline/backend/internal/validate"
 )
 
 // Handler exposes message REST endpoints.
@@ -95,6 +96,10 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, ErrBlocked) {
 			apierror.Write(w, r, http.StatusForbidden, "blocked", "recipient has blocked you")
+			return
+		}
+		if errors.Is(err, validate.ErrMessageBodyEmpty) || errors.Is(err, validate.ErrMessageBodyLong) {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 			return
 		}
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())

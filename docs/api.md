@@ -402,9 +402,10 @@
 
 ### Channel entitlements (paid channels)
 
-- `POST /api/channels/{channel_id}/entitlements/grant` body `{ "reference": "channel:{uuid}" }` — grant access (admin/payment)
-- `POST /api/channels/{channel_id}/entitlements/require` body `{ "required": true }` — mark channel as paid
+- `POST /api/channels/{channel_id}/entitlements/grant` — **admin only**; body `{ "user_id": "uuid (optional)", "reference": "..." }`
+- `POST /api/channels/{channel_id}/entitlements/require` — **channel owner only**; body `{ "required": true }`
 - `POST /api/conversations/{id}/subscribe` returns `402 payment_required` when entitlement missing
+- `POST /api/payments/ledger` + `POST /api/payments/ledger/settle` with `reference: "channel:{uuid}"` auto-grants subscriber
 
 ## Observability
 

@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { refreshToken } from "../api";
+import { bindAuthFetch } from "../api/http";
 
 type AuthContextValue = {
   token: string | null;
@@ -49,6 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, logout]);
 
   const value = useMemo(() => ({ token, setToken, logout, authFetch }), [token, setToken, logout, authFetch]);
+
+  useEffect(() => {
+    bindAuthFetch(authFetch);
+    return () => bindAuthFetch(null);
+  }, [authFetch]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

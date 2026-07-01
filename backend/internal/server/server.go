@@ -145,7 +145,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/recommendations/channels", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendChannels)))
 	mux.Handle("GET /api/recommendations/friends", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendFriends)))
 
-	// Channel entitlements
+	// Channel entitlements — grant is admin-only; require is owner-only (enforced in handler)
 	mux.Handle("POST /api/channels/{channel_id}/entitlements/grant", auth.RequireAuth(s.auth, http.HandlerFunc(s.entitlement.HandleGrant)))
 	mux.Handle("POST /api/channels/{channel_id}/entitlements/require", auth.RequireAuth(s.auth, http.HandlerFunc(s.entitlement.HandleSetPaid)))
 

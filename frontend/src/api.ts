@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+import { API_BASE, authHeaders, authedRequest, parseResponse } from "./api/http";
 
 export type TokenPair = {
   access_token: string;
@@ -36,21 +36,13 @@ export type SearchHit = {
   seq: number;
 };
 
-function authHeaders(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
-
 export async function login(username: string, password: string): Promise<TokenPair> {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
-  if (!res.ok) throw new Error("login failed");
-  return res.json();
+  return parseResponse<TokenPair>(res, "login failed");
 }
 
 export async function register(username: string, password: string, displayName: string): Promise<void> {
@@ -97,11 +89,8 @@ export async function markConversationRead(token: string, conversationId: string
 }
 
 export async function listConversations(token: string): Promise<Conversation[]> {
-  const res = await fetch(`${API_BASE}/api/conversations`, {
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("list conversations failed");
-  const data = await res.json();
+  const res = await authedRequest(token, "/api/conversations");
+  const data = await parseResponse<{ conversations?: Conversation[] }>(res, "list conversations failed");
   return data.conversations ?? [];
 }
 
@@ -137,12 +126,11 @@ export async function sendMessage(
   if (attachmentObjectKey) {
     payload.attachment = { object_key: attachmentObjectKey };
   }
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages`, {
+  const res = await authedRequest(token, `/api/conversations/${conversationId}/messages`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("send failed");
+  await parseResponse(res, "send failed");
 }
 
 export async function presignUpload(
@@ -305,11 +293,8 @@ export async function forwardMessage(token: string, messageId: string, targetCon
 }
 
 export async function subscribeChannel(token: string, channelId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${channelId}/subscribe`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("subscribe failed");
+  const res = await authedRequest(token, `/api/conversations/${channelId}/subscribe`, { method: "POST" });
+  await parseResponse(res, "subscribe failed");
 }
 
 export async function listFriendRecommendations(token: string): Promise<{ id: string; username: string; display_name: string }[]> {
@@ -416,13 +401,17 @@ export async function adminReplayDLQ(token: string, id: string): Promise<void> {
   if (!res.ok) throw new Error("dlq replay failed");
 }
 
-export async function grantChannelEntitlement(token: string, channelId: string, reference: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/channels/${channelId}/entitlements/grant`, {
+export async function grantChannelEntitlement(
+  token: string,
+  channelId: string,
+  userId: string,
+  reference: string,
+): Promise<void> {
+  const res = await authedRequest(token, `/api/channels/${channelId}/entitlements/grant`, {
     method: "POST",
-    headers: authHeaders(token),
-    body: JSON.stringify({ reference }),
+    body: JSON.stringify({ user_id: userId, reference }),
   });
-  if (!res.ok) throw new Error("grant failed");
+  await parseResponse(res, "grant failed");
 }
 
 export type WSStatus = "connecting" | "open" | "closed";

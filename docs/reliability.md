@@ -40,6 +40,17 @@ ACK 丢失不代表消息丢失，客户端可在下一次 sync 时补偿。
 
 客户端保存每个 conversation 的最新已读或已同步 seq。重连后调用 sync API 拉取 `seq > last_seq` 的消息。
 
+## 付费频道门控
+
+频道 owner 可将 `requires_entitlement` 设为 true。订阅时服务端检查 `channel_entitlements` 有效行；缺失返回 `402 payment_required`，不写入成员关系。
+
+授权路径：
+
+1. 支付 settle（`reference = channel:{uuid}`）→ 自动 grant
+2. Admin `entitlements/grant` → 手动 grant
+
+详见 `docs/business-flows.md` 与 ADR 0030。
+
 ## 失败场景
 
 | 场景 | 策略 |

@@ -168,7 +168,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
 		encryption:     encryption.NewHandler(encryption.NewRepository(pool)),
-		entitlement:    entitlement.NewHandler(entitlementRepo),
+		entitlement:    entitlement.NewHandler(entitlementRepo, conversation.NewOwnerChecker(convRepo), adminChecker),
 		webhook:        webhookDispatcher,
 		webhookRepo:    webhookRepo,
 		opensearch:     osClient,

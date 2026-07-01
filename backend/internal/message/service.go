@@ -13,6 +13,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/middleware"
 	"github.com/echoline/echoline/backend/internal/risk"
+	"github.com/echoline/echoline/backend/internal/validate"
 )
 
 // Broadcaster pushes realtime events to online users.
@@ -88,6 +89,10 @@ func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input Se
 
 	// Strip HTML from message body before persistence.
 	input.Body = middleware.SanitizeBody(input.Body)
+
+	if err := validate.MessageBody(input.Body, input.ObjectKey != ""); err != nil {
+		return nil, err
+	}
 
 	if input.Body != "" && s.spamChecker != nil {
 		if err := s.spamChecker.CheckDuplicateBody(senderID, input.Body); err != nil {
