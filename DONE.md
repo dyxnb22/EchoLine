@@ -87,11 +87,12 @@
 - [x] 乐观发送 + 附件上传 + 搜索 UI（J007-J009）。
 - [x] 注册页 + typing + 通知 badge + PWA manifest + Playwright skeleton（batch-100）。
 
-## Phase 9 (batch-100)
+## Phase 9 (batch-120)
 
-- [x] 社交功能：pin/block/report/mute/notifications（00009 migration）。
-- [x] 可观测性：k6/chaos/Grafana（I006-I010）。
-- [x] 文档/ADR/面试/review 报告（L/M/RS/X tracks）。
-- [x] `BATCH_100_MANIFEST.md` 任务清单。
+- [x] Reactions/threads/forward/presence/export/archive APIs（T001-T030 partial）。
+- [x] Push/payment/ads/recommendation/extension migrations（00011-00013）。
+- [x] GitHub Actions CI + replay CLI + extended scripts（T051-T070）。
+- [x] ADRs 0016-0022 + prototype docs + iteration-04（T071-T090）。
+- [x] Frontend dark mode, reactions, channel filter, PWA sw（T031-T050 partial）。
 
 ## Phase 2+

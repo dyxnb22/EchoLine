@@ -1,23 +1,22 @@
 # Current State
 
-Current phase: Batch-100 complete (social, notifications, observability, docs, loadtests).
+Current phase: Batch-120 complete.
 
-Milestone: 100 tasks tracked in `BATCH_100_MANIFEST.md`.
+Milestone: 120 tasks in `BATCH_120_MANIFEST.md` (T001–T120).
 
 Last batch highlights:
 
-- Social: pins, blocks, reports, mute, notifications, spam checker
-- Admin: health + DLQ list skeleton
-- Realtime: typing indicator WS event
-- Frontend: register, notifications badge, typing UI, mark-read, PWA manifest, Playwright skeleton
-- Ops: k6 scripts, chaos scripts, Grafana dashboard, `.env.example`
-- Docs: 12 ADRs, 10 research/interview docs, 9 review reports, iteration-03
+- Backend: reactions, threads, forward, presence API, OpenSearch skeleton, webhook, DLQ replay, archive/export, push/payment/ads/recommendation skeletons
+- Migrations: 00010–00013
+- Realtime: message.edited/recalled broadcast, typing.stop
+- Ops: GitHub Actions CI, k6 mixed workload, replay CLI, seed-extended, chaos/bootstrap scripts
+- Docs: 7 new ADRs (0016–0022), 9 prototype/research docs, iteration-04, review-fixes
+- Frontend: reactions/report/block actions, channel filter, dark mode, PWA service worker, recommendations
 
 Tests:
 
 - `go test ./...` passed
 - `npm run build` passed
-- `RUN_WS_SMOKE=1 make smoke` passed
 
 Blocker:
 
@@ -25,7 +24,7 @@ Blocker:
 
 Next:
 
-1. `make dev-up` + `make smoke-full` when Postgres available
-2. Playwright CI wiring (J010)
-3. OpenSearch adapter (G009)
-4. Future extensions X003+
+1. `make dev-up` + `make smoke-full` + CI green on Postgres
+2. Frontend thread panel + admin UI (T045–T048)
+3. GraphQL prototype implementation (T029)
+4. Payment/ads production paths (T028+)

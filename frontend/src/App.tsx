@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  addReaction,
+  blockUser,
   connectWS,
   Conversation,
   listConversations,
   listMessages,
   listNotifications,
+  listRecommendations,
   login,
   markConversationRead,
   Message,
   Notification,
   presignUpload,
   register,
+  reportMessage,
   searchMessages,
   SearchHit,
   sendMessage,
@@ -36,6 +40,9 @@ export default function App() {
   const [displayName, setDisplayName] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [filter, setFilter] = useState<"all" | "channel" | "group">("all");
+  const [dark, setDark] = useState(localStorage.getItem("echoline_dark") === "1");
+  const [recs, setRecs] = useState<{ channel_id: string; title: string }[]>([]);
   const activeIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<{ close: () => void; send: (p: unknown) => void } | null>(null);
@@ -50,6 +57,16 @@ export default function App() {
   useEffect(() => {
     activeIdRef.current = activeId;
   }, [activeId]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("echoline_dark", dark ? "1" : "0");
+  }, [dark]);
+
+  useEffect(() => {
+    if (!token) return;
+    listRecommendations(token).then(setRecs).catch(() => undefined);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -242,16 +259,23 @@ export default function App() {
   }
 
   const active = conversations.find((c) => c.id === activeId);
+  const filtered = conversations.filter((c) => filter === "all" || c.type === filter);
 
   return (
     <main className="layout">
       <aside>
         <header>
           <h1>EchoLine</h1>
+          <button type="button" className="theme-toggle" onClick={() => setDark((d) => !d)}>{dark ? "☀" : "☾"}</button>
           <span className={`ws-status ws-${wsStatus}`}>{wsStatus}</span>
           {notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
           <button onClick={() => { localStorage.removeItem("echoline_token"); setToken(null); }}>Logout</button>
         </header>
+        <div className="filter-tabs">
+          {(["all", "channel", "group"] as const).map((f) => (
+            <button key={f} type="button" className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>
+          ))}
+        </div>
         <form onSubmit={handleSearch} className="search">
           <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search messages" />
           <button type="submit">Search</button>
@@ -265,8 +289,16 @@ export default function App() {
             ))}
           </ul>
         )}
+        {recs.length > 0 && (
+          <div className="recs">
+            <strong>Recommended</strong>
+            {recs.map((r) => (
+              <button key={r.channel_id} type="button" onClick={() => setActiveId(r.channel_id)}>{r.title}</button>
+            ))}
+          </div>
+        )}
         <ul>
-          {conversations.map((c) => (
+          {filtered.map((c) => (
             <li key={c.id}>
               <button className={c.id === activeId ? "active" : ""} onClick={() => setActiveId(c.id)}>
                 {c.title || c.type} {c.unread ? `(${c.unread})` : ""}
@@ -291,6 +323,15 @@ export default function App() {
               <strong>#{m.seq}</strong> {m.body}
               {m.pending && <em> sending...</em>}
               {m.failed && <em> failed</em>}
+              {token && activeId && (
+                <span className="msg-actions">
+                  <button type="button" onClick={() => addReaction(token, m.id, "👍").catch((e) => setError(String(e)))}>👍</button>
+                  <button type="button" onClick={() => reportMessage(token, activeId, m.id, "spam").catch((e) => setError(String(e)))}>Report</button>
+                  {m.sender_id !== "me" && (
+                    <button type="button" onClick={() => blockUser(token, m.sender_id).catch((e) => setError(String(e)))}>Block</button>
+                  )}
+                </span>
+              )}
             </div>
           ))}
         </div>

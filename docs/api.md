@@ -337,6 +337,38 @@
 
 管理接口骨架（需 Bearer token）。
 
+## Batch-120 APIs
+
+### Reactions
+
+- `POST /api/messages/{message_id}/reactions` body `{ "emoji": "👍" }`
+- `DELETE /api/messages/{message_id}/reactions/{emoji}`
+- `GET /api/messages/{message_id}/reactions`
+
+### Threads
+
+- `POST /api/conversations/{conv_id}/messages/{message_id}/replies`
+- `GET /api/conversations/{conv_id}/messages/{message_id}/replies`
+
+### Forward / Presence / Export / Archive
+
+- `POST /api/messages/{message_id}/forward`
+- `GET /api/presence/online?user_ids=...`
+- `GET /api/conversations/{id}/export`
+- `POST /api/conversations/{id}/archive` / `unarchive`
+- `GET /api/conversations/archived`
+
+### Push / Payments / Ads / Recommendations
+
+- `POST/GET /api/push/tokens`
+- `POST/GET /api/payments/ledger`
+- `POST/GET /api/channels/{channel_id}/campaigns`
+- `GET /api/recommendations/channels`
+
+### Admin DLQ
+
+- `POST /api/admin/dlq/{id}/replay`
+
 ## Observability
 
 ### GET `/metrics`

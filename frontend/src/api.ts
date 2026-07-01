@@ -178,6 +178,44 @@ export async function searchMessages(token: string, query: string): Promise<Sear
   return data.results ?? [];
 }
 
+export async function addReaction(token: string, messageId: string, emoji: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/messages/${messageId}/reactions`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ emoji }),
+  });
+  if (!res.ok) throw new Error("reaction failed");
+}
+
+export async function reportMessage(
+  token: string,
+  conversationId: string,
+  messageId: string,
+  reason: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages/${messageId}/report`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw new Error("report failed");
+}
+
+export async function blockUser(token: string, userId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/blocks/${userId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("block failed");
+}
+
+export async function listRecommendations(token: string): Promise<{ channel_id: string; title: string }[]> {
+  const res = await fetch(`${API_BASE}/api/recommendations/channels`, { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.channels ?? [];
+}
+
 export type WSStatus = "connecting" | "open" | "closed";
 
 export function connectWS(

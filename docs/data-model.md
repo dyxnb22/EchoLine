@@ -146,6 +146,26 @@
 - `read_at`
 - `created_at`
 
+### message_reactions
+
+- `message_id`
+- `user_id`
+- `emoji`
+- `created_at`
+
+### push_tokens
+
+- `id`
+- `user_id`
+- `device_id`
+- `token`
+- `platform`
+- `created_at`
+
+### payment_ledger / ad_campaigns / ad_impressions / encryption_key_bundles
+
+见 `backend/migrations/00012_extensions_skeleton.sql`。
+
 ### audit_logs
 
 - `id`

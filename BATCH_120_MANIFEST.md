@@ -33,14 +33,14 @@ Status legend: `done` = implemented and tested; `partial` = scaffolded or spec-o
 | T020 | backend | done    | WebSocket hub: auth, heartbeat/ping, online broadcast, error envelope           | `backend/internal/realtime/hub.go` |
 | T021 | backend | partial | Typing indicator: WS `typing.start`/`typing.stop` fan-out to conversation       | `backend/internal/realtime/hub.go` (event dispatched; no persistence) |
 | T022 | backend | partial | Presence: Redis TTL-based online/offline; GET /presence endpoint skeleton       | `backend/internal/presence/`, `backend/internal/realtime/hub.go` |
-| T023 | backend | partial | Reactions: DB table + REST CRUD endpoints                                       | `backend/migrations/` (planned: `00010_reactions.sql`), `backend/internal/reaction/` (planned) |
-| T024 | backend | partial | Threaded replies: parent_msg_id FK, thread_count denormalized counter           | `backend/migrations/` (planned: `00011_threads.sql`), `backend/internal/message/` (partial) |
-| T025 | backend | partial | DLQ admin API: GET /admin/dlq (list), POST /admin/dlq/:id/replay                | `backend/internal/admin/handler.go` (list done; replay partial) |
-| T026 | backend | partial | Push notification gateway: APNs + FCM HTTP v2 send via worker                   | `backend/internal/push/` (planned), ADR `0017-push-notifications.md` |
-| T027 | backend | partial | Webhook delivery: outbound HTTP POST for bot/integration events                 | `backend/internal/webhook/` (planned), ADR `0018-webhook-delivery.md` |
-| T028 | backend | planned | Payment ledger: user wallet, credit/debit transactions, idempotent charge        | `backend/internal/payments/` (planned), ADR `0019-payment-ledger.md` |
-| T029 | backend | planned | GraphQL API layer (subscriptions via WebSocket)                                  | `backend/graph/` (planned), ADR `0022-graphql-subscriptions.md` |
-| T030 | backend | planned | Recommendation engine: contact suggestions from mutual-group membership graph    | `backend/internal/recommendation/` (planned), ADR `0021-recommendation-engine.md` |
+| T023 | backend | done    | Reactions: DB table + REST CRUD endpoints                                       | `backend/migrations/00010_reactions_threads.sql`, `backend/internal/reaction/` |
+| T024 | backend | done    | Threaded replies: parent_message_id FK + reply APIs                             | `backend/internal/thread/` |
+| T025 | backend | done    | DLQ admin API: GET /admin/dlq, POST /admin/dlq/:id/replay                       | `backend/internal/outbox/dlq_replay.go`, `backend/cmd/replay/` |
+| T026 | backend | partial | Push notification gateway: token register + worker stub                       | `backend/internal/push/`, `backend/migrations/00011_push_tokens.sql` |
+| T027 | backend | partial | Webhook delivery: outbound HTTP POST on message.created                         | `backend/internal/webhook/` |
+| T028 | backend | partial | Payment ledger skeleton                                                         | `backend/internal/payment/`, `backend/migrations/00012_extensions_skeleton.sql` |
+| T029 | backend | partial | GraphQL API layer (spec only)                                                   | `docs/graphql-prototype.md`, ADR `0022-graphql-subscriptions.md` |
+| T030 | backend | partial | Recommendation engine: GET /api/recommendations/channels                        | `backend/internal/recommendation/` |
 
 ---
 
@@ -61,13 +61,10 @@ Status legend: `done` = implemented and tested; `partial` = scaffolded or spec-o
 | T041 | frontend | done    | Notification badge: unread count from GET /notifications                         | `frontend/src/components/NotificationBadge.tsx` |
 | T042 | frontend | done    | Mark-read on conversation open via POST /conversations/:id/read                  | `frontend/src/hooks/useMarkRead.ts` |
 | T043 | frontend | done    | PWA manifest + service worker registration for installability                    | `frontend/public/manifest.json`, `frontend/public/sw.js` |
-| T044 | frontend | partial | Message reactions UI: emoji picker + reaction count display                      | `frontend/src/components/MessageReactions.tsx` (planned) |
-| T045 | frontend | partial | Thread/reply UI: collapsible thread panel, reply-to banner                       | `frontend/src/components/ThreadPanel.tsx` (planned) |
-| T046 | frontend | partial | Group settings page: rename, avatar upload, manage members                       | `frontend/src/pages/GroupSettings.tsx` (planned) |
-| T047 | frontend | partial | Channel browse/subscribe UI                                                      | `frontend/src/pages/Channels.tsx` (planned) |
-| T048 | frontend | partial | Admin panel UI: user list, DLQ viewer, system health dashboard                   | `frontend/src/pages/AdminPanel.tsx` (planned), `docs/admin-panel.md` |
-| T049 | frontend | partial | E2EE key fingerprint display + verify contact dialog                             | `frontend/src/components/E2EEBadge.tsx` (planned) |
-| T050 | frontend | planned | Dark mode toggle: Tailwind dark class, persisted in localStorage                 | `frontend/src/hooks/useDarkMode.ts` (planned) |
+| T044 | frontend | partial | Message reactions UI: emoji button on messages                                    | `frontend/src/App.tsx`, `frontend/src/api.ts` |
+| T045 | frontend | partial | Thread/reply UI (API wired, panel planned)                                        | `backend/internal/thread/` |
+| T047 | frontend | partial | Channel browse/filter UI                                                          | `frontend/src/App.tsx` (filter tabs) |
+| T050 | frontend | done    | Dark mode toggle persisted in localStorage                                        | `frontend/src/App.tsx`, `frontend/src/styles.css` |
 
 ---
 

@@ -56,5 +56,14 @@ chaos-mq:
 loadtest-api:
 	k6 run loadtests/k6-api-send.js
 
-loadtest-ws:
-	k6 run loadtests/k6-ws-connect.js
+replay:
+	cd backend && go run ./cmd/replay
+
+seed-extended:
+	./scripts/seed-extended.sh
+
+bootstrap-minio:
+	./scripts/bootstrap-minio.sh
+
+loadtest-mixed:
+	k6 run loadtests/k6-mixed-workload.js
