@@ -1,0 +1,32 @@
+---
+description: EchoLine long-running Cursor Cloud Agent execution rule
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# EchoLine Long-Run Rule
+
+EchoLine is a Telegram-like messaging platform. Do not treat it as a small chat demo.
+
+Before executing:
+
+1. Read `CURRENT_STATE.md`.
+2. Read `NEXT_ACTIONS.md`.
+3. Read `DONE.md`.
+4. Read `BLOCKERS.md`.
+5. Read only the task-relevant sections of `TASK_GRAPH_DETAILED.md`.
+
+Execution:
+
+- Continue after each completed task.
+- Update repo-based memory every 3-5 atomic tasks.
+- Do not repeatedly scan the full repository.
+- Do not stop just because one milestone is complete.
+- If the main track is complete, continue backlog, stretch, research, then future extensions.
+
+Quality:
+
+- Code changes require tests or documented verification.
+- Schema/API/protocol changes require docs updates.
+- Architecture tradeoffs require ADR or `DECISIONS.md`.
+

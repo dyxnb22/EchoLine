@@ -1,0 +1,17 @@
+---
+description: Composer 2.5 subagent execution mode rule
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Composer 2.5 Subagent Rule
+
+When using Composer 2.5 for EchoLine subagents:
+
+- Fast mode must be disabled.
+- Do not use Fast mode for subagent planning, implementation, review, testing, or documentation tasks.
+- Subagents must read their task packet, relevant repo state, relevant rules, and required docs before editing.
+- Speed must not override tests, documentation updates, acceptance criteria, or repo-based context compaction.
+
+If the mode cannot be verified, the agent should ask the operator to confirm that Composer 2.5 Fast mode is disabled before starting the subagent task.
+

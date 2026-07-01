@@ -1,0 +1,20 @@
+---
+description: EchoLine docs and ADR rule
+globs: ["docs/**/*", "reports/**/*", "*.md"]
+alwaysApply: true
+---
+
+# EchoLine Docs Rule
+
+Docs should support engineering execution, interview storytelling, and future continuation.
+
+Every important doc should answer:
+
+- What problem does this solve?
+- What tradeoff was chosen?
+- What implementation files are involved?
+- How is it tested or verified?
+- How can it be explained in an interview?
+
+Avoid low-value prose rewrites. Prefer concrete updates tied to code, tests, reports, or decisions.
+

@@ -1,0 +1,25 @@
+---
+description: EchoLine engineering standards
+globs: ["backend/**/*", "frontend/**/*", "scripts/**/*", "loadtests/**/*", "docker-compose.yml", "Makefile"]
+alwaysApply: true
+---
+
+# EchoLine Engineering Rule
+
+Prefer incremental, testable engineering work.
+
+- Keep the initial architecture as a modular monolith.
+- PostgreSQL is the source of truth.
+- Redis is for cache, presence, and rate limiting.
+- MQ/Redpanda is for async events and workers.
+- WebSocket is not the source of truth; DB persistence comes first.
+- Message reliability depends on idempotency, seq ordering, ACK, and sync compensation.
+
+When modifying backend code:
+
+- Add or update tests.
+- Update `docs/api.md` for REST changes.
+- Update `docs/data-model.md` for schema changes.
+- Update `docs/websocket-protocol.md` for realtime protocol changes.
+- Update `docs/reliability.md` for delivery semantics changes.
+
