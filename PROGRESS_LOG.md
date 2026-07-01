@@ -2,6 +2,22 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Batch-Next-120: admin, graphql, ops, frontend (checkpoint 8)
+
+任务：120项见 `BATCH_NEXT_120_MANIFEST.md`（T121–T240）。
+
+后端：admin users/reports/audit + RBAC，webhook on send，GraphQL prototype，payment settle，ads frequency cap，push worker mock，migration 00014。
+
+前端：ThreadPanel，AdminPanel，reactions display/remove，typing.stop。
+
+运维：Dockerfile，Helm skeleton，monitoring compose，deploy workflow，golangci-lint，make loadtest-ws。
+
+测试：reaction/thread/webhook/push/admin/graph/replay/integration skeleton；go test + frontend build 通过。
+
+阻塞：Docker/Postgres 云 VM 不可用。
+
+下一步：Playwright CI，GraphQL mutations，integration smoke。
+
 ## 2026-07-01 Batch-120: CI, scripts, ADRs 0016-0022, docs, research, reports, loadtest (checkpoint 7)
 
 任务：120项见 `BATCH_120_MANIFEST.md`（T001–T120，5 tracks）。

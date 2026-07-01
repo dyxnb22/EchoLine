@@ -76,6 +76,22 @@ func (r *Repository) List(ctx context.Context, userID uuid.UUID) ([]LedgerEntry,
 	return out, rows.Err()
 }
 
+// Settle marks a ledger entry as settled (idempotent by reference).
+func (r *Repository) Settle(ctx context.Context, userID uuid.UUID, reference string) (*LedgerEntry, error) {
+	const q = `
+		UPDATE payment_ledger
+		SET status = 'settled'
+		WHERE user_id = $1 AND reference = $2 AND status = 'pending'
+		RETURNING id, user_id, amount_cents, currency, status, reference, created_at
+	`
+	row := r.pool.QueryRow(ctx, q, userID, reference)
+	var e LedgerEntry
+	if err := row.Scan(&e.ID, &e.UserID, &e.AmountCents, &e.Currency, &e.Status, &e.Reference, &e.CreatedAt); err != nil {
+		return nil, fmt.Errorf("settle ledger: %w", err)
+	}
+	return &e, nil
+}
+
 // Handler exposes payment ledger REST endpoints.
 type Handler struct {
 	repo *Repository
@@ -138,6 +154,32 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]any{"entries": items})
+}
+
+// HandleSettle settles a pending ledger entry by reference (idempotent).
+// POST /api/payments/ledger/settle
+func (h *Handler) HandleSettle(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
+		return
+	}
+
+	var req struct {
+		Reference string `json:"reference"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Reference == "" {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "reference is required")
+		return
+	}
+
+	entry, err := h.repo.Settle(r.Context(), claims.UserID, req.Reference)
+	if err != nil {
+		apierror.Write(w, r, http.StatusNotFound, "not_found", "pending entry not found")
+		return
+	}
+
+	apierror.WriteJSON(w, http.StatusOK, ledgerPayload(entry))
 }
 
 func ledgerPayload(e *LedgerEntry) map[string]any {

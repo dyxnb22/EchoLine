@@ -369,6 +369,25 @@
 
 - `POST /api/admin/dlq/{id}/replay`
 
+## Batch Next-120 APIs
+
+### Admin (requires `ADMIN_USER_IDS`)
+
+- `GET /api/admin/users` — list users
+- `GET /api/admin/reports` — list message reports
+- `GET /api/admin/audit-logs` — list audit entries
+- DLQ list/replay also require admin when `ADMIN_USER_IDS` is set
+
+### GraphQL prototype
+
+- `POST /graphql` body `{ "query": "{ conversations { id title } }" }`
+- `GET /graphql` — GraphiQL HTML when `GRAPHIQL=true`
+
+### Payments / Ads
+
+- `POST /api/payments/ledger/settle` body `{ "reference": "..." }` — idempotent settle
+- `POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions` — frequency-capped impression
+
 ## Observability
 
 ### GET `/metrics`

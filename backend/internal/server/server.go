@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/echoline/echoline/backend/internal/admin"
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/config"
@@ -81,9 +82,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/notifications/read-all", auth.RequireAuth(s.auth, http.HandlerFunc(s.notification.HandleMarkAllRead)))
 
 	// Admin
+	adminMW := func(h http.Handler) http.Handler {
+		return admin.RequireAdmin(s.auth, s.adminChecker, h)
+	}
 	mux.Handle("GET /api/admin/health", auth.RequireAuth(s.auth, http.HandlerFunc(s.adminHandler.HandleHealth)))
-	mux.Handle("GET /api/admin/dlq", auth.RequireAuth(s.auth, http.HandlerFunc(s.dlqHandler.HandleList)))
-	mux.Handle("POST /api/admin/dlq/{id}/replay", auth.RequireAuth(s.auth, http.HandlerFunc(s.dlqReplay.HandleReplay)))
+	mux.Handle("GET /api/admin/users", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleListUsers))))
+	mux.Handle("GET /api/admin/reports", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleListReports))))
+	mux.Handle("GET /api/admin/audit-logs", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleListAuditLogs))))
+	mux.Handle("GET /api/admin/dlq", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.dlqHandler.HandleList))))
+	mux.Handle("POST /api/admin/dlq/{id}/replay", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.dlqReplay.HandleReplay))))
 
 	// Reactions
 	mux.Handle("POST /api/messages/{message_id}/reactions", auth.RequireAuth(s.auth, http.HandlerFunc(s.reaction.HandleAdd)))
@@ -115,10 +122,18 @@ func (s *Server) Handler() http.Handler {
 	// Payments
 	mux.Handle("POST /api/payments/ledger", auth.RequireAuth(s.auth, http.HandlerFunc(s.payment.HandleCreate)))
 	mux.Handle("GET /api/payments/ledger", auth.RequireAuth(s.auth, http.HandlerFunc(s.payment.HandleList)))
+	mux.Handle("POST /api/payments/ledger/settle", auth.RequireAuth(s.auth, http.HandlerFunc(s.payment.HandleSettle)))
 
 	// Ads
 	mux.Handle("POST /api/channels/{channel_id}/campaigns", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleCreate)))
 	mux.Handle("GET /api/channels/{channel_id}/campaigns", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleList)))
+	mux.Handle("POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleRecordImpression)))
+
+	// GraphQL prototype
+	if s.graph != nil {
+		mux.Handle("POST /graphql", auth.RequireAuth(s.auth, http.HandlerFunc(s.graph.HandleGraphQL)))
+		mux.Handle("GET /graphql", auth.RequireAuth(s.auth, http.HandlerFunc(s.graph.HandleGraphQL)))
+	}
 
 	// Recommendations
 	mux.Handle("GET /api/recommendations/channels", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendChannels)))

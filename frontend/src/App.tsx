@@ -1,25 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addReaction,
+  adminListUsers,
   blockUser,
   connectWS,
   Conversation,
   listConversations,
   listMessages,
   listNotifications,
+  listReactions,
   listRecommendations,
   login,
   markConversationRead,
   Message,
   Notification,
   presignUpload,
+  Reaction,
   register,
+  removeReaction,
   reportMessage,
   searchMessages,
   SearchHit,
   sendMessage,
   WSStatus,
 } from "./api";
+import { AdminPanel } from "./components/AdminPanel";
+import { ThreadPanel } from "./components/ThreadPanel";
 
 export default function App() {
   const [username, setUsername] = useState("alice");
@@ -43,6 +49,9 @@ export default function App() {
   const [filter, setFilter] = useState<"all" | "channel" | "group">("all");
   const [dark, setDark] = useState(localStorage.getItem("echoline_dark") === "1");
   const [recs, setRecs] = useState<{ channel_id: string; title: string }[]>([]);
+  const [threadMsg, setThreadMsg] = useState<Message | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
   const activeIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<{ close: () => void; send: (p: unknown) => void } | null>(null);
@@ -127,6 +136,11 @@ export default function App() {
         }, 3000);
         return;
       }
+      if (env.type === "typing.stop" && env.payload?.conversation_id === activeIdRef.current) {
+        const uid = env.payload.user_id;
+        if (uid) setTypingUsers((prev) => prev.filter((u) => u !== uid));
+        return;
+      }
       if (env.type !== "message.created") return;
       if (env.payload?.conversation_id !== activeIdRef.current) return;
       setMessages((prev) => {
@@ -151,6 +165,32 @@ export default function App() {
       type: "typing.start",
       payload: { conversation_id: activeId },
     });
+    if (typingTimer.current) window.clearTimeout(typingTimer.current);
+    typingTimer.current = window.setTimeout(() => {
+      wsRef.current?.send({
+        type: "typing.stop",
+        payload: { conversation_id: activeId },
+      });
+    }, 2000);
+  }
+
+  async function loadReactions(messageId: string) {
+    if (!token) return;
+    const rx = await listReactions(token, messageId);
+    setReactions((prev) => ({ ...prev, [messageId]: rx }));
+  }
+
+  async function toggleAdmin() {
+    if (!token || showAdmin) {
+      setShowAdmin(false);
+      return;
+    }
+    try {
+      await adminListUsers(token);
+      setShowAdmin(true);
+    } catch {
+      setError("Admin access denied");
+    }
   }
 
   async function handleAuth(e: React.FormEvent) {
@@ -270,6 +310,7 @@ export default function App() {
           <span className={`ws-status ws-${wsStatus}`}>{wsStatus}</span>
           {notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
           <button onClick={() => { localStorage.removeItem("echoline_token"); setToken(null); }}>Logout</button>
+          <button type="button" onClick={() => void toggleAdmin()}>Admin</button>
         </header>
         <div className="filter-tabs">
           {(["all", "channel", "group"] as const).map((f) => (
@@ -323,9 +364,20 @@ export default function App() {
               <strong>#{m.seq}</strong> {m.body}
               {m.pending && <em> sending...</em>}
               {m.failed && <em> failed</em>}
+              {(reactions[m.id] ?? []).length > 0 && (
+                <span className="reactions">
+                  {(reactions[m.id] ?? []).map((rx, i) => (
+                    <button key={`${rx.emoji}-${i}`} type="button" onClick={() => token && removeReaction(token, m.id, rx.emoji).then(() => loadReactions(m.id)).catch((e) => setError(String(e)))}>
+                      {rx.emoji}
+                    </button>
+                  ))}
+                </span>
+              )}
               {token && activeId && (
                 <span className="msg-actions">
-                  <button type="button" onClick={() => addReaction(token, m.id, "👍").catch((e) => setError(String(e)))}>👍</button>
+                  <button type="button" onClick={() => addReaction(token, m.id, "👍").then(() => loadReactions(m.id)).catch((e) => setError(String(e)))}>👍</button>
+                  <button type="button" onClick={() => addReaction(token, m.id, "❤️").then(() => loadReactions(m.id)).catch((e) => setError(String(e)))}>❤️</button>
+                  <button type="button" onClick={() => setThreadMsg(m)}>Reply</button>
                   <button type="button" onClick={() => reportMessage(token, activeId, m.id, "spam").catch((e) => setError(String(e)))}>Report</button>
                   {m.sender_id !== "me" && (
                     <button type="button" onClick={() => blockUser(token, m.sender_id).catch((e) => setError(String(e)))}>Block</button>
@@ -364,6 +416,12 @@ export default function App() {
         )}
         {error && <p className="error toast">{error}</p>}
       </section>
+      {threadMsg && token && activeId && (
+        <ThreadPanel token={token} convId={activeId} parentMessage={threadMsg} onClose={() => setThreadMsg(null)} />
+      )}
+      {showAdmin && token && (
+        <AdminPanel token={token} onClose={() => setShowAdmin(false)} />
+      )}
     </main>
   );
 }

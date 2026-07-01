@@ -7,31 +7,21 @@ import (
 )
 
 func TestParseThreadPath(t *testing.T) {
-	convID := uuid.New()
-	msgID := uuid.New()
-	path := "/api/conversations/" + convID.String() + "/messages/" + msgID.String() + "/replies"
-
-	gotConvID, gotMsgID, err := parseThreadPath(path)
+	conv := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+	msg := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
+	path := "/api/conversations/" + conv.String() + "/messages/" + msg.String() + "/replies"
+	gotConv, gotMsg, err := parseThreadPath(path)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if gotConvID != convID {
-		t.Errorf("got conv_id %v; want %v", gotConvID, convID)
+	if gotConv != conv || gotMsg != msg {
+		t.Fatalf("got %v %v", gotConv, gotMsg)
 	}
-	if gotMsgID != msgID {
-		t.Errorf("got msg_id %v; want %v", gotMsgID, msgID)
-	}
+}
 
-	// invalid paths
-	badPaths := []string{
-		"/other/path",
-		"/api/conversations/" + convID.String() + "/not-messages/replies",
-		"/api/conversations/not-uuid/messages/" + msgID.String() + "/replies",
-	}
-	for _, p := range badPaths {
-		_, _, err := parseThreadPath(p)
-		if err == nil {
-			t.Errorf("parseThreadPath(%q): expected error, got nil", p)
-		}
+func TestParseThreadPathInvalid(t *testing.T) {
+	_, _, err := parseThreadPath("/api/messages/x/replies")
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

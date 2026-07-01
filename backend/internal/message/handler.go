@@ -24,6 +24,7 @@ type Handler struct {
 	conversations *conversation.Repository
 	attachments   *media.Repository
 	audit         *audit.Repository
+	webhook       WebhookNotifier
 }
 
 // NewHandler creates a message handler.
@@ -33,6 +34,7 @@ func NewHandler(service *Service, conversations *conversation.Repository, attach
 		conversations: conversations,
 		attachments:   attachments,
 		audit:         auditRepo,
+		webhook:       noopWebhook{},
 	}
 }
 
@@ -100,6 +102,7 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusCreated, ToCreatedPayload(msg))
+	h.notifyWebhook(r.Context(), msg)
 }
 
 // HandleList returns paginated conversation messages.

@@ -20,6 +20,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/eventbus"
 	"github.com/echoline/echoline/backend/internal/export"
 	"github.com/echoline/echoline/backend/internal/forward"
+	"github.com/echoline/echoline/backend/internal/graph"
 	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/message"
 	"github.com/echoline/echoline/backend/internal/notification"
@@ -66,6 +67,8 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	msgSvc := message.NewService(msgRepo, convRepo, attachmentRepo, nil)
 	deliveryRepo := delivery.NewRepository(pool)
 
+	msgHandler := message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo)
+
 	blockRepo := block.NewRepository(pool)
 	msgSvc.SetBlockChecker(blockRepo)
 
@@ -104,6 +107,14 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	archiveRepo := conversation.NewArchiveRepository(pool)
 
 	webhookDispatcher := webhook.NewDispatcher(cfg.WebhookURL)
+	msgHandler.SetWebhookNotifier(message.FuncWebhookNotifier(webhookDispatcher.DispatchMessageCreated))
+
+	searchHandler := search.NewHandler(searchRepo)
+	osClient := search.NewOpenSearchClient(cfg.OpenSearchURL)
+	searchHandler.SetOpenSearch(osClient)
+
+	adminChecker := admin.NewStaticAdminChecker(cfg.AdminUserIDs)
+	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
 
 	return &Server{
 		cfg:            cfg,
@@ -111,9 +122,9 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		logger:         logger,
 		auth:           authSvc,
 		conv:           convHandler,
-		msg:            message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo),
+		msg:            msgHandler,
 		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo),
-		search:         search.NewHandler(searchRepo),
+		search:         searchHandler,
 		delivery:       delivery.NewHandler(deliveryRepo, convRepo),
 		realtime:       rt,
 		limiter:        limiter,
@@ -142,7 +153,9 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
 		webhook:        webhookDispatcher,
-		opensearch:     search.NewOpenSearchClient(cfg.OpenSearchURL),
+		opensearch:     osClient,
+		adminChecker:   adminChecker,
+		graph:          graphHandler,
 	}
 }
 
@@ -186,6 +199,8 @@ type Server struct {
 	archive      *conversation.ArchiveHandler
 	webhook      *webhook.Dispatcher
 	opensearch   *search.OpenSearchClient
+	adminChecker admin.AdminChecker
+	graph        *graph.Handler
 }
 
 // OutboxRepo exposes outbox repository for workers.

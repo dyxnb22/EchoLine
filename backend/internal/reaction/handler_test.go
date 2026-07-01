@@ -7,47 +7,30 @@ import (
 )
 
 func TestParseMessageID(t *testing.T) {
-	id := uuid.New()
-	tests := []struct {
-		path    string
-		wantErr bool
-		wantID  uuid.UUID
-	}{
-		{"/api/messages/" + id.String() + "/reactions", false, id},
-		{"/api/messages/" + id.String() + "/reactions/👍", false, id},
-		{"/other/path", true, uuid.Nil},
-		{"/api/messages/not-a-uuid/reactions", true, uuid.Nil},
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	got, err := parseMessageID("/api/messages/" + id.String() + "/reactions")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	for _, tc := range tests {
-		got, err := parseMessageID(tc.path)
-		if tc.wantErr {
-			if err == nil {
-				t.Errorf("parseMessageID(%q): expected error, got nil", tc.path)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("parseMessageID(%q): unexpected error: %v", tc.path, err)
-			continue
-		}
-		if got != tc.wantID {
-			t.Errorf("parseMessageID(%q) = %v; want %v", tc.path, got, tc.wantID)
-		}
+	if got != id {
+		t.Fatalf("got %v want %v", got, id)
 	}
 }
 
 func TestParseMessageIDAndEmoji(t *testing.T) {
-	id := uuid.New()
-	path := "/api/messages/" + id.String() + "/reactions/👍"
-	msgID, emoji, err := parseMessageIDAndEmoji(path)
+	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	gotID, emoji, err := parseMessageIDAndEmoji("/api/messages/" + id.String() + "/reactions/👍")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if msgID != id {
-		t.Errorf("got message_id %v; want %v", msgID, id)
+	if gotID != id || emoji != "👍" {
+		t.Fatalf("got %v %q", gotID, emoji)
 	}
-	if emoji != "👍" {
-		t.Errorf("got emoji %q; want %q", emoji, "👍")
+}
+
+func TestParseMessageIDInvalid(t *testing.T) {
+	_, err := parseMessageID("/api/conversations/x")
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

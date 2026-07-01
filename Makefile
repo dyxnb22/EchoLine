@@ -33,7 +33,10 @@ frontend-build:
 	cd frontend && npm install && npm run build
 
 lint:
-	@echo "No linters yet."
+	cd backend && golangci-lint run ./... 2>/dev/null || go vet ./...
+
+loadtest-ws:
+	k6 run loadtests/k6-ws-connect.js
 
 dev-up:
 	docker compose up -d

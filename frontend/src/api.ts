@@ -213,7 +213,62 @@ export async function listRecommendations(token: string): Promise<{ channel_id: 
   const res = await fetch(`${API_BASE}/api/recommendations/channels`, { headers: authHeaders(token) });
   if (!res.ok) return [];
   const data = await res.json();
-  return data.channels ?? [];
+  return (data.channels ?? []).map((c: { id?: string; channel_id?: string; title: string }) => ({
+    channel_id: c.id ?? c.channel_id ?? "",
+    title: c.title,
+  }));
+}
+
+export type Reaction = { user_id: string; emoji: string; created_at?: string };
+
+export async function listReactions(token: string, messageId: string): Promise<Reaction[]> {
+  const res = await fetch(`${API_BASE}/api/messages/${messageId}/reactions`, { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.reactions ?? [];
+}
+
+export async function removeReaction(token: string, messageId: string, emoji: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("remove reaction failed");
+}
+
+export async function listReplies(token: string, convId: string, messageId: string): Promise<Message[]> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}/replies`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("list replies failed");
+  const data = await res.json();
+  return data.replies ?? [];
+}
+
+export async function sendReply(token: string, convId: string, messageId: string, body: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}/replies`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ body }),
+  });
+  if (!res.ok) throw new Error("send reply failed");
+}
+
+export type AdminUser = { id: string; username: string; display_name: string; is_admin: boolean };
+export type AdminReport = { id: string; reason: string; message_id: string; conversation_id: string };
+
+export async function adminListUsers(token: string): Promise<AdminUser[]> {
+  const res = await fetch(`${API_BASE}/api/admin/users`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("admin users failed");
+  const data = await res.json();
+  return data.users ?? [];
+}
+
+export async function adminListReports(token: string): Promise<AdminReport[]> {
+  const res = await fetch(`${API_BASE}/api/admin/reports`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("admin reports failed");
+  const data = await res.json();
+  return data.reports ?? [];
 }
 
 export type WSStatus = "connecting" | "open" | "closed";

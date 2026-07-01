@@ -88,6 +88,39 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status stri
 	return &c, nil
 }
 
+// RecordImpression records an ad impression with frequency cap enforcement.
+func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uuid.UUID) (bool, error) {
+	const capQ = `SELECT frequency_cap FROM ad_campaigns WHERE id = $1`
+	var cap int
+	if err := r.pool.QueryRow(ctx, capQ, campaignID).Scan(&cap); err != nil {
+		return false, fmt.Errorf("get frequency cap: %w", err)
+	}
+	if cap <= 0 {
+		cap = 3
+	}
+
+	const countQ = `
+		SELECT COUNT(*) FROM ad_impressions
+		WHERE campaign_id = $1 AND user_id = $2 AND created_at::date = CURRENT_DATE
+	`
+	var count int
+	if err := r.pool.QueryRow(ctx, countQ, campaignID, userID).Scan(&count); err != nil {
+		return false, fmt.Errorf("count impressions: %w", err)
+	}
+	if count >= cap {
+		return false, nil
+	}
+
+	const insQ = `
+		INSERT INTO ad_impressions (id, campaign_id, user_id, created_at)
+		VALUES (gen_random_uuid(), $1, $2, NOW())
+	`
+	if _, err := r.pool.Exec(ctx, insQ, campaignID, userID); err != nil {
+		return false, fmt.Errorf("record impression: %w", err)
+	}
+	return true, nil
+}
+
 // Handler exposes ad campaign REST endpoints.
 type Handler struct {
 	repo *Repository
@@ -158,6 +191,44 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]any{"campaigns": items})
+}
+
+// HandleRecordImpression records an ad impression with frequency cap.
+// POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions
+func (h *Handler) HandleRecordImpression(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
+		return
+	}
+
+	campaignID, err := parseCampaignID(r.URL.Path)
+	if err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid campaign_id")
+		return
+	}
+
+	recorded, err := h.repo.RecordImpression(r.Context(), campaignID, claims.UserID)
+	if err != nil {
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to record impression")
+		return
+	}
+
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
+		"recorded": recorded,
+		"status":   map[bool]string{true: "recorded", false: "frequency_capped"}[recorded],
+	})
+}
+
+func parseCampaignID(path string) (uuid.UUID, error) {
+	const marker = "/campaigns/"
+	idx := strings.Index(path, marker)
+	if idx < 0 {
+		return uuid.Nil, fmt.Errorf("invalid path")
+	}
+	rest := strings.TrimPrefix(path[idx:], marker)
+	parts := strings.SplitN(rest, "/", 2)
+	return uuid.Parse(parts[0])
 }
 
 func parseChannelID(path string) (uuid.UUID, error) {

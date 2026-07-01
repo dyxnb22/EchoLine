@@ -30,16 +30,18 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-// RecommendChannels returns channels the user has not joined, ordered by member count.
+// RecommendChannels returns channels the user has not joined, ranked by subscriber count.
 func (r *Repository) RecommendChannels(ctx context.Context, userID uuid.UUID, limit int) ([]ChannelSummary, error) {
 	const q = `
 		SELECT c.id, c.title, c.created_at
 		FROM conversations c
+		LEFT JOIN conversation_members cm ON cm.conversation_id = c.id
 		WHERE c.type = 'channel'
 		  AND c.id NOT IN (
 			SELECT conversation_id FROM conversation_members WHERE user_id = $1
 		  )
-		ORDER BY c.latest_seq DESC
+		GROUP BY c.id, c.title, c.created_at
+		ORDER BY COUNT(cm.user_id) DESC, c.latest_seq DESC
 		LIMIT $2
 	`
 	rows, err := r.pool.Query(ctx, q, userID, limit)

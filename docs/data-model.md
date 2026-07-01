@@ -166,6 +166,18 @@
 
 见 `backend/migrations/00012_extensions_skeleton.sql`。
 
+### users.is_admin
+
+Migration `00014`: boolean admin flag (default false). Runtime admin also via `ADMIN_USER_IDS` env.
+
+### webhook_deliveries
+
+- `id`, `event_type`, `payload`, `status`, `attempts`, `last_error`, `created_at`, `delivered_at`
+
+### ad_campaigns extensions (00014)
+
+- `budget_cents`, `frequency_cap` (default 3 impressions/user/day)
+
 ### audit_logs
 
 - `id`

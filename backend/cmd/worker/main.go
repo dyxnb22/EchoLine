@@ -15,8 +15,11 @@ import (
 	"github.com/echoline/echoline/backend/internal/metrics"
 	"github.com/echoline/echoline/backend/internal/migrate"
 	"github.com/echoline/echoline/backend/internal/outbox"
+	"github.com/echoline/echoline/backend/internal/push"
 	"github.com/echoline/echoline/backend/internal/search"
 	workerpkg "github.com/echoline/echoline/backend/internal/worker"
+
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -61,6 +64,8 @@ func main() {
 
 	msgHandler := workerpkg.NewMessageCreatedHandler(searchRepo, logger)
 	fanoutWorker := workerpkg.NewFanoutWorker(logger)
+	pushRepo := push.NewRepository(pool)
+	pushWorker := push.NewWorker(pushRepo, push.NewMockProvider(logger), logger)
 
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
@@ -92,7 +97,8 @@ func main() {
 			if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
 				logger.Error("fanout worker", "error", err)
 			}
-			// Notification mock worker: log that we would create a notification event.
+			// T126: push notification mock for offline users.
+			_ = pushWorker.NotifyUser(ctx, uuid.Nil, "New message", "You have a new message")
 			logger.Info("notification worker: would create notification", "topic", evt.Type)
 		}
 	}()
