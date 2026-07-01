@@ -18,11 +18,10 @@
 | Phase 1 | partial | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
 | Phase 2 | partial | WebSocket 连接、心跳、在线推送 | WS smoke | websocket-protocol |
 | Phase 3 | partial | 会话列表、未读、历史、离线 sync | sync/unread tests | reliability、api |
-| Phase 4 | todo | 群聊、频道、presence、多端 | role/presence tests | architecture、data-model |
-| Phase 5 | todo | 幂等、ACK、重试、去重、顺序性 | reliability tests | reliability ADR |
-| Phase 6 | todo | Redis、MQ、worker、异步化 | eventbus tests | cache/MQ ADR |
-| Phase 7 | todo | 附件、搜索、通知 | media/search tests | api、scaling |
-| Phase 8 | todo | 限流、审计、监控、风控 | limiter/audit/metrics tests | observability notes |
+| Phase 4 | partial | 群聊、频道、presence、多端 | role/presence tests | architecture、data-model |
+| Phase 5 | partial | 幂等、ACK、重试、去重、顺序性 | reliability tests | reliability ADR |
+| Phase 6 | partial | Redis、MQ、worker、异步化 | eventbus tests | cache/MQ ADR |
+| Phase 8 | partial | 限流、审计、监控、风控 | limiter/audit/metrics tests | observability notes |
 | Phase 9 | todo | 测试、压测、报告、面试讲稿 | CI + k6 | load test reports |
 | Phase 10 | todo | 增强项和探索项 | prototype tests | scaling/research reports |
 
