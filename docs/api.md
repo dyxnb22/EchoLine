@@ -388,6 +388,17 @@
 - `POST /api/payments/ledger/settle` body `{ "reference": "..." }` — idempotent settle
 - `POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions` — frequency-capped impression
 
+### Encryption / Presence / Recommendations
+
+- `POST/GET /api/encryption/keys` — device public key bundles
+- `GET /api/presence/last-seen?user_ids=...` — last seen timestamps
+- `POST /api/presence/last-seen` — touch current user last-seen
+- `GET /api/recommendations/friends` — mutual-group friend suggestions
+
+### GraphQL mutation
+
+- `POST /graphql` mutation `sendMessage` with variables `conversationId`, `body`
+
 ## Observability
 
 ### GET `/metrics`

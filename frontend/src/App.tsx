@@ -9,27 +9,27 @@ import {
   listMessages,
   listNotifications,
   listReactions,
+  listFriendRecommendations,
   listRecommendations,
-  login,
   markConversationRead,
   Message,
   Notification,
   presignUpload,
   Reaction,
-  register,
   removeReaction,
   reportMessage,
   searchMessages,
   SearchHit,
   sendMessage,
+  touchLastSeen,
   WSStatus,
 } from "./api";
 import { AdminPanel } from "./components/AdminPanel";
+import { ConversationActions } from "./components/ConversationActions";
 import { ThreadPanel } from "./components/ThreadPanel";
+import { LoginPage } from "./pages/LoginPage";
 
 export default function App() {
-  const [username, setUsername] = useState("alice");
-  const [password, setPassword] = useState("secret123");
   const [token, setToken] = useState<string | null>(localStorage.getItem("echoline_token"));
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -42,13 +42,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<WSStatus>("closed");
   const [uploading, setUploading] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [displayName, setDisplayName] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [filter, setFilter] = useState<"all" | "channel" | "group">("all");
   const [dark, setDark] = useState(localStorage.getItem("echoline_dark") === "1");
   const [recs, setRecs] = useState<{ channel_id: string; title: string }[]>([]);
+  const [friends, setFriends] = useState<{ id: string; username: string; display_name: string }[]>([]);
   const [threadMsg, setThreadMsg] = useState<Message | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
@@ -75,6 +74,8 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     listRecommendations(token).then(setRecs).catch(() => undefined);
+    listFriendRecommendations(token).then(setFriends).catch(() => undefined);
+    touchLastSeen(token).catch(() => undefined);
   }, [token]);
 
   useEffect(() => {
@@ -193,22 +194,6 @@ export default function App() {
     }
   }
 
-  async function handleAuth(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    try {
-      if (authMode === "register") {
-        await register(username, password, displayName || username);
-      }
-      const tokens = await login(username, password);
-      localStorage.setItem("echoline_token", tokens.access_token);
-      localStorage.setItem("echoline_refresh", tokens.refresh_token);
-      setToken(tokens.access_token);
-    } catch (err) {
-      setError(String(err));
-    }
-  }
-
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !activeId || !draft.trim()) return;
@@ -278,24 +263,7 @@ export default function App() {
   }
 
   if (!token) {
-    return (
-      <main className="shell">
-        <h1>EchoLine</h1>
-        <form onSubmit={handleAuth} className="card">
-          <div className="auth-tabs">
-            <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => setAuthMode("login")}>Login</button>
-            <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => setAuthMode("register")}>Register</button>
-          </div>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" />
-          {authMode === "register" && (
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="display name" />
-          )}
-          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="password" />
-          <button type="submit">{authMode === "login" ? "Login" : "Register & Login"}</button>
-          {error && <p className="error toast">{error}</p>}
-        </form>
-      </main>
-    );
+    return <LoginPage onLogin={setToken} />;
   }
 
   const active = conversations.find((c) => c.id === activeId);
@@ -330,6 +298,14 @@ export default function App() {
             ))}
           </ul>
         )}
+        {friends.length > 0 && (
+          <div className="recs">
+            <strong>Friends</strong>
+            {friends.map((f) => (
+              <span key={f.id} className="friend-chip">{f.display_name || f.username}</span>
+            ))}
+          </div>
+        )}
         {recs.length > 0 && (
           <div className="recs">
             <strong>Recommended</strong>
@@ -352,6 +328,15 @@ export default function App() {
         <header>
           {active ? (active.title || active.type) : "Select a conversation"}
           {typingUsers.length > 0 && <span className="typing">typing...</span>}
+          {token && activeId && active && (
+            <ConversationActions
+              token={token}
+              conversationId={activeId}
+              conversationType={active.type}
+              messageId={messages[messages.length - 1]?.id}
+              onAction={() => listConversations(token).then(setConversations).catch(() => undefined)}
+            />
+          )}
         </header>
         {nextBefore != null && (
           <button className="load-more" onClick={handleLoadMore} disabled={loadingMore}>

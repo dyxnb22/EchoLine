@@ -17,6 +17,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/outbox"
 	"github.com/echoline/echoline/backend/internal/push"
 	"github.com/echoline/echoline/backend/internal/search"
+	"github.com/echoline/echoline/backend/internal/webhook"
 	workerpkg "github.com/echoline/echoline/backend/internal/worker"
 
 	"github.com/google/uuid"
@@ -66,6 +67,26 @@ func main() {
 	fanoutWorker := workerpkg.NewFanoutWorker(logger)
 	pushRepo := push.NewRepository(pool)
 	pushWorker := push.NewWorker(pushRepo, push.NewMockProvider(logger), logger)
+	webhookRepo := webhook.NewRepository(pool)
+	webhookDispatcher := webhook.NewDispatcher(cfg.WebhookURL)
+	webhookRetry := webhook.NewRetryWorker(webhookRepo, webhookDispatcher)
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n, err := webhookRetry.RunOnce(ctx); err != nil {
+					logger.Warn("webhook retry", "error", err)
+				} else if n > 0 {
+					logger.Info("webhook retry delivered", "count", n)
+				}
+			}
+		}
+	}()
 
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)

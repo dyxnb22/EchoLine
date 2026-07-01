@@ -178,6 +178,10 @@ Migration `00014`: boolean admin flag (default false). Runtime admin also via `A
 
 - `budget_cents`, `frequency_cap` (default 3 impressions/user/day)
 
+### channel_entitlements (00015)
+
+- `user_id`, `channel_id`, `status`, `reference`, `expires_at` — paid channel access skeleton
+
 ### audit_logs
 
 - `id`

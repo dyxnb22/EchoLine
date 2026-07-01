@@ -61,6 +61,44 @@ func (r *Repository) RecommendChannels(ctx context.Context, userID uuid.UUID, li
 	return out, rows.Err()
 }
 
+// UserSummary is a recommended contact.
+type UserSummary struct {
+	ID          uuid.UUID
+	Username    string
+	DisplayName string
+}
+
+// RecommendFriends returns users who share a group with the requester but are not blocked.
+func (r *Repository) RecommendFriends(ctx context.Context, userID uuid.UUID, limit int) ([]UserSummary, error) {
+	const q = `
+		SELECT DISTINCT u.id, u.username, u.display_name
+		FROM users u
+		JOIN conversation_members cm1 ON cm1.user_id = u.id
+		JOIN conversation_members cm2 ON cm2.conversation_id = cm1.conversation_id
+		JOIN conversations c ON c.id = cm1.conversation_id AND c.type IN ('group', 'direct')
+		WHERE cm2.user_id = $1
+		  AND u.id != $1
+		  AND u.id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = $1)
+		ORDER BY u.username
+		LIMIT $2
+	`
+	rows, err := r.pool.Query(ctx, q, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("recommend friends: %w", err)
+	}
+	defer rows.Close()
+
+	var out []UserSummary
+	for rows.Next() {
+		var u UserSummary
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName); err != nil {
+			return nil, fmt.Errorf("scan friend: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // Handler exposes recommendation REST endpoints.
 type Handler struct {
 	repo *Repository
@@ -96,4 +134,30 @@ func (h *Handler) HandleRecommendChannels(w http.ResponseWriter, r *http.Request
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]any{"channels": items})
+}
+
+// HandleRecommendFriends returns friend suggestions based on mutual groups.
+// GET /api/recommendations/friends
+func (h *Handler) HandleRecommendFriends(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
+		return
+	}
+
+	friends, err := h.repo.RecommendFriends(r.Context(), claims.UserID, 20)
+	if err != nil {
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch friends")
+		return
+	}
+
+	items := make([]map[string]any, 0, len(friends))
+	for _, f := range friends {
+		items = append(items, map[string]any{
+			"id":           f.ID,
+			"username":     f.Username,
+			"display_name": f.DisplayName,
+		})
+	}
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{"friends": items})
 }

@@ -62,6 +62,12 @@ loadtest-api:
 replay:
 	cd backend && go run ./cmd/replay
 
+backup-db:
+	chmod +x scripts/backup-db.sh && ./scripts/backup-db.sh
+
+dev-app:
+	docker compose --profile app up -d
+
 seed-extended:
 	./scripts/seed-extended.sh
 

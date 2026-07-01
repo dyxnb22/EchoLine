@@ -214,6 +214,12 @@ button {
 
 .dark .thread-panel, .dark .admin-panel { border-color: #374151; }
 .dark .reactions button { background: #374151; color: #f9fafb; }
+
+.conv-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; align-items: center; }
+.conv-actions button { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+.forward-input { font-size: 0.75rem; padding: 0.2rem 0.4rem; max-width: 140px; }
+.friend-chip { background: #e5e7eb; border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.8rem; margin-right: 0.25rem; }
+.dark .friend-chip { background: #374151; }
 .msg-actions { display: inline-flex; gap: 0.25rem; margin-left: 0.5rem; }
 .msg-actions button { font-size: 0.75rem; padding: 0.15rem 0.4rem; background: #e5e7eb; color: #111; }
 

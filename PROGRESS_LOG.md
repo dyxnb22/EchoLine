@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Batch-Next-200: encryption, webhook retry, graphql mutation, frontend split (checkpoint 9)
+
+任务：200项见 `BATCH_NEXT_200_MANIFEST.md`（T241–T440）。
+
+后端：encryption keys API，webhook persistence+retry worker，GraphQL sendMessage，last-seen，friend recommendations，00015。
+
+前端：LoginPage，ConversationActions，friend recs，api helpers。
+
+运维：compose app profile，backup-db，k8s secrets，Playwright CI，integration test strict。
+
+文档：ADR 0023-0026，iteration-06。
+
+测试：go test + frontend build 通过。
+
+阻塞：云 VM 无 Docker/Postgres 全量 smoke。
+
+下一步：react-router，entitlement enforcement，Playwright send E2E。
+
 ## 2026-07-01 Batch-Next-120: admin, graphql, ops, frontend (checkpoint 8)
 
 任务：120项见 `BATCH_NEXT_120_MANIFEST.md`（T121–T240）。

@@ -106,6 +106,12 @@ func (s *Server) Handler() http.Handler {
 
 	// Presence
 	mux.Handle("GET /api/presence/online", auth.RequireAuth(s.auth, http.HandlerFunc(s.presenceH.HandleOnline)))
+	mux.Handle("GET /api/presence/last-seen", auth.RequireAuth(s.auth, http.HandlerFunc(s.lastSeenH.HandleGet)))
+	mux.Handle("POST /api/presence/last-seen", auth.RequireAuth(s.auth, http.HandlerFunc(s.lastSeenH.HandleTouch)))
+
+	// Encryption key bundles
+	mux.Handle("POST /api/encryption/keys", auth.RequireAuth(s.auth, http.HandlerFunc(s.encryption.HandleRegister)))
+	mux.Handle("GET /api/encryption/keys", auth.RequireAuth(s.auth, http.HandlerFunc(s.encryption.HandleList)))
 
 	// Export
 	mux.Handle("GET /api/conversations/{id}/export", auth.RequireAuth(s.auth, http.HandlerFunc(s.export.HandleExport)))
@@ -137,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Recommendations
 	mux.Handle("GET /api/recommendations/channels", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendChannels)))
+	mux.Handle("GET /api/recommendations/friends", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendFriends)))
 
 	s.applyRateLimits(mux)
 

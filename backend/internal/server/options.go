@@ -17,6 +17,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
 	"github.com/echoline/echoline/backend/internal/device"
+	"github.com/echoline/echoline/backend/internal/encryption"
 	"github.com/echoline/echoline/backend/internal/eventbus"
 	"github.com/echoline/echoline/backend/internal/export"
 	"github.com/echoline/echoline/backend/internal/forward"
@@ -78,11 +79,13 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	var limiter rate_limit.Limiter
 	var listCache *cache.ConversationListCache
 	var presenceChecker *presence.RedisOnlineChecker
+	var lastSeenStore *presence.LastSeenStore
 	if opts.Redis != nil {
 		presenceTracker = presence.NewStore(opts.Redis, 0)
 		limiter = rate_limit.NewRedisLimiter(opts.Redis)
 		listCache = cache.NewConversationListCache(opts.Redis)
 		presenceChecker = presence.NewRedisOnlineChecker(opts.Redis)
+		lastSeenStore = presence.NewLastSeenStore(opts.Redis)
 	}
 
 	rt := realtime.NewServer(authSvc, msgSvc, convRepo, deliveryRepo, presenceTracker, logger)
@@ -107,7 +110,9 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	archiveRepo := conversation.NewArchiveRepository(pool)
 
 	webhookDispatcher := webhook.NewDispatcher(cfg.WebhookURL)
-	msgHandler.SetWebhookNotifier(message.FuncWebhookNotifier(webhookDispatcher.DispatchMessageCreated))
+	webhookRepo := webhook.NewRepository(pool)
+	persistingWebhook := webhook.NewPersistingDispatcher(webhookDispatcher, webhookRepo)
+	msgHandler.SetWebhookNotifier(message.FuncWebhookNotifier(persistingWebhook.DispatchMessageCreated))
 
 	searchHandler := search.NewHandler(searchRepo)
 	osClient := search.NewOpenSearchClient(cfg.OpenSearchURL)
@@ -115,6 +120,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	adminChecker := admin.NewStaticAdminChecker(cfg.AdminUserIDs)
 	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
+	graphHandler.SetMessageSender(msgSvc)
 
 	return &Server{
 		cfg:            cfg,
@@ -146,13 +152,16 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		thread:         thread.NewHandler(thread.NewRepository(pool)),
 		forward:        forward.NewHandler(forward.NewRepository(pool)),
 		presenceH:      presence.NewOnlineHandler(presenceChecker),
+		lastSeenH:      presence.NewLastSeenHandler(lastSeenStore),
 		export:         export.NewHandler(export.NewRepository(pool)),
 		push:           push.NewHandler(push.NewRepository(pool)),
 		payment:        payment.NewHandler(payment.NewRepository(pool)),
 		ads:            ads.NewHandler(ads.NewRepository(pool)),
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
+		encryption:     encryption.NewHandler(encryption.NewRepository(pool)),
 		webhook:        webhookDispatcher,
+		webhookRepo:    webhookRepo,
 		opensearch:     osClient,
 		adminChecker:   adminChecker,
 		graph:          graphHandler,
@@ -191,16 +200,24 @@ type Server struct {
 	thread       *thread.Handler
 	forward      *forward.Handler
 	presenceH    *presence.OnlineHandler
+	lastSeenH    *presence.LastSeenHandler
 	export       *export.Handler
 	push         *push.Handler
 	payment      *payment.Handler
 	ads          *ads.Handler
 	recommendation *recommendation.Handler
 	archive      *conversation.ArchiveHandler
+	encryption   *encryption.Handler
 	webhook      *webhook.Dispatcher
+	webhookRepo  *webhook.Repository
 	opensearch   *search.OpenSearchClient
 	adminChecker admin.AdminChecker
 	graph        *graph.Handler
+}
+
+// WebhookRepo exposes webhook delivery repository for workers.
+func (s *Server) WebhookRepo() *webhook.Repository {
+	return s.webhookRepo
 }
 
 // OutboxRepo exposes outbox repository for workers.

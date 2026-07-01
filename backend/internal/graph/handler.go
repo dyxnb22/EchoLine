@@ -11,6 +11,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 // ConversationRepo lists conversations for GraphQL queries.
@@ -18,9 +19,15 @@ type ConversationRepo interface {
 	ListForUser(ctx context.Context, userID uuid.UUID, limit int) ([]conversation.Conversation, error)
 }
 
+// MessageSender sends messages for GraphQL mutations.
+type MessageSender interface {
+	Send(ctx context.Context, convID, userID uuid.UUID, input message.SendInput) (*message.Message, error)
+}
+
 // Handler is a minimal GraphQL-style JSON endpoint (prototype).
 type Handler struct {
 	conversations ConversationRepo
+	messages      MessageSender
 	graphiql      bool
 }
 
@@ -29,11 +36,18 @@ func NewHandler(conv ConversationRepo, graphiql bool) *Handler {
 	return &Handler{conversations: conv, graphiql: graphiql}
 }
 
-type gqlRequest struct {
-	Query string `json:"query"`
+// SetMessageSender enables sendMessage mutation.
+func (h *Handler) SetMessageSender(sender MessageSender) {
+	h.messages = sender
 }
 
-// HandleGraphQL serves POST /graphql with a subset of queries.
+type gqlRequest struct {
+	Query         string         `json:"query"`
+	Variables     map[string]any `json:"variables"`
+	OperationName string         `json:"operationName"`
+}
+
+// HandleGraphQL serves POST /graphql with queries and mutations.
 func (h *Handler) HandleGraphQL(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet && h.graphiql {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -60,14 +74,47 @@ func (h *Handler) HandleGraphQL(w http.ResponseWriter, r *http.Request) {
 
 	q := strings.ToLower(strings.TrimSpace(req.Query))
 	switch {
+	case strings.Contains(q, "mutation") && strings.Contains(q, "sendmessage"):
+		h.handleSendMessage(w, r, claims.UserID, req.Variables)
 	case strings.Contains(q, "conversations"):
 		h.handleConversations(w, r, claims.UserID)
 	default:
 		apierror.WriteJSON(w, http.StatusOK, map[string]any{
 			"data":   nil,
-			"errors": []map[string]string{{"message": "unsupported query; try { conversations { id title } }"}},
+			"errors": []map[string]string{{"message": "unsupported; try conversations or mutation sendMessage"}},
 		})
 	}
+}
+
+func (h *Handler) handleSendMessage(w http.ResponseWriter, r *http.Request, userID uuid.UUID, vars map[string]any) {
+	if h.messages == nil {
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "mutations not configured")
+		return
+	}
+	convRaw, _ := vars["conversationId"].(string)
+	body, _ := vars["body"].(string)
+	convID, err := uuid.Parse(convRaw)
+	if err != nil || body == "" {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "conversationId and body required in variables")
+		return
+	}
+	msg, err := h.messages.Send(r.Context(), convID, userID, message.SendInput{
+		Type: message.TypeText,
+		Body: body,
+	})
+	if err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
+		"data": map[string]any{
+			"sendMessage": map[string]any{
+				"id":   msg.ID,
+				"seq":  msg.Seq,
+				"body": msg.Body,
+			},
+		},
+	})
 }
 
 func (h *Handler) handleConversations(w http.ResponseWriter, r *http.Request, userID uuid.UUID) {
@@ -95,5 +142,6 @@ func (h *Handler) handleConversations(w http.ResponseWriter, r *http.Request, us
 
 const graphiqlHTML = `<!DOCTYPE html><html><head><title>EchoLine GraphiQL</title></head>
 <body><h1>EchoLine GraphQL Prototype</h1>
-<p>POST JSON: <code>{"query":"{ conversations { id title } }"}</code></p>
+<p>Query: <code>{"query":"{ conversations { id title } }"}</code></p>
+<p>Mutation: <code>{"query":"mutation($conversationId:ID!,$body:String!){sendMessage(conversationId:$conversationId,body:$body){id seq body}}","variables":{"conversationId":"...","body":"hi"}}</code></p>
 </body></html>`

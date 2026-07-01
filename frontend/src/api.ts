@@ -271,6 +271,61 @@ export async function adminListReports(token: string): Promise<AdminReport[]> {
   return data.reports ?? [];
 }
 
+export async function pinMessage(token: string, conversationId: string, messageId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/pins/${messageId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("pin failed");
+}
+
+export async function archiveConversation(token: string, conversationId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/archive`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("archive failed");
+}
+
+export async function exportConversation(token: string, conversationId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/export`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("export failed");
+  return res.blob();
+}
+
+export async function forwardMessage(token: string, messageId: string, targetConversationId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/messages/${messageId}/forward`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ target_conversation_id: targetConversationId }),
+  });
+  if (!res.ok) throw new Error("forward failed");
+}
+
+export async function subscribeChannel(token: string, channelId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${channelId}/subscribe`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("subscribe failed");
+}
+
+export async function listFriendRecommendations(token: string): Promise<{ id: string; username: string; display_name: string }[]> {
+  const res = await fetch(`${API_BASE}/api/recommendations/friends`, { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.friends ?? [];
+}
+
+export async function touchLastSeen(token: string): Promise<void> {
+  await fetch(`${API_BASE}/api/presence/last-seen`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+}
+
 export type WSStatus = "connecting" | "open" | "closed";
 
 export function connectWS(

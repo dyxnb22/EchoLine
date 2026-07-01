@@ -1,15 +1,15 @@
 # Current State
 
-Current phase: Batch-Next-120 complete (T121–T240 manifest).
+Current phase: Batch-Next-200 complete (T241–T440 manifest).
 
-Milestone: 120 tasks in `BATCH_NEXT_120_MANIFEST.md`.
+Milestone: 200 tasks in `BATCH_NEXT_200_MANIFEST.md`.
 
 Last batch highlights:
 
-- Backend: admin APIs + RBAC, webhook on send, GraphQL prototype, payment settle, ads frequency cap, push worker, migration 00014
-- Frontend: thread panel, admin panel, reactions display, typing.stop
-- Ops: Dockerfile, Helm skeleton, monitoring compose, deploy workflow, golangci-lint
-- Tests: reaction/thread/webhook/push/admin/graph/replay/integration skeleton
+- Backend: E2EE key API, webhook retry worker, GraphQL sendMessage mutation, last-seen, friend recommendations, migration 00015
+- Frontend: LoginPage split, ConversationActions (pin/archive/export/forward), friend recs
+- Ops: docker compose app profile, backup script, k8s secrets, Playwright CI job, strict integration tests
+- Docs: ADR 0023–0026, iteration-06
 
 Tests:
 
@@ -22,8 +22,7 @@ Blocker:
 
 Next:
 
-1. `make dev-up` + `make smoke-full` when Postgres available
-2. Playwright CI wiring
-3. GraphQL mutations/subscriptions
-4. Frontend component split + routing
-5. E2EE/payment/ads production paths
+1. `make dev-up` + `make dev-app` + `make smoke-full`
+2. react-router wiring in frontend
+3. Channel entitlement enforcement
+4. Playwright send-message E2E

@@ -2,29 +2,22 @@
 
 ## Immediate P0
 
-1. Integration smoke: `make dev-up` + `RUN_API_SMOKE=1 RUN_WS_SMOKE=1 make smoke-full`
-2. Set `ADMIN_USER_IDS` in `.env` for admin panel testing
-3. CI: remove `continue-on-error` on integration tests when stable
+1. `make dev-up && make dev-app` — run API in compose profile
+2. `make smoke-full` with running stack
+3. Wire react-router in `App.tsx`
 
 ## Sequential
 
-4. Playwright in GitHub Actions
-5. GraphQL mutations (sendMessage, addReaction)
-6. Frontend react-router split
-7. Webhook delivery retry worker
-8. E2EE key bundle REST API
+4. Channel entitlement check on subscribe
+5. Playwright login→send→verify (non continue-on-error)
+6. GraphQL addReaction mutation
+7. Webhook admin list/replay UI
 
 ## Environment
 
 ```bash
 make dev-up
-export DATABASE_URL=postgres://echoline:echoline@localhost:5432/echoline?sslmode=disable
-export JWT_SECRET=change-me
-export ADMIN_USER_IDS=<admin-user-uuid>
-export WEBHOOK_URL=http://localhost:9999/hook
-export GRAPHIQL=true
-make api-run
-make worker-run
-make seed
-make frontend-dev
+make dev-app
+export ADMIN_USER_IDS=<uuid>
+make smoke-full
 ```
