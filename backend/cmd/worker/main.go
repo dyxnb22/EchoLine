@@ -45,10 +45,15 @@ func main() {
 	memPub := eventbus.NewMemoryBytesPublisher(memBus)
 
 	var kafkaPub eventbus.BytesPublisher
+	var kafkaConsumer *eventbus.KafkaConsumer
 	if cfg.KafkaBrokers != "" {
 		kp := eventbus.NewKafkaPublisher(cfg.KafkaBrokers, eventbus.TopicMessageCreated)
 		kafkaPub = kp
 		defer kp.Close()
+
+		// F009: consumer for lag tracking.
+		kafkaConsumer = eventbus.NewKafkaConsumer(cfg.KafkaBrokers, eventbus.TopicMessageCreated, "echoline-lag-probe")
+		defer kafkaConsumer.Close()
 	}
 
 	drainer := outbox.NewPublisher(outboxRepo, kafkaPub, memPub, logger)
@@ -67,6 +72,10 @@ func main() {
 			case <-ticker.C:
 				if count, err := outboxRepo.CountPending(ctx); err == nil {
 					metrics.OutboxPending.Set(float64(count))
+				}
+				// F009: update Kafka lag metric when broker is configured.
+				if kafkaConsumer != nil {
+					metrics.MQLag.Set(float64(kafkaConsumer.LagEstimate()))
 				}
 			}
 		}

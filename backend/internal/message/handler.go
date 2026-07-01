@@ -91,6 +91,10 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "attachment not found")
 			return
 		}
+		if errors.Is(err, ErrBlocked) {
+			apierror.Write(w, r, http.StatusForbidden, "blocked", "recipient has blocked you")
+			return
+		}
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}

@@ -79,3 +79,9 @@ func (c *KafkaConsumer) Read(ctx context.Context) (kafka.Message, error) {
 func (c *KafkaConsumer) Close() error {
 	return c.reader.Close()
 }
+
+// LagEstimate returns the approximate consumer lag from reader stats.
+// This reflects messages not yet committed by this reader instance.
+func (c *KafkaConsumer) LagEstimate() int64 {
+	return c.reader.Stats().Lag
+}

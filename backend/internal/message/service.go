@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,12 +11,20 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/media"
+	"github.com/echoline/echoline/backend/internal/middleware"
 	"github.com/echoline/echoline/backend/internal/risk"
 )
 
 // Broadcaster pushes realtime events to online users.
 type Broadcaster interface {
 	BroadcastMessageCreated(ctx context.Context, convID uuid.UUID, msg *Message, excludeSender bool, senderID uuid.UUID) error
+	BroadcastMessageEdited(ctx context.Context, convID uuid.UUID, msg *Message) error
+	BroadcastMessageRecalled(ctx context.Context, convID uuid.UUID, msg *Message) error
+}
+
+// BlockChecker checks whether one user has blocked another.
+type BlockChecker interface {
+	IsBlocked(ctx context.Context, blockerID, blockedID uuid.UUID) (bool, error)
 }
 
 // Service coordinates message persistence and realtime fanout.
@@ -25,11 +34,17 @@ type Service struct {
 	attachments   *media.Repository
 	broadcaster   Broadcaster
 	spamChecker   *risk.SpamChecker
+	blockChecker  BlockChecker
 }
 
 // SetBroadcaster attaches a realtime broadcaster after construction.
 func (s *Service) SetBroadcaster(b Broadcaster) {
 	s.broadcaster = b
+}
+
+// SetBlockChecker attaches a block checker for DM send validation.
+func (s *Service) SetBlockChecker(bc BlockChecker) {
+	s.blockChecker = bc
 }
 
 // NewService creates a message service.
@@ -51,11 +66,28 @@ type SendInput struct {
 	ObjectKey   string
 }
 
+// ErrBlocked is returned when the recipient has blocked the sender.
+var ErrBlocked = fmt.Errorf("recipient has blocked you")
+
 // Send persists a message and notifies online members.
 func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input SendInput) (*Message, error) {
 	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
 		return nil, err
 	}
+
+	// Block check: if this is a direct conversation, verify the peer has not blocked the sender.
+	if s.blockChecker != nil {
+		peerID, err := s.conversations.GetDirectPeer(ctx, convID, senderID)
+		if err == nil && peerID != uuid.Nil {
+			blocked, err := s.blockChecker.IsBlocked(ctx, peerID, senderID)
+			if err == nil && blocked {
+				return nil, ErrBlocked
+			}
+		}
+	}
+
+	// Strip HTML from message body before persistence.
+	input.Body = middleware.SanitizeBody(input.Body)
 
 	if input.Body != "" && s.spamChecker != nil {
 		if err := s.spamChecker.CheckDuplicateBody(senderID, input.Body); err != nil {
@@ -115,7 +147,14 @@ func (s *Service) Edit(ctx context.Context, convID, messageID, senderID uuid.UUI
 	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
 		return nil, err
 	}
-	return s.repo.Edit(ctx, convID, messageID, senderID, body)
+	msg, err := s.repo.Edit(ctx, convID, messageID, senderID, body)
+	if err != nil {
+		return nil, err
+	}
+	if s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastMessageEdited(ctx, convID, msg)
+	}
+	return msg, nil
 }
 
 // Recall marks a message recalled; sender or admin may recall.
@@ -130,7 +169,14 @@ func (s *Service) Recall(ctx context.Context, convID, messageID, actorID uuid.UU
 			return nil, conversation.ErrForbidden
 		}
 	}
-	return s.repo.Recall(ctx, convID, messageID)
+	recalled, err := s.repo.Recall(ctx, convID, messageID)
+	if err != nil {
+		return nil, err
+	}
+	if s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastMessageRecalled(ctx, convID, recalled)
+	}
+	return recalled, nil
 }
 
 // ToCreatedPayload converts a message for WS/REST responses.

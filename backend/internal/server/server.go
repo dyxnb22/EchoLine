@@ -83,6 +83,45 @@ func (s *Server) Handler() http.Handler {
 	// Admin
 	mux.Handle("GET /api/admin/health", auth.RequireAuth(s.auth, http.HandlerFunc(s.adminHandler.HandleHealth)))
 	mux.Handle("GET /api/admin/dlq", auth.RequireAuth(s.auth, http.HandlerFunc(s.dlqHandler.HandleList)))
+	mux.Handle("POST /api/admin/dlq/{id}/replay", auth.RequireAuth(s.auth, http.HandlerFunc(s.dlqReplay.HandleReplay)))
+
+	// Reactions
+	mux.Handle("POST /api/messages/{message_id}/reactions", auth.RequireAuth(s.auth, http.HandlerFunc(s.reaction.HandleAdd)))
+	mux.Handle("DELETE /api/messages/{message_id}/reactions/{emoji}", auth.RequireAuth(s.auth, http.HandlerFunc(s.reaction.HandleRemove)))
+	mux.Handle("GET /api/messages/{message_id}/reactions", auth.RequireAuth(s.auth, http.HandlerFunc(s.reaction.HandleList)))
+
+	// Threads (replies)
+	mux.Handle("POST /api/conversations/{conv_id}/messages/{message_id}/replies", auth.RequireAuth(s.auth, http.HandlerFunc(s.thread.HandleSendReply)))
+	mux.Handle("GET /api/conversations/{conv_id}/messages/{message_id}/replies", auth.RequireAuth(s.auth, http.HandlerFunc(s.thread.HandleListReplies)))
+
+	// Forward
+	mux.Handle("POST /api/messages/{message_id}/forward", auth.RequireAuth(s.auth, http.HandlerFunc(s.forward.HandleForward)))
+
+	// Presence
+	mux.Handle("GET /api/presence/online", auth.RequireAuth(s.auth, http.HandlerFunc(s.presenceH.HandleOnline)))
+
+	// Export
+	mux.Handle("GET /api/conversations/{id}/export", auth.RequireAuth(s.auth, http.HandlerFunc(s.export.HandleExport)))
+
+	// Archive
+	mux.Handle("POST /api/conversations/{id}/archive", auth.RequireAuth(s.auth, http.HandlerFunc(s.archive.HandleArchive)))
+	mux.Handle("POST /api/conversations/{id}/unarchive", auth.RequireAuth(s.auth, http.HandlerFunc(s.archive.HandleUnarchive)))
+	mux.Handle("GET /api/conversations/archived", auth.RequireAuth(s.auth, http.HandlerFunc(s.archive.HandleListArchived)))
+
+	// Push tokens
+	mux.Handle("POST /api/push/tokens", auth.RequireAuth(s.auth, http.HandlerFunc(s.push.HandleRegister)))
+	mux.Handle("GET /api/push/tokens", auth.RequireAuth(s.auth, http.HandlerFunc(s.push.HandleList)))
+
+	// Payments
+	mux.Handle("POST /api/payments/ledger", auth.RequireAuth(s.auth, http.HandlerFunc(s.payment.HandleCreate)))
+	mux.Handle("GET /api/payments/ledger", auth.RequireAuth(s.auth, http.HandlerFunc(s.payment.HandleList)))
+
+	// Ads
+	mux.Handle("POST /api/channels/{channel_id}/campaigns", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleCreate)))
+	mux.Handle("GET /api/channels/{channel_id}/campaigns", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleList)))
+
+	// Recommendations
+	mux.Handle("GET /api/recommendations/channels", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendChannels)))
 
 	s.applyRateLimits(mux)
 

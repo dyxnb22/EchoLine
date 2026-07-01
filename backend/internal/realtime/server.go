@@ -276,6 +276,8 @@ func (c *Connection) readPump(s *Server) {
 			s.handleMessageAck(c, env)
 		case "typing.start":
 			s.handleTypingStart(c, env)
+		case "typing.stop":
+			s.handleTypingStop(c, env)
 		default:
 			c.sendError(env.RequestID, "unknown_type", "unsupported message type")
 		}
@@ -376,6 +378,53 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 	c.enqueue(resp)
 }
 
+// BroadcastMessageEdited notifies conversation members that a message was edited.
+func (s *Server) BroadcastMessageEdited(ctx context.Context, convID uuid.UUID, msg *message.Message) error {
+	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return err
+	}
+
+	payload := MessageEditedPayload{
+		MessageID:      msg.ID.String(),
+		ConversationID: msg.ConversationID.String(),
+		Body:           msg.Body,
+		UpdatedAt:      msg.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	raw, err := marshalEnvelope("message.edited", "", payload)
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range memberIDs {
+		s.hub.PushToUser(ctx, userID, raw)
+	}
+	return nil
+}
+
+// BroadcastMessageRecalled notifies conversation members that a message was recalled.
+func (s *Server) BroadcastMessageRecalled(ctx context.Context, convID uuid.UUID, msg *message.Message) error {
+	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return err
+	}
+
+	payload := MessageRecalledPayload{
+		MessageID:      msg.ID.String(),
+		ConversationID: msg.ConversationID.String(),
+		UpdatedAt:      msg.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	raw, err := marshalEnvelope("message.recalled", "", payload)
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range memberIDs {
+		s.hub.PushToUser(ctx, userID, raw)
+	}
+	return nil
+}
+
 func (s *Server) handleTypingStart(c *Connection, env Envelope) {
 	var payload TypingPayload
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
@@ -401,6 +450,43 @@ func (s *Server) handleTypingStart(c *Connection, env Envelope) {
 	}
 
 	indicator, _ := marshalEnvelope("typing.indicator", "", TypingIndicatorPayload{
+		ConversationID: payload.ConversationID,
+		UserID:         c.UserID.String(),
+	})
+
+	ctx := context.Background()
+	for _, uid := range memberIDs {
+		if uid == c.UserID {
+			continue
+		}
+		s.hub.PushToUser(ctx, uid, indicator)
+	}
+}
+
+func (s *Server) handleTypingStop(c *Connection, env Envelope) {
+	var payload TypingStopPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid typing.stop payload")
+		return
+	}
+
+	convID, err := uuid.Parse(payload.ConversationID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
+		return
+	}
+
+	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
+	if err != nil || !member {
+		return
+	}
+
+	memberIDs, err := s.conversations.ListMemberUserIDs(context.Background(), convID)
+	if err != nil {
+		return
+	}
+
+	indicator, _ := marshalEnvelope("typing.stopped", "", TypingIndicatorPayload{
 		ConversationID: payload.ConversationID,
 		UserID:         c.UserID.String(),
 	})

@@ -68,6 +68,26 @@ type TypingIndicatorPayload struct {
 	UserID         string `json:"user_id"`
 }
 
+// TypingStopPayload is sent by a client to signal end of typing.
+type TypingStopPayload struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// MessageEditedPayload is broadcast when a message body is updated.
+type MessageEditedPayload struct {
+	MessageID      string `json:"message_id"`
+	ConversationID string `json:"conversation_id"`
+	Body           string `json:"body"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
+// MessageRecalledPayload is broadcast when a message is recalled.
+type MessageRecalledPayload struct {
+	MessageID      string `json:"message_id"`
+	ConversationID string `json:"conversation_id"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
 func marshalEnvelope(typ, requestID string, payload any) ([]byte, error) {
 	var raw json.RawMessage
 	if payload != nil {

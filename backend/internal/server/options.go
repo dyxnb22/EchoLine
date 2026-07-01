@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/echoline/echoline/backend/internal/admin"
+	"github.com/echoline/echoline/backend/internal/ads"
 	"github.com/echoline/echoline/backend/internal/audit"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/block"
@@ -17,19 +18,27 @@ import (
 	"github.com/echoline/echoline/backend/internal/delivery"
 	"github.com/echoline/echoline/backend/internal/device"
 	"github.com/echoline/echoline/backend/internal/eventbus"
+	"github.com/echoline/echoline/backend/internal/export"
+	"github.com/echoline/echoline/backend/internal/forward"
 	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/message"
 	"github.com/echoline/echoline/backend/internal/notification"
 	"github.com/echoline/echoline/backend/internal/outbox"
+	"github.com/echoline/echoline/backend/internal/payment"
 	"github.com/echoline/echoline/backend/internal/pin"
 	"github.com/echoline/echoline/backend/internal/presence"
+	"github.com/echoline/echoline/backend/internal/push"
 	"github.com/echoline/echoline/backend/internal/rate_limit"
+	"github.com/echoline/echoline/backend/internal/reaction"
 	"github.com/echoline/echoline/backend/internal/realtime"
+	"github.com/echoline/echoline/backend/internal/recommendation"
 	"github.com/echoline/echoline/backend/internal/redisx"
 	"github.com/echoline/echoline/backend/internal/report"
 	"github.com/echoline/echoline/backend/internal/search"
 	"github.com/echoline/echoline/backend/internal/sync"
+	"github.com/echoline/echoline/backend/internal/thread"
 	"github.com/echoline/echoline/backend/internal/user"
+	"github.com/echoline/echoline/backend/internal/webhook"
 )
 
 // Options configures optional server dependencies.
@@ -57,15 +66,20 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	msgSvc := message.NewService(msgRepo, convRepo, attachmentRepo, nil)
 	deliveryRepo := delivery.NewRepository(pool)
 
+	blockRepo := block.NewRepository(pool)
+	msgSvc.SetBlockChecker(blockRepo)
+
 	memBus := eventbus.NewMemoryPublisher(256)
 
 	var presenceTracker realtime.PresenceTracker
 	var limiter rate_limit.Limiter
 	var listCache *cache.ConversationListCache
+	var presenceChecker *presence.RedisOnlineChecker
 	if opts.Redis != nil {
 		presenceTracker = presence.NewStore(opts.Redis, 0)
 		limiter = rate_limit.NewRedisLimiter(opts.Redis)
 		listCache = cache.NewConversationListCache(opts.Redis)
+		presenceChecker = presence.NewRedisOnlineChecker(opts.Redis)
 	}
 
 	rt := realtime.NewServer(authSvc, msgSvc, convRepo, deliveryRepo, presenceTracker, logger)
@@ -84,35 +98,51 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	}
 
 	pinRepo := pin.NewRepository(pool)
-	blockRepo := block.NewRepository(pool)
 	reportRepo := report.NewRepository(pool)
 	notifRepo := notification.NewRepository(pool)
 
+	archiveRepo := conversation.NewArchiveRepository(pool)
+
+	webhookDispatcher := webhook.NewDispatcher(cfg.WebhookURL)
+
 	return &Server{
-		cfg:          cfg,
-		pool:         pool,
-		logger:       logger,
-		auth:         authSvc,
-		conv:         convHandler,
-		msg:          message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo),
-		sync:         sync.NewHandler(convRepo, msgSvc, cursorRepo),
-		search:       search.NewHandler(searchRepo),
-		delivery:     delivery.NewHandler(deliveryRepo, convRepo),
-		realtime:     rt,
-		limiter:      limiter,
-		memBus:       memBus,
-		outboxRepo:   outboxRepo,
-		media:        mediaHandler,
-		pin:          pin.NewHandler(pinRepo, convRepo),
-		block:        block.NewHandler(blockRepo),
-		report:       report.NewHandler(reportRepo, convRepo),
-		notification: notification.NewHandler(notifRepo),
-		adminHandler: admin.NewHandler(pool, authSvc),
-		dlqHandler:   outbox.NewDLQHandler(pool),
-		userRepo:     userRepo,
-		profileRepo:  user.NewProfileRepository(pool),
-		deviceH:      device.NewHandler(pool),
-		mute:         conversation.NewMuteHandler(pool, convRepo),
+		cfg:            cfg,
+		pool:           pool,
+		logger:         logger,
+		auth:           authSvc,
+		conv:           convHandler,
+		msg:            message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo),
+		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo),
+		search:         search.NewHandler(searchRepo),
+		delivery:       delivery.NewHandler(deliveryRepo, convRepo),
+		realtime:       rt,
+		limiter:        limiter,
+		memBus:         memBus,
+		outboxRepo:     outboxRepo,
+		media:          mediaHandler,
+		pin:            pin.NewHandler(pinRepo, convRepo),
+		block:          block.NewHandler(blockRepo),
+		report:         report.NewHandler(reportRepo, convRepo),
+		notification:   notification.NewHandler(notifRepo),
+		adminHandler:   admin.NewHandler(pool, authSvc),
+		dlqHandler:     outbox.NewDLQHandler(pool),
+		dlqReplay:      outbox.NewDLQReplayHandler(outbox.NewDLQRepository(pool)),
+		userRepo:       userRepo,
+		profileRepo:    user.NewProfileRepository(pool),
+		deviceH:        device.NewHandler(pool),
+		mute:           conversation.NewMuteHandler(pool, convRepo),
+		reaction:       reaction.NewHandler(reaction.NewRepository(pool)),
+		thread:         thread.NewHandler(thread.NewRepository(pool)),
+		forward:        forward.NewHandler(forward.NewRepository(pool)),
+		presenceH:      presence.NewOnlineHandler(presenceChecker),
+		export:         export.NewHandler(export.NewRepository(pool)),
+		push:           push.NewHandler(push.NewRepository(pool)),
+		payment:        payment.NewHandler(payment.NewRepository(pool)),
+		ads:            ads.NewHandler(ads.NewRepository(pool)),
+		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
+		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
+		webhook:        webhookDispatcher,
+		opensearch:     search.NewOpenSearchClient(cfg.OpenSearchURL),
 	}
 }
 
@@ -139,10 +169,23 @@ type Server struct {
 	notification *notification.Handler
 	adminHandler *admin.Handler
 	dlqHandler   *outbox.DLQHandler
+	dlqReplay    *outbox.DLQReplayHandler
 	userRepo     *user.Repository
 	profileRepo  *user.ProfileRepository
 	deviceH      *device.Handler
 	mute         *conversation.MuteHandler
+	reaction     *reaction.Handler
+	thread       *thread.Handler
+	forward      *forward.Handler
+	presenceH    *presence.OnlineHandler
+	export       *export.Handler
+	push         *push.Handler
+	payment      *payment.Handler
+	ads          *ads.Handler
+	recommendation *recommendation.Handler
+	archive      *conversation.ArchiveHandler
+	webhook      *webhook.Dispatcher
+	opensearch   *search.OpenSearchClient
 }
 
 // OutboxRepo exposes outbox repository for workers.

@@ -46,6 +46,16 @@ func (c *Client) DeletePresence(ctx context.Context, userID, deviceID string) er
 	return c.rdb.Del(ctx, key).Err()
 }
 
+// HasPresence returns true when at least one presence key exists for the user.
+func (c *Client) HasPresence(ctx context.Context, userID string) (bool, error) {
+	pattern := fmt.Sprintf("presence:%s:*", userID)
+	keys, err := c.rdb.Keys(ctx, pattern).Result()
+	if err != nil {
+		return false, err
+	}
+	return len(keys) > 0, nil
+}
+
 // Allow checks a simple fixed-window rate limit.
 func (c *Client) Allow(ctx context.Context, key string, limit int64, window time.Duration) (bool, error) {
 	count, err := c.rdb.Incr(ctx, key).Result()
