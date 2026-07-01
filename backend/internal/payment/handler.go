@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -92,14 +93,25 @@ func (r *Repository) Settle(ctx context.Context, userID uuid.UUID, reference str
 	return &e, nil
 }
 
+// EntitlementGranter grants channel access after payment.
+type EntitlementGranter interface {
+	Grant(ctx context.Context, userID, channelID uuid.UUID, reference string) error
+}
+
 // Handler exposes payment ledger REST endpoints.
 type Handler struct {
-	repo *Repository
+	repo         *Repository
+	entitlements EntitlementGranter
 }
 
 // NewHandler creates a payment handler.
 func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// SetEntitlementGranter enables auto-grant on settle for channel references.
+func (h *Handler) SetEntitlementGranter(g EntitlementGranter) {
+	h.entitlements = g
 }
 
 // HandleCreate creates a ledger entry (skeleton).
@@ -177,6 +189,12 @@ func (h *Handler) HandleSettle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		apierror.Write(w, r, http.StatusNotFound, "not_found", "pending entry not found")
 		return
+	}
+
+	if h.entitlements != nil && strings.HasPrefix(req.Reference, "channel:") {
+		if channelID, err := uuid.Parse(strings.TrimPrefix(req.Reference, "channel:")); err == nil {
+			_ = h.entitlements.Grant(r.Context(), claims.UserID, channelID, req.Reference)
+		}
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, ledgerPayload(entry))

@@ -24,10 +24,16 @@ type MessageSender interface {
 	Send(ctx context.Context, convID, userID uuid.UUID, input message.SendInput) (*message.Message, error)
 }
 
+// ReactionAdder adds reactions for GraphQL mutations.
+type ReactionAdder interface {
+	Add(ctx context.Context, messageID, userID uuid.UUID, emoji string) error
+}
+
 // Handler is a minimal GraphQL-style JSON endpoint (prototype).
 type Handler struct {
 	conversations ConversationRepo
 	messages      MessageSender
+	reactions     ReactionAdder
 	graphiql      bool
 }
 
@@ -39,6 +45,11 @@ func NewHandler(conv ConversationRepo, graphiql bool) *Handler {
 // SetMessageSender enables sendMessage mutation.
 func (h *Handler) SetMessageSender(sender MessageSender) {
 	h.messages = sender
+}
+
+// SetReactionAdder enables addReaction mutation.
+func (h *Handler) SetReactionAdder(adder ReactionAdder) {
+	h.reactions = adder
 }
 
 type gqlRequest struct {
@@ -74,6 +85,8 @@ func (h *Handler) HandleGraphQL(w http.ResponseWriter, r *http.Request) {
 
 	q := strings.ToLower(strings.TrimSpace(req.Query))
 	switch {
+	case strings.Contains(q, "mutation") && strings.Contains(q, "addreaction"):
+		h.handleAddReaction(w, r, claims.UserID, req.Variables)
 	case strings.Contains(q, "mutation") && strings.Contains(q, "sendmessage"):
 		h.handleSendMessage(w, r, claims.UserID, req.Variables)
 	case strings.Contains(q, "conversations"):
@@ -114,6 +127,27 @@ func (h *Handler) handleSendMessage(w http.ResponseWriter, r *http.Request, user
 				"body": msg.Body,
 			},
 		},
+	})
+}
+
+func (h *Handler) handleAddReaction(w http.ResponseWriter, r *http.Request, userID uuid.UUID, vars map[string]any) {
+	if h.reactions == nil {
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "reactions not configured")
+		return
+	}
+	msgRaw, _ := vars["messageId"].(string)
+	emoji, _ := vars["emoji"].(string)
+	msgID, err := uuid.Parse(msgRaw)
+	if err != nil || emoji == "" {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "messageId and emoji required")
+		return
+	}
+	if err := h.reactions.Add(r.Context(), msgID, userID, emoji); err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
+		"data": map[string]any{"addReaction": map[string]any{"message_id": msgID, "emoji": emoji}},
 	})
 }
 

@@ -28,6 +28,8 @@ func main() {
 	telemetry.InitSentry(logger)
 
 	ctx := context.Background()
+	shutdownOTel := telemetry.InitOTel(ctx, logger)
+	defer func() { _ = shutdownOTel(ctx) }()
 
 	if err := migrate.Up(ctx, cfg.DatabaseURL); err != nil {
 		logger.Error("run migrations", "error", err)

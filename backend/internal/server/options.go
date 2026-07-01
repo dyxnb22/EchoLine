@@ -18,6 +18,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/delivery"
 	"github.com/echoline/echoline/backend/internal/device"
 	"github.com/echoline/echoline/backend/internal/encryption"
+	"github.com/echoline/echoline/backend/internal/entitlement"
 	"github.com/echoline/echoline/backend/internal/eventbus"
 	"github.com/echoline/echoline/backend/internal/export"
 	"github.com/echoline/echoline/backend/internal/forward"
@@ -93,6 +94,8 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	convHandler := conversation.NewHandler(convRepo)
 	convHandler.SetListCache(listCache)
+	entitlementRepo := entitlement.NewRepository(pool)
+	convHandler.SetEntitlementGate(entitlementRepo)
 
 	var mediaHandler *media.Handler
 	if cfg.S3Endpoint != "" {
@@ -121,6 +124,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	adminChecker := admin.NewStaticAdminChecker(cfg.AdminUserIDs)
 	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
 	graphHandler.SetMessageSender(msgSvc)
+	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool)))
 
 	return &Server{
 		cfg:            cfg,
@@ -155,11 +159,16 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		lastSeenH:      presence.NewLastSeenHandler(lastSeenStore),
 		export:         export.NewHandler(export.NewRepository(pool)),
 		push:           push.NewHandler(push.NewRepository(pool)),
-		payment:        payment.NewHandler(payment.NewRepository(pool)),
+		payment:        func() *payment.Handler {
+			ph := payment.NewHandler(payment.NewRepository(pool))
+			ph.SetEntitlementGranter(entitlementRepo)
+			return ph
+		}(),
 		ads:            ads.NewHandler(ads.NewRepository(pool)),
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
 		encryption:     encryption.NewHandler(encryption.NewRepository(pool)),
+		entitlement:    entitlement.NewHandler(entitlementRepo),
 		webhook:        webhookDispatcher,
 		webhookRepo:    webhookRepo,
 		opensearch:     osClient,
@@ -208,6 +217,7 @@ type Server struct {
 	recommendation *recommendation.Handler
 	archive      *conversation.ArchiveHandler
 	encryption   *encryption.Handler
+	entitlement  *entitlement.Handler
 	webhook      *webhook.Dispatcher
 	webhookRepo  *webhook.Repository
 	opensearch   *search.OpenSearchClient

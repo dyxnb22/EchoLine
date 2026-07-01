@@ -71,16 +71,9 @@ jobs:
 
       - name: Run migrations (test DB)
         working-directory: backend
-        run: |
-          # Apply all SQL migrations in order so integration tests have a schema
-          for f in migrations/*.sql; do
-            echo "Applying $f..."
-            PGPASSWORD=echoline psql \
-              -h localhost -U echoline -d echoline_test \
-              -f "$f" || true
-          done
+        run: go run ./cmd/migrate
         env:
-          PGPASSWORD: echoline
+          DATABASE_URL: postgres://echoline:echoline@localhost:5432/echoline_test?sslmode=disable
 
       - name: Run unit tests
         working-directory: backend
@@ -117,12 +110,10 @@ jobs:
       - name: TypeScript type-check
         working-directory: frontend
         run: npx tsc --noEmit
-        continue-on-error: true
 
       - name: ESLint
         working-directory: frontend
         run: npm run lint
-        continue-on-error: true
 
       - name: Production build
         working-directory: frontend
@@ -157,7 +148,6 @@ jobs:
       - name: Run smoke tests
         working-directory: frontend
         run: npx playwright test --config=playwright.config.ts
-        continue-on-error: true
 
   # ── Load test smoke (k6) ───────────────────────────────────────────────────
   loadtest-smoke:

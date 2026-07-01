@@ -326,6 +326,105 @@ export async function touchLastSeen(token: string): Promise<void> {
   });
 }
 
+export async function markNotificationRead(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/notifications/${id}/read`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("mark notification read failed");
+}
+
+export async function editMessage(token: string, convId: string, messageId: string, body: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify({ body }),
+  });
+  if (!res.ok) throw new Error("edit failed");
+}
+
+export async function recallMessage(token: string, convId: string, messageId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}/recall`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("recall failed");
+}
+
+export async function listPins(token: string, convId: string): Promise<{ message_id: string }[]> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/pins`, { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.pins ?? [];
+}
+
+export async function listArchived(token: string): Promise<Conversation[]> {
+  const res = await fetch(`${API_BASE}/api/conversations/archived`, { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.conversations ?? [];
+}
+
+export async function unarchiveConversation(token: string, convId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/unarchive`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("unarchive failed");
+}
+
+export async function inviteMember(token: string, convId: string, userId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/members`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ user_id: userId, role: "member" }),
+  });
+  if (!res.ok) throw new Error("invite failed");
+}
+
+export async function removeMember(token: string, convId: string, userId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${convId}/members/${userId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("remove failed");
+}
+
+export async function registerPushToken(token: string, deviceId: string, pushToken: string, platform: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/push/tokens`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ device_id: deviceId, token: pushToken, platform }),
+  });
+  if (!res.ok) throw new Error("push register failed");
+}
+
+export type DLQEvent = { id: string; event_type: string; status: string; attempts: number };
+
+export async function adminListDLQ(token: string): Promise<DLQEvent[]> {
+  const res = await fetch(`${API_BASE}/api/admin/dlq`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("dlq list failed");
+  const data = await res.json();
+  return data.events ?? [];
+}
+
+export async function adminReplayDLQ(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/dlq/${id}/replay`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("dlq replay failed");
+}
+
+export async function grantChannelEntitlement(token: string, channelId: string, reference: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/channels/${channelId}/entitlements/grant`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ reference }),
+  });
+  if (!res.ok) throw new Error("grant failed");
+}
+
 export type WSStatus = "connecting" | "open" | "closed";
 
 export function connectWS(

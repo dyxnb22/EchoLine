@@ -229,3 +229,31 @@ html.dark .shell, html.dark aside, html.dark .chat, html.dark .card { background
 html.dark .message { background: #374151; }
 html.dark aside button:hover, html.dark aside button.active { background: #4338ca; }
 html.dark input { background: #111827; color: #f3f4f6; border-color: #4b5563; }
+
+.notif-panel, .group-settings, .settings-page section {
+  padding: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.notif-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: min(320px, 90vw);
+  height: 100vh;
+  background: white;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.08);
+  z-index: 20;
+  overflow-y: auto;
+}
+
+.settings-page { place-items: start center; padding: 2rem; width: min(480px, 90vw); }
+.settings-page section { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
+.group-settings .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.pins-bar { padding: 0.5rem 1rem; background: #fef3c7; font-size: 0.85rem; }
+.archived-list { margin-bottom: 0.75rem; opacity: 0.85; }
+.hint { color: #6b7280; font-size: 0.85rem; }
+.notif-btn { background: transparent; border: none; cursor: pointer; }
+
+.dark .notif-panel { background: #1f2937; border-color: #374151; }
+.dark .pins-bar { background: #78350f; color: #fef3c7; }

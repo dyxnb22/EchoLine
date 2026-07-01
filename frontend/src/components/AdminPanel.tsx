@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AdminReport, AdminUser, adminListReports, adminListUsers } from "../api";
+import { AdminReport, AdminUser, adminListDLQ, adminListReports, adminListUsers, adminReplayDLQ, DLQEvent } from "../api";
 
 type Props = {
   token: string;
@@ -9,13 +9,16 @@ type Props = {
 export function AdminPanel({ token, onClose }: Props) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [reports, setReports] = useState<AdminReport[]>([]);
+  const [dlq, setDlq] = useState<DLQEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([adminListUsers(token), adminListReports(token)])
-      .then(([u, r]) => {
+    Promise.all([adminListUsers(token), adminListReports(token), adminListDLQ(token)])
+      .then(([u, r, d]) => {
         setUsers(u);
         setReports(r);
+        setDlq(d);
       })
       .catch((e) => setError(String(e)));
   }, [token]);
@@ -27,6 +30,7 @@ export function AdminPanel({ token, onClose }: Props) {
         <button type="button" onClick={onClose}>Close</button>
       </header>
       {error && <p className="error toast">{error}</p>}
+      {status && <p className="hint">{status}</p>}
       <section>
         <h3>Users ({users.length})</h3>
         <ul>
@@ -40,6 +44,24 @@ export function AdminPanel({ token, onClose }: Props) {
         <ul>
           {reports.map((r) => (
             <li key={r.id}>{r.reason} — msg {r.message_id.slice(0, 8)}</li>
+          ))}
+        </ul>
+      </section>
+      <section>
+        <h3>DLQ ({dlq.length})</h3>
+        <ul>
+          {dlq.map((e) => (
+            <li key={e.id}>
+              {e.event_type} ({e.status}, {e.attempts} attempts)
+              <button
+                type="button"
+                onClick={() => adminReplayDLQ(token, e.id)
+                  .then(() => setStatus(`replayed ${e.id.slice(0, 8)}`))
+                  .catch((err) => setError(String(err)))}
+              >
+                Replay
+              </button>
+            </li>
           ))}
         </ul>
       </section>

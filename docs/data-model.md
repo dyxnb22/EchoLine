@@ -182,6 +182,10 @@ Migration `00014`: boolean admin flag (default false). Runtime admin also via `A
 
 - `user_id`, `channel_id`, `status`, `reference`, `expires_at` — paid channel access skeleton
 
+### conversations.requires_entitlement (00016)
+
+- `BOOLEAN NOT NULL DEFAULT FALSE` on `conversations` — when true, subscribe requires active `channel_entitlements` row
+
 ### audit_logs
 
 - `id`

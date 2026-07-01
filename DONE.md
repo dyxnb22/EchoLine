@@ -96,3 +96,13 @@
 - [x] Frontend dark mode, reactions, channel filter, PWA sw（T031-T050 partial）。
 
 ## Phase 2+
+
+## Final completion (T001–T440 + backlog + extensions)
+
+- [x] Paid channel entitlements + migration 00016 + payment settle grant
+- [x] GraphQL addReaction; fanout push fix; worker compose profile
+- [x] Frontend react-router, AuthContext, ChatPage, notifications, group settings, edit/recall
+- [x] Integration messaging test; Playwright E2E (mocked); CI goose migrations
+- [x] API gateway prototype; OTel stub; ADR 0027–0029; code review report
+- [ ] Full `make smoke-full` (blocked: Docker/Postgres in cloud VM)
+

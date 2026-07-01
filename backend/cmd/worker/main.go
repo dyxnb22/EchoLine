@@ -19,8 +19,6 @@ import (
 	"github.com/echoline/echoline/backend/internal/search"
 	"github.com/echoline/echoline/backend/internal/webhook"
 	workerpkg "github.com/echoline/echoline/backend/internal/worker"
-
-	"github.com/google/uuid"
 )
 
 func main() {
@@ -64,9 +62,9 @@ func main() {
 	go drainer.Run(ctx)
 
 	msgHandler := workerpkg.NewMessageCreatedHandler(searchRepo, logger)
-	fanoutWorker := workerpkg.NewFanoutWorker(logger)
 	pushRepo := push.NewRepository(pool)
 	pushWorker := push.NewWorker(pushRepo, push.NewMockProvider(logger), logger)
+	fanoutWorker := workerpkg.NewFanoutWorker(pool, pushWorker, logger)
 	webhookRepo := webhook.NewRepository(pool)
 	webhookDispatcher := webhook.NewDispatcher(cfg.WebhookURL)
 	webhookRetry := webhook.NewRetryWorker(webhookRepo, webhookDispatcher)
@@ -118,9 +116,7 @@ func main() {
 			if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
 				logger.Error("fanout worker", "error", err)
 			}
-			// T126: push notification mock for offline users.
-			_ = pushWorker.NotifyUser(ctx, uuid.Nil, "New message", "You have a new message")
-			logger.Info("notification worker: would create notification", "topic", evt.Type)
+			logger.Info("notification worker processed", "topic", evt.Type)
 		}
 	}()
 

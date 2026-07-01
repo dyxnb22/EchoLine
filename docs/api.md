@@ -398,6 +398,13 @@
 ### GraphQL mutation
 
 - `POST /graphql` mutation `sendMessage` with variables `conversationId`, `body`
+- `POST /graphql` mutation `addReaction` with variables `messageId`, `emoji`
+
+### Channel entitlements (paid channels)
+
+- `POST /api/channels/{channel_id}/entitlements/grant` body `{ "reference": "channel:{uuid}" }` — grant access (admin/payment)
+- `POST /api/channels/{channel_id}/entitlements/require` body `{ "required": true }` — mark channel as paid
+- `POST /api/conversations/{id}/subscribe` returns `402 payment_required` when entitlement missing
 
 ## Observability
 

@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Final completion: T001–T440 + backlog + extensions + code review
+
+任务：`FINAL_COMPLETION_MANIFEST.md` — 全量编号任务收尾、backlog、extensions roadmap、全量 code review。
+
+后端：entitlement gate + 00016，payment settle grant，GraphQL addReaction，fanout push + bounded idempotency，worker compose，integration_messaging_test，cmd/migrate，OTel stub。
+
+前端：react-router，AuthContext，ChatPage，NotificationPanel，GroupSettings，SettingsPage，edit/recall，archived，admin DLQ，recommended subscribe fix，reaction prefetch。
+
+运维：deploy/gateway，CI goose + strict Playwright，ADR 0027-0029。
+
+文档：code-review-final.md，api.md，data-model.md 更新。
+
+测试：go test ./... + npm run build 通过。
+
+阻塞：云 VM 无 Docker 全量 smoke。
+
+下一步：本地 make smoke-full（可选）。
+
 ## 2026-07-01 Batch-Next-200: encryption, webhook retry, graphql mutation, frontend split (checkpoint 9)
 
 任务：200项见 `BATCH_NEXT_200_MANIFEST.md`（T241–T440）。

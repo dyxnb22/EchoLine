@@ -1,28 +1,28 @@
 # Current State
 
-Current phase: Batch-Next-200 complete (T241–T440 manifest).
+Current phase: **Final completion** — T001–T440 + backlog + extensions closed.
 
-Milestone: 200 tasks in `BATCH_NEXT_200_MANIFEST.md`.
+Milestone: `FINAL_COMPLETION_MANIFEST.md`
 
-Last batch highlights:
+Last session highlights:
 
-- Backend: E2EE key API, webhook retry worker, GraphQL sendMessage mutation, last-seen, friend recommendations, migration 00015
-- Frontend: LoginPage split, ConversationActions (pin/archive/export/forward), friend recs
-- Ops: docker compose app profile, backup script, k8s secrets, Playwright CI job, strict integration tests
-- Docs: ADR 0023–0026, iteration-06
+- Backend: paid channel entitlements (00016), payment→grant, GraphQL addReaction, fanout push fix, worker compose, integration messaging test, OTel stub, `cmd/migrate`
+- Frontend: react-router, AuthContext, ChatPage split, notifications, group settings, edit/recall, archived, admin DLQ, Playwright E2E
+- Ops: API gateway nginx prototype, CI strictness (goose migrations, Playwright webServer)
+- Docs: ADR 0027–0029, `reports/code-review-final.md`
 
 Tests:
 
 - `go test ./...` passed
 - `npm run build` passed
+- Playwright smoke (mocked API) — run via `npx playwright test` after build
 
 Blocker:
 
-- Docker/Postgres unavailable in cloud VM for full integration smoke
+- Docker/Postgres unavailable in cloud VM for full `make smoke-full`
 
-Next:
+Next (optional post-closure):
 
-1. `make dev-up` + `make dev-app` + `make smoke-full`
-2. react-router wiring in frontend
-3. Channel entitlement enforcement
-4. Playwright send-message E2E
+1. Local `make dev-up` + `make smoke-full`
+2. Owner RBAC on `entitlements/require`
+3. Production OTel exporter SDK swap

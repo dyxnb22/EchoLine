@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,17 +12,29 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/cache"
+	"github.com/echoline/echoline/backend/internal/entitlement"
 )
 
 // Handler exposes conversation REST endpoints.
 type Handler struct {
-	repo  *Repository
-	cache *cache.ConversationListCache
+	repo        *Repository
+	cache       *cache.ConversationListCache
+	entitlement EntitlementGate
+}
+
+// EntitlementGate checks paid channel access before subscribe.
+type EntitlementGate interface {
+	CanSubscribe(ctx context.Context, userID, channelID uuid.UUID) error
 }
 
 // NewHandler creates a conversation handler.
 func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// SetEntitlementGate enables paid channel subscribe checks.
+func (h *Handler) SetEntitlementGate(g EntitlementGate) {
+	h.entitlement = g
 }
 
 // SetListCache enables Redis-backed conversation list caching.
@@ -82,6 +95,17 @@ func (h *Handler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
 		return
+	}
+
+	if h.entitlement != nil {
+		if err := h.entitlement.CanSubscribe(r.Context(), claims.UserID, convID); err != nil {
+			if errors.Is(err, entitlement.ErrEntitlementRequired) {
+				apierror.Write(w, r, http.StatusPaymentRequired, "payment_required", "paid channel entitlement required")
+				return
+			}
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
 	}
 
 	if err := h.repo.Subscribe(r.Context(), convID, claims.UserID); err != nil {

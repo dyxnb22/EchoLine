@@ -145,6 +145,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/recommendations/channels", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendChannels)))
 	mux.Handle("GET /api/recommendations/friends", auth.RequireAuth(s.auth, http.HandlerFunc(s.recommendation.HandleRecommendFriends)))
 
+	// Channel entitlements
+	mux.Handle("POST /api/channels/{channel_id}/entitlements/grant", auth.RequireAuth(s.auth, http.HandlerFunc(s.entitlement.HandleGrant)))
+	mux.Handle("POST /api/channels/{channel_id}/entitlements/require", auth.RequireAuth(s.auth, http.HandlerFunc(s.entitlement.HandleSetPaid)))
+
 	s.applyRateLimits(mux)
 
 	return metrics.TraceMiddleware(metrics.HTTPMiddleware(apierror.RequestIDMiddleware(s.withLogging(mux))))

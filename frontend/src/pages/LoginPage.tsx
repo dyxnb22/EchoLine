@@ -1,11 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { login, register } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-type Props = {
-  onLogin: (token: string) => void;
-};
-
-export function LoginPage({ onLogin }: Props) {
+export function LoginPage() {
+  const { setToken } = useAuth();
+  const navigate = useNavigate();
   const [username, setUsername] = useState("alice");
   const [password, setPassword] = useState("secret123");
   const [displayName, setDisplayName] = useState("");
@@ -22,7 +22,8 @@ export function LoginPage({ onLogin }: Props) {
       const tokens = await login(username, password);
       localStorage.setItem("echoline_token", tokens.access_token);
       localStorage.setItem("echoline_refresh", tokens.refresh_token);
-      onLogin(tokens.access_token);
+      setToken(tokens.access_token);
+      navigate("/");
     } catch (err) {
       setError(String(err));
     }
