@@ -1,33 +1,32 @@
 # Next Actions
 
-Agent should start here after reading `CURRENT_STATE.md`.
+## Immediate P0
 
-## Immediate P0 Tasks
+1. E001: group member role checks in APIs.
+2. E003-E005: channel model, subscribe, publish permissions.
+3. F005: Redpanda/Kafka client wiring.
+4. Integration smoke with `make dev-up` when Docker available.
 
-1. A001: Initialize Go module and API server skeleton.
-2. A002: Add configuration loading and env validation.
-3. A003: Add `/health` endpoint.
-4. A004: Add PostgreSQL connection pool.
-5. A005: Add migration tool and initial migration.
-6. A006: Implement users table and repository.
-7. A007: Implement password hash helpers.
-8. A008: Implement register API.
-9. A009: Implement login API.
-10. A010: Implement JWT middleware.
+## Sequential after P0
 
-## After First 3-5 Tasks
+5. F008: message.created consumer in worker.
+6. H001-H002: rate limit middleware on login/send.
+7. B009: reconnect fallback doc.
+8. J001-J006: frontend login/chat/WS.
 
-Update:
+## Parallelizable (Composer 2.5, Fast mode disabled)
 
-- `PROGRESS_LOG.md`
-- `CURRENT_STATE.md`
-- `DONE.md`
-- `ACCEPTANCE_MATRIX.md`
-- `docs/api.md` if API changed
-- `docs/data-model.md` if schema changed
+- Docs Agent: L005-L006 reliability/interview notes after E/F tasks.
+- Review Agent: M001 API consistency review.
 
-## If Blocked
+## Environment
 
-- Record blocker in `BLOCKERS.md`.
-- Pick next unblocked P0 task from `TASK_GRAPH_DETAILED.md`.
-
+```bash
+make dev-up
+export DATABASE_URL=postgres://echoline:echoline@localhost:5432/echoline?sslmode=disable
+export JWT_SECRET=change-me
+export REDIS_ADDR=localhost:6379
+make api-run
+make seed
+RUN_API_SMOKE=1 RUN_WS_SMOKE=1 make smoke
+```

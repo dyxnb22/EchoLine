@@ -1,7 +1,5 @@
 # EchoLine Done Index
 
-本文件记录已经完成的能力，避免 Agent 重复实现或重复规划。
-
 ## Phase 0
 
 - [x] 项目定位文档。
@@ -24,11 +22,38 @@
 
 ## Phase 1
 
-- [ ] 后端服务初始化。
-- [ ] 数据库 migration。
-- [ ] 用户注册 / 登录。
-- [ ] 会话 API。
-- [ ] 消息写入 API。
+- [x] 后端服务初始化（A001-A005）。
+- [x] 数据库 migration（users/conversations/messages/devices/deliveries）。
+- [x] 用户注册 / 登录 / JWT / refresh（A006-A011）。
+- [x] 私聊 / 群聊 / 会话列表 / 消息 REST（A016-C003）。
+- [x] 历史分页 + seed + OpenAPI + 错误 envelope（A019-A022）。
+- [ ] 完整 integration smoke（依赖 Postgres）。
+
+## Phase 2
+
+- [x] WebSocket endpoint + 鉴权 + 连接管理 + 心跳（B001-B004）。
+- [x] WS 协议 envelope + message.send + 在线推送 + error envelope（B005-B008）。
+- [x] WS unit smoke hook（B010 partial）。
+- [ ] 双客户端集成 smoke（依赖环境）。
+
+## Phase 3
+
+- [x] latest_seq / seq 分配（C001-C002，message repo 事务）。
+- [x] 会话列表 + unread（C003/C005 partial）。
+- [x] mark read + sync endpoint（C004/C006）。
+- [ ] 历史分页集成测试（A019 with DB）。
+
+## Phase 5 (reliability partial)
+
+- [x] client_msg_id 幂等（D001-D002 partial）。
+- [x] ACK REST/WS + delivery 状态机（D003-D004）。
+- [ ] outbox / DLQ（D006-D008）。
+
+## Phase 6 (infra partial)
+
+- [x] Redis client + presence TTL skeleton（F001/F003）。
+- [x] in-memory event bus + worker skeleton（F005-F007 partial）。
+- [ ] Kafka consumer production path（F008）。
 
 ## Phase 2+
 

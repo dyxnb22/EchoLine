@@ -15,9 +15,9 @@
 | Phase | 状态 | 必须能力 | 必须测试 | 必须文档 |
 |---|---|---|---|---|
 | Phase 0 | done | repo skeleton、长时执行文档 | `make help`, `make test`, `make smoke` | README、AGENTS、TASKS、规则文档 |
-| Phase 1 | todo | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
-| Phase 2 | todo | WebSocket 连接、心跳、在线推送 | WS smoke | websocket-protocol |
-| Phase 3 | todo | 会话列表、未读、历史、离线 sync | sync/unread tests | reliability、api |
+| Phase 1 | partial | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
+| Phase 2 | partial | WebSocket 连接、心跳、在线推送 | WS smoke | websocket-protocol |
+| Phase 3 | partial | 会话列表、未读、历史、离线 sync | sync/unread tests | reliability、api |
 | Phase 4 | todo | 群聊、频道、presence、多端 | role/presence tests | architecture、data-model |
 | Phase 5 | todo | 幂等、ACK、重试、去重、顺序性 | reliability tests | reliability ADR |
 | Phase 6 | todo | Redis、MQ、worker、异步化 | eventbus tests | cache/MQ ADR |
@@ -30,21 +30,19 @@
 
 | 能力 | 状态 | 验收标准 |
 |---|---|---|
-| 用户注册/登录 | todo | 可注册、登录、鉴权；密码 hash；错误码稳定 |
-| 多设备登录 | todo | device 记录和 session 管理可用 |
-| 私聊 | todo | 双方会话唯一，消息可写可读 |
-| 群聊 | todo | 成员角色和权限正确 |
-| 频道 | todo | owner/admin 可发布，subscriber 可接收 |
-| 会话列表 | todo | 最近消息排序，未读数展示 |
-| 历史消息 | todo | cursor 分页不漏不重 |
-| WebSocket | todo | 心跳、断线清理、在线推送 |
-| 离线同步 | todo | 重连后可补拉缺失消息 |
-| 多端同步 | todo | 多设备在线接收，读状态一致 |
-| ACK | todo | delivered/read 状态可记录 |
-| 幂等去重 | todo | 同一 client_msg_id 不重复入库 |
-| 顺序性 | todo | conversation 内 seq 单调 |
-| Redis presence | todo | TTL 过期和 heartbeat 正常 |
-| MQ worker | todo | message.created 可异步消费 |
+| 用户注册/登录 | partial | 可注册、登录、鉴权；密码 hash；refresh token |
+| 多设备登录 | partial | device 表/repo；WS device_id 绑定 |
+| 私聊 | partial | 去重 direct API + 消息读写（待 DB integration） |
+| 群聊 | partial | 群创建 API（角色权限待 E001） |
+| 会话列表 | partial | 列表 + unread 字段 |
+| 历史消息 | partial | cursor 分页 + next_before |
+| WebSocket | partial | 连接、鉴权、ping/pong、message.send、push、ACK |
+| 离线同步 | partial | sync endpoint 已实现（待 integration） |
+| ACK | partial | REST/WS ACK + forward-only 状态机 |
+| 幂等去重 | partial | client_msg_id 唯一约束 + 重复返回原消息 |
+| 顺序性 | partial | conversation seq 事务分配 |
+| Redis presence | partial | Redis TTL presence on WS（可选 REDIS_ADDR） |
+| MQ worker | partial | memory event bus + worker skeleton |
 | 附件 | todo | 预签名上传、元数据、权限校验 |
 | 搜索 | todo | 消息搜索和权限过滤 |
 | 通知 | todo | 异步通知事件不阻塞主链路 |
