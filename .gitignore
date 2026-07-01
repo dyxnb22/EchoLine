@@ -3,3 +3,4 @@ frontend/dist/
 frontend/tsconfig.tsbuildinfo
 *.exe
 *.test
+backend/replay
