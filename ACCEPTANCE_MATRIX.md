@@ -30,21 +30,19 @@
 
 | 能力 | 状态 | 验收标准 |
 |---|---|---|
-| 用户注册/登录 | partial | 可注册、登录、鉴权；密码 hash；错误码稳定 |
-| 多设备登录 | partial | device 表和 repository 已建，API 未接 |
-| 私聊 | partial | 双方会话唯一 API 已实现，待 DB integration 验证 |
-| 群聊 | partial | owner/member 创建 API 已实现，待 DB integration 验证 |
-| 频道 | todo | owner/admin 可发布，subscriber 可接收 |
-| 会话列表 | todo | 最近消息排序，未读数展示 |
-| 历史消息 | partial | cursor 分页 API 已实现，待 DB integration 验证 |
-| WebSocket | partial | endpoint、鉴权、ping/pong、连接管理已实现 |
-| 离线同步 | todo | 重连后可补拉缺失消息 |
-| 多端同步 | todo | 多设备在线接收，读状态一致 |
-| ACK | todo | delivered/read 状态可记录 |
-| 幂等去重 | todo | 同一 client_msg_id 不重复入库 |
-| 顺序性 | todo | conversation 内 seq 单调 |
-| Redis presence | todo | TTL 过期和 heartbeat 正常 |
-| MQ worker | todo | message.created 可异步消费 |
+| 用户注册/登录 | partial | 可注册、登录、鉴权；密码 hash；refresh token |
+| 多设备登录 | partial | device 表/repo；WS device_id 绑定 |
+| 私聊 | partial | 去重 direct API + 消息读写（待 DB integration） |
+| 群聊 | partial | 群创建 API（角色权限待 E001） |
+| 会话列表 | partial | 列表 + unread 字段 |
+| 历史消息 | partial | cursor 分页 + next_before |
+| WebSocket | partial | 连接、鉴权、ping/pong、message.send、push、ACK |
+| 离线同步 | partial | sync endpoint 已实现（待 integration） |
+| ACK | partial | REST/WS ACK + forward-only 状态机 |
+| 幂等去重 | partial | client_msg_id 唯一约束 + 重复返回原消息 |
+| 顺序性 | partial | conversation seq 事务分配 |
+| Redis presence | partial | Redis TTL presence on WS（可选 REDIS_ADDR） |
+| MQ worker | partial | memory event bus + worker skeleton |
 | 附件 | todo | 预签名上传、元数据、权限校验 |
 | 搜索 | todo | 消息搜索和权限过滤 |
 | 通知 | todo | 异步通知事件不阻塞主链路 |
