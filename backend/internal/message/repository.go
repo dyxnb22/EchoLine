@@ -213,6 +213,68 @@ func (r *Repository) ListSince(ctx context.Context, conversationID uuid.UUID, af
 	return messages, rows.Err()
 }
 
+// GetByID returns a message by id within a conversation.
+func (r *Repository) GetByID(ctx context.Context, conversationID, messageID uuid.UUID) (*Message, error) {
+	const q = `
+		SELECT id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
+		FROM messages
+		WHERE id = $1 AND conversation_id = $2
+	`
+	row := r.pool.QueryRow(ctx, q, messageID, conversationID)
+	msg, err := scanMessage(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return msg, nil
+}
+
+// Edit updates message body for the sender.
+func (r *Repository) Edit(ctx context.Context, conversationID, messageID, senderID uuid.UUID, body string) (*Message, error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return nil, fmt.Errorf("message body is required")
+	}
+	const q = `
+		UPDATE messages
+		SET body = $4, status = 'edited', updated_at = $5
+		WHERE id = $1 AND conversation_id = $2 AND sender_id = $3 AND status = 'normal'
+		RETURNING id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
+	`
+	now := time.Now().UTC()
+	row := r.pool.QueryRow(ctx, q, messageID, conversationID, senderID, body, now)
+	msg, err := scanMessage(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return msg, nil
+}
+
+// Recall marks a message as recalled.
+func (r *Repository) Recall(ctx context.Context, conversationID, messageID uuid.UUID) (*Message, error) {
+	const q = `
+		UPDATE messages
+		SET body = '', status = 'recalled', updated_at = $3
+		WHERE id = $1 AND conversation_id = $2 AND status IN ('normal', 'edited')
+		RETURNING id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
+	`
+	now := time.Now().UTC()
+	row := r.pool.QueryRow(ctx, q, messageID, conversationID, now)
+	msg, err := scanMessage(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return msg, nil
+}
+
 type queryRower interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/audit"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/cache"
 	"github.com/echoline/echoline/backend/internal/config"
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
@@ -20,6 +21,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/rate_limit"
 	"github.com/echoline/echoline/backend/internal/realtime"
 	"github.com/echoline/echoline/backend/internal/redisx"
+	"github.com/echoline/echoline/backend/internal/search"
 	"github.com/echoline/echoline/backend/internal/sync"
 	"github.com/echoline/echoline/backend/internal/user"
 )
@@ -43,6 +45,8 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	convRepo := conversation.NewRepository(pool)
 	outboxRepo := outbox.NewRepository(pool)
 	attachmentRepo := media.NewRepository(pool)
+	searchRepo := search.NewRepository(pool)
+	cursorRepo := sync.NewCursorRepository(pool)
 	msgRepo := message.NewRepository(pool, outboxRepo)
 	msgSvc := message.NewService(msgRepo, convRepo, attachmentRepo, nil)
 	deliveryRepo := delivery.NewRepository(pool)
@@ -51,12 +55,18 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	var presenceTracker realtime.PresenceTracker
 	var limiter rate_limit.Limiter
+	var listCache *cache.ConversationListCache
 	if opts.Redis != nil {
 		presenceTracker = presence.NewStore(opts.Redis, 0)
 		limiter = rate_limit.NewRedisLimiter(opts.Redis)
+		listCache = cache.NewConversationListCache(opts.Redis)
 	}
 
 	rt := realtime.NewServer(authSvc, msgSvc, convRepo, deliveryRepo, presenceTracker, logger)
+	rt.SetHubMetrics()
+
+	convHandler := conversation.NewHandler(convRepo)
+	convHandler.SetListCache(listCache)
 
 	var mediaHandler *media.Handler
 	if cfg.S3Endpoint != "" {
@@ -68,19 +78,20 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	}
 
 	return &Server{
-		cfg:      cfg,
-		pool:     pool,
-		logger:   logger,
-		auth:     authSvc,
-		conv:     conversation.NewHandler(convRepo),
-		msg:      message.NewHandler(msgSvc, convRepo, attachmentRepo),
-		sync:     sync.NewHandler(convRepo, msgSvc),
-		delivery: delivery.NewHandler(deliveryRepo, convRepo),
-		realtime: rt,
-		limiter:  limiter,
-		memBus:   memBus,
+		cfg:        cfg,
+		pool:       pool,
+		logger:     logger,
+		auth:       authSvc,
+		conv:       convHandler,
+		msg:        message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo),
+		sync:       sync.NewHandler(convRepo, msgSvc, cursorRepo),
+		search:     search.NewHandler(searchRepo),
+		delivery:   delivery.NewHandler(deliveryRepo, convRepo),
+		realtime:   rt,
+		limiter:    limiter,
+		memBus:     memBus,
 		outboxRepo: outboxRepo,
-		media:    mediaHandler,
+		media:      mediaHandler,
 	}
 }
 
@@ -94,6 +105,7 @@ type Server struct {
 	conv       *conversation.Handler
 	msg        *message.Handler
 	sync       *sync.Handler
+	search     *search.Handler
 	delivery   *delivery.Handler
 	realtime   *realtime.Server
 	limiter    rate_limit.Limiter

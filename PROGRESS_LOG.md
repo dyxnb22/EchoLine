@@ -2,6 +2,22 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Batch-20: search, edit/recall, metrics, frontend (checkpoint 5)
+
+任务（20项）：G005-G008, C007-C009, D007 SKIP LOCKED, E007-E008, F004/F008, H006, I001-I005, J007-J009.
+
+文件：
+
+- `backend/internal/search/`, `cache/`, `metrics/`, `worker/`
+- `backend/migrations/00007_device_sync_cursors.sql`, `00008_message_search_index.sql`
+- `backend/internal/message/` edit/recall handlers
+- `docs/adr/0003-large-group-fanout.md`
+- `frontend/` optimistic send, upload, search UI
+
+测试：全部 unit/smoke 通过。
+
+下一步：integration smoke, k6, typing indicator.
+
 ## 2026-07-01 Phase 4/5/7 outbox + media + frontend (checkpoint 4)
 
 任务：D007-D008, E006, F008, G001-G004, H003, J001-J006.

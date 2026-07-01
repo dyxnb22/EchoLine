@@ -250,6 +250,53 @@
 }
 ```
 
+### POST `/api/media/download-url`
+
+获取已上传附件的预签名 GET URL。需要 Bearer token，且用户拥有该 `object_key`。
+
+请求：
+
+```json
+{
+  "object_key": "uploads/<user-id>/<uuid>"
+}
+```
+
+## Search
+
+### GET `/api/search/messages`
+
+关键词搜索当前用户有权限的会话消息。需要 Bearer token。
+
+查询参数：
+
+- `q`：搜索关键词（必填）
+- `limit`：结果数量（默认 20）
+
+## Message lifecycle
+
+### PATCH `/api/conversations/{conversation_id}/messages/{message_id}`
+
+编辑消息正文（仅发送者，且 `status=normal`）。
+
+请求：
+
+```json
+{
+  "body": "updated text"
+}
+```
+
+### POST `/api/conversations/{conversation_id}/messages/{message_id}/recall`
+
+撤回消息（发送者或群 admin/owner）。
+
+## Observability
+
+### GET `/metrics`
+
+Prometheus 指标端点（HTTP 请求计数、WS 连接数、消息发送延迟、outbox pending、MQ 消费计数）。
+
 ## 错误格式
 
 REST 错误统一为：

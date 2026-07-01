@@ -1,36 +1,49 @@
 # Current State
 
-Current phase: Phase 4/5/7 partial (group/channel + reliability + media + frontend).
+Current phase: Phase 5/7/8 partial (reliability + media/search + observability + frontend).
 
-Current milestone: D007-D008, E006, G001-G004, H003, J001-J006.
+Current milestone: batch-20 (G005-G008, C007-C009, D007, E007-E008, F004/F008, H006, I001-I005, J007-J009).
 
-Last completed:
+Last completed (20 tasks):
 
-- D007: transactional outbox enqueue on message create; worker drains to Kafka/memory.
-- D008: dead_letter_events migration + outbox DLQ on publish failure threshold.
-- E006: fanout unit test excluding sender.
-- F008: outbox publisher worker (no direct Kafka on hot path).
-- G001-G004: MinIO presign, attachment metadata repo, attachment message send.
-- H003: per-conversation send rate limit (`conv_send`, 60/min).
-- J001-J006: Vite React frontend with login, list, chat, pagination, WS reconnect.
+1. G005: presigned download URL (`POST /api/media/download-url`)
+2. G006: message indexing worker on `message.created`
+3. G007: `GET /api/search/messages` with PostgreSQL tsvector
+4. G008: search scoped to member conversations
+5. D007: outbox `FOR UPDATE SKIP LOCKED` fetch
+6. F008: idempotent `message.created` consumer handler
+7. E007: large group fanout ADR (`docs/adr/0003-large-group-fanout.md`)
+8. E008: fanout worker skeleton
+9. F004: Redis conversation list cache (30s TTL)
+10. C007: `device_sync_cursors` + sync persistence
+11. C008: message edit API (`PATCH`)
+12. C009: message recall API (`POST .../recall`)
+13. H006: recall audit logging
+14. I001/I002: structured logs + `X-Trace-ID` middleware
+15. I003: Prometheus `/metrics`
+16. I004: WS connection gauge
+17. I005: message send latency histogram
+18. J007: optimistic send UI
+19. J008: attachment upload UI
+20. J009: search UI in sidebar
 
 Tests:
 
-- `cd backend && go test ./...` passed.
-- `make test` passed.
-- `RUN_WS_SMOKE=1 make smoke` passed.
-- `cd frontend && npm run build` passed.
+- `go test ./...` passed
+- `make test` passed
+- `RUN_WS_SMOKE=1 make smoke` passed
+- `npm run build` passed
 
 Known blockers:
 
-- Docker/PostgreSQL still unavailable in cloud VM for integration smoke.
+- Docker/PostgreSQL unavailable in cloud VM for integration smoke.
 
 Next actions:
 
-1. Integration smoke when Postgres/Redis/Kafka available.
-2. G005-G007: attachment download URL, search skeleton.
-3. I001-I003: structured logs/metrics.
-4. J007-J008: optimistic send UI, attachment upload UI.
+1. Integration smoke when Postgres available
+2. F009 MQ lag metrics, I006 k6 load test
+3. C010 pinned messages, B011 typing indicator
+4. OpenSearch adapter (optional upgrade from pg tsvector)
 
 Do not repeat:
 

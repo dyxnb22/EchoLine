@@ -1,4 +1,4 @@
-package main
+package worker
 
 import (
 	"context"
@@ -12,8 +12,11 @@ import (
 	"github.com/echoline/echoline/backend/internal/config"
 	"github.com/echoline/echoline/backend/internal/db"
 	"github.com/echoline/echoline/backend/internal/eventbus"
+	"github.com/echoline/echoline/backend/internal/metrics"
 	"github.com/echoline/echoline/backend/internal/migrate"
 	"github.com/echoline/echoline/backend/internal/outbox"
+	"github.com/echoline/echoline/backend/internal/search"
+	workerpkg "github.com/echoline/echoline/backend/internal/worker"
 )
 
 func main() {
@@ -37,6 +40,7 @@ func main() {
 	defer pool.Close()
 
 	outboxRepo := outbox.NewRepository(pool)
+	searchRepo := search.NewRepository(pool)
 	memBus := eventbus.NewMemoryPublisher(256)
 	memPub := eventbus.NewMemoryBytesPublisher(memBus)
 
@@ -50,9 +54,35 @@ func main() {
 	drainer := outbox.NewPublisher(outboxRepo, kafkaPub, memPub, logger)
 	go drainer.Run(ctx)
 
+	msgHandler := workerpkg.NewMessageCreatedHandler(searchRepo, logger)
+	fanoutWorker := workerpkg.NewFanoutWorker(logger)
+
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if count, err := outboxRepo.CountPending(ctx); err == nil {
+					metrics.OutboxPending.Set(float64(count))
+				}
+			}
+		}
+	}()
+
 	go func() {
 		for evt := range memBus.C() {
-			logger.Info("memory event consumed", "type", evt.Type, "bytes", len(evt.Payload))
+			if evt.Type != eventbus.TopicMessageCreated {
+				continue
+			}
+			if err := msgHandler.Handle(ctx, evt.Payload); err != nil {
+				logger.Error("message.created handler", "error", err)
+			}
+			if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
+				logger.Error("fanout worker", "error", err)
+			}
 		}
 	}()
 

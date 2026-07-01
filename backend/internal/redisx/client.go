@@ -57,3 +57,18 @@ func (c *Client) Allow(ctx context.Context, key string, limit int64, window time
 	}
 	return count <= limit, nil
 }
+
+// Get returns a string value.
+func (c *Client) Get(ctx context.Context, key string) (string, error) {
+	return c.rdb.Get(ctx, key).Result()
+}
+
+// Set stores a string value with TTL.
+func (c *Client) Set(ctx context.Context, key, value string, ttl time.Duration) error {
+	return c.rdb.Set(ctx, key, value, ttl).Err()
+}
+
+// Delete removes a key.
+func (c *Client) Delete(ctx context.Context, key string) error {
+	return c.rdb.Del(ctx, key).Err()
+}

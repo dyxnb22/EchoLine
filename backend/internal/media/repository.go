@@ -86,6 +86,24 @@ func (r *Repository) GetUnlinkedByObjectKey(ctx context.Context, ownerID uuid.UU
 	return att, nil
 }
 
+// GetByObjectKey returns an attachment owned by the user (linked or pending).
+func (r *Repository) GetByObjectKey(ctx context.Context, ownerID uuid.UUID, objectKey string) (*Attachment, error) {
+	const q = `
+		SELECT id, message_id, owner_id, object_key, mime_type, size_bytes, checksum, created_at
+		FROM attachments
+		WHERE owner_id = $1 AND object_key = $2
+	`
+	row := r.pool.QueryRow(ctx, q, ownerID, objectKey)
+	att, err := scanAttachment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAttachmentNotFound
+		}
+		return nil, err
+	}
+	return att, nil
+}
+
 // LinkToMessageInTx associates a pending attachment with a message.
 func (r *Repository) LinkToMessageInTx(ctx context.Context, tx execer, attachmentID, messageID uuid.UUID) error {
 	const q = `

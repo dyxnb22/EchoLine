@@ -13,6 +13,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/config"
+	"github.com/echoline/echoline/backend/internal/metrics"
 	"github.com/echoline/echoline/backend/internal/user"
 )
 
@@ -25,6 +26,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.Handle("GET /metrics", metrics.Handler())
 	mux.HandleFunc("POST /api/auth/register", s.auth.HandleRegister)
 	mux.HandleFunc("POST /api/auth/refresh", s.auth.HandleRefresh)
 	mux.Handle("GET /api/me", auth.RequireAuth(s.auth, http.HandlerFunc(s.handleMe)))
@@ -37,17 +39,21 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/conversations/{id}/members", auth.RequireAuth(s.auth, http.HandlerFunc(s.conv.HandleInviteMember)))
 	mux.Handle("DELETE /api/conversations/{id}/members/{user_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.conv.HandleRemoveMember)))
 	mux.Handle("GET /api/conversations/{id}/messages", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleList)))
+	mux.Handle("PATCH /api/conversations/{id}/messages/{message_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleEdit)))
+	mux.Handle("POST /api/conversations/{id}/messages/{message_id}/recall", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleRecall)))
 	mux.Handle("POST /api/conversations/{id}/read", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleMarkRead)))
 	mux.Handle("POST /api/sync", auth.RequireAuth(s.auth, http.HandlerFunc(s.sync.HandleSync)))
+	mux.Handle("GET /api/search/messages", auth.RequireAuth(s.auth, http.HandlerFunc(s.search.HandleSearch)))
 	mux.Handle("POST /api/messages/ack", auth.RequireAuth(s.auth, http.HandlerFunc(s.delivery.HandleACK)))
 	if s.media != nil {
 		mux.Handle("POST /api/media/upload-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignUpload)))
+		mux.Handle("POST /api/media/download-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignDownload)))
 	}
 	mux.HandleFunc("GET /ws", s.realtime.HandleWS)
 
 	s.applyRateLimits(mux)
 
-	return apierror.RequestIDMiddleware(s.withLogging(mux))
+	return metrics.TraceMiddleware(metrics.HTTPMiddleware(apierror.RequestIDMiddleware(s.withLogging(mux))))
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {
@@ -58,6 +64,7 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 			"method", r.Method,
 			"path", r.URL.Path,
 			"request_id", apierror.RequestIDFromContext(r.Context()),
+			"trace_id", apierror.TraceIDFromContext(r.Context()),
 			"duration_ms", time.Since(start).Milliseconds(),
 		)
 	})

@@ -10,16 +10,23 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/cache"
 )
 
 // Handler exposes conversation REST endpoints.
 type Handler struct {
-	repo *Repository
+	repo  *Repository
+	cache *cache.ConversationListCache
 }
 
 // NewHandler creates a conversation handler.
 func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// SetListCache enables Redis-backed conversation list caching.
+func (h *Handler) SetListCache(c *cache.ConversationListCache) {
+	h.cache = c
 }
 
 type directRequest struct {
@@ -282,6 +289,24 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userKey := claims.UserID.String()
+	if h.cache != nil {
+		if cached, hit, err := h.cache.Get(r.Context(), userKey); err == nil && hit {
+			items := make([]map[string]any, 0, len(cached))
+			for _, c := range cached {
+				items = append(items, map[string]any{
+					"id":         c.ID,
+					"type":       c.Type,
+					"title":      c.Title,
+					"unread":     c.Unread,
+					"latest_seq": c.LatestSeq,
+				})
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"conversations": items, "cached": true})
+			return
+		}
+	}
+
 	conversations, unreads, err := h.repo.ListForUserWithUnread(r.Context(), claims.UserID, 50)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list conversations")
@@ -289,10 +314,22 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := make([]map[string]any, 0, len(conversations))
+	cacheItems := make([]cache.ConversationSummary, 0, len(conversations))
 	for i, conv := range conversations {
 		item := toConversationResponse(&conv)
 		item["unread"] = unreads[i]
 		items = append(items, item)
+		cacheItems = append(cacheItems, cache.ConversationSummary{
+			ID:        conv.ID.String(),
+			Type:      string(conv.Type),
+			Title:     conv.Title,
+			Unread:    unreads[i],
+			LatestSeq: conv.LatestSeq,
+		})
+	}
+
+	if h.cache != nil {
+		_ = h.cache.Set(r.Context(), userKey, cacheItems)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

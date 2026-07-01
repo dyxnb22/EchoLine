@@ -46,19 +46,27 @@ func (r *Repository) EnqueueInTx(ctx context.Context, tx execer, topic string, p
 	return nil
 }
 
-// FetchPending returns pending events ordered by creation time.
+// FetchPending returns pending events with row locking inside a short transaction.
 func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin outbox tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	const q = `
 		SELECT id, topic, payload::text, attempts, created_at
 		FROM outbox_events
 		WHERE status = 'pending'
 		ORDER BY created_at ASC
 		LIMIT $1
+		FOR UPDATE SKIP LOCKED
 	`
-	rows, err := r.pool.Query(ctx, q, limit)
+	rows, err := tx.Query(ctx, q, limit)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pending outbox: %w", err)
 	}
@@ -74,7 +82,21 @@ func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, erro
 		e.Payload = []byte(payload)
 		events = append(events, e)
 	}
-	return events, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+// CountPending returns pending outbox rows for metrics.
+func (r *Repository) CountPending(ctx context.Context) (int64, error) {
+	const q = `SELECT COUNT(*) FROM outbox_events WHERE status = 'pending'`
+	var count int64
+	err := r.pool.QueryRow(ctx, q).Scan(&count)
+	return count, err
 }
 
 // MarkPublished marks an event as published.

@@ -97,6 +97,24 @@
 - `attempts`
 - `created_at`
 
+### device_sync_cursors
+
+- `user_id`
+- `device_id`
+- `conversation_id`
+- `last_seq`
+- `updated_at`
+
+### message_search_index
+
+- `message_id`
+- `conversation_id`
+- `sender_id`
+- `body`
+- `seq`
+- `search_vector` (tsvector, generated)
+- `created_at`
+
 ### audit_logs
 
 - `id`

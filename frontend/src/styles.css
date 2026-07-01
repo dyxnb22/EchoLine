@@ -125,3 +125,30 @@ button {
   background: #e5e7eb;
   color: #111;
 }
+
+.search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0 1rem 1rem;
+}
+
+.search-results {
+  list-style: none;
+  padding: 0 1rem;
+  margin: 0 0 1rem;
+}
+
+.search-results button {
+  width: 100%;
+  text-align: left;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.25rem;
+  cursor: pointer;
+}
+
+.message.pending { opacity: 0.6; }
+.message.failed { border: 1px solid #b91c1c; }

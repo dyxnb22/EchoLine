@@ -52,6 +52,15 @@ func (c *Client) PresignPutURL(ctx context.Context, ownerID uuid.UUID, mimeType 
 	return u.String(), objectKey, nil
 }
 
+// PresignGetURL returns a short-lived download URL for an object key.
+func (c *Client) PresignGetURL(ctx context.Context, objectKey string) (string, error) {
+	u, err := c.minio.PresignedGetObject(ctx, c.bucket, objectKey, 15*time.Minute, nil)
+	if err != nil {
+		return "", fmt.Errorf("presign get: %w", err)
+	}
+	return u.String(), nil
+}
+
 // Bucket returns configured bucket name.
 func (c *Client) Bucket() string {
 	return c.bucket

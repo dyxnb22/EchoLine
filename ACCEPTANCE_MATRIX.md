@@ -44,15 +44,15 @@
 | Redis presence | partial | Redis TTL presence on WS（可选 REDIS_ADDR） |
 | MQ worker | partial | outbox drainer + Kafka/memory publish |
 | 附件 | partial | 预签名上传、元数据入库、附件消息发送 |
-| 搜索 | todo | 消息搜索和权限过滤 |
+| 搜索 | partial | PostgreSQL tsvector + 成员权限过滤 |
 | 通知 | todo | 异步通知事件不阻塞主链路 |
 | 限流 | partial | 登录、全局发消息、会话级 conv_send 限流（需 REDIS_ADDR） |
 | 风控 | todo | 高频、重复内容基础规则 |
-| 审计 | partial | audit_logs + 登录成功/失败审计 |
-| 可观测性 | todo | logs、metrics、trace_id |
+| 审计 | partial | audit_logs + 登录/撤回审计 |
+| 可观测性 | partial | trace_id、Prometheus /metrics、WS/发送延迟指标 |
 | 压测 | todo | k6 脚本和报告 |
 | chaos | todo | Redis/MQ 故障演练 |
-| 前端 | partial | 登录、会话列表、聊天、分页、WS 重连 |
+| 前端 | partial | 登录、聊天、分页、WS、乐观发送、附件、搜索 |
 | 移动/桌面原型 | todo | PWA 或原型 ADR |
 
 ## Definition of Done

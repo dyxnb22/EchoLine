@@ -16,6 +16,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
 	"github.com/echoline/echoline/backend/internal/message"
+	"github.com/echoline/echoline/backend/internal/metrics"
 )
 
 const (
@@ -35,8 +36,9 @@ var upgrader = websocket.Upgrader{
 
 // Hub tracks active WebSocket connections.
 type Hub struct {
-	mu    sync.RWMutex
-	conns map[uuid.UUID]map[string]*Connection
+	mu            sync.RWMutex
+	conns         map[uuid.UUID]map[string]*Connection
+	onCountChange func(int)
 }
 
 // NewHub creates a connection hub.
@@ -52,6 +54,7 @@ func (h *Hub) Register(userID uuid.UUID, deviceID string, conn *Connection) {
 		h.conns[userID] = make(map[string]*Connection)
 	}
 	h.conns[userID][deviceID] = conn
+	h.emitCountLocked()
 }
 
 // Unregister removes a connection.
@@ -64,6 +67,18 @@ func (h *Hub) Unregister(userID uuid.UUID, deviceID string) {
 			delete(h.conns, userID)
 		}
 	}
+	h.emitCountLocked()
+}
+
+func (h *Hub) emitCountLocked() {
+	if h.onCountChange == nil {
+		return
+	}
+	total := 0
+	for _, devices := range h.conns {
+		total += len(devices)
+	}
+	h.onCountChange(total)
 }
 
 // ConnectionCount returns total active connections.
@@ -132,6 +147,13 @@ func NewServer(
 		messages.SetBroadcaster(s)
 	}
 	return s
+}
+
+// SetHubMetrics enables websocket connection gauge updates.
+func (s *Server) SetHubMetrics() {
+	s.hub.onCountChange = func(n int) {
+		metrics.WSConnections.Set(float64(n))
+	}
 }
 
 // Hub returns the connection hub.

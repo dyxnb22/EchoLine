@@ -49,6 +49,18 @@ func (r *Repository) Append(ctx context.Context, actorID *uuid.UUID, action, res
 	return nil
 }
 
+// LogRecall records a message recall audit event.
+func (r *Repository) LogRecall(ctx context.Context, actorID uuid.UUID, messageID, conversationID string, seq int64) error {
+	if r == nil {
+		return nil
+	}
+	meta := map[string]any{
+		"conversation_id": conversationID,
+		"seq":             seq,
+	}
+	return r.Append(ctx, &actorID, "message.recall", "message", messageID, meta)
+}
+
 // LogLogin records a login attempt.
 func (r *Repository) LogLogin(ctx context.Context, userID *uuid.UUID, username string, success bool, ip string) error {
 	if r == nil {

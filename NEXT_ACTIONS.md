@@ -2,14 +2,15 @@
 
 ## Immediate P0
 
-1. Integration smoke with docker compose when available (`RUN_API_SMOKE=1 RUN_WS_SMOKE=1 make smoke`).
-2. Outbox integration test with Postgres (`FOR UPDATE SKIP LOCKED` hardening optional).
+1. Integration smoke: `make dev-up` + `RUN_API_SMOKE=1 RUN_WS_SMOKE=1 make smoke`
+2. Extend `scripts/smoke-test.sh` with register/login/send/search flow
 
 ## Sequential
 
-3. G005: presigned download URL for attachments.
-4. I001: request_id in structured logs (partially done via middleware).
-5. J007: optimistic send + error toast polish.
+3. F009: MQ lag metrics from Kafka consumer
+4. I006-I007: k6 API/WS load test scripts
+5. B011: typing indicator WS event
+6. G010: notification event table skeleton
 
 ## Environment
 
@@ -27,4 +28,5 @@ make api-run
 make worker-run
 make seed
 make frontend-dev
+curl localhost:8080/metrics
 ```

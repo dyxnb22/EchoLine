@@ -40,8 +40,8 @@
 
 - [x] latest_seq / seq 分配（C001-C002，message repo 事务）。
 - [x] 会话列表 + unread（C003/C005 partial）。
-- [x] mark read + sync endpoint（C004/C006）。
-- [ ] 历史分页集成测试（A019 with DB）。
+- [x] 消息编辑/撤回 API（C008-C009 partial）。
+- [x] per-device sync cursor（C007）。
 
 ## Phase 4
 
@@ -61,8 +61,8 @@
 
 - [x] client_msg_id 幂等（D001-D002 partial）。
 - [x] ACK REST/WS + delivery 状态机（D003-D004）。
-- [x] outbox enqueue + worker publisher（D007-F008 partial）。
-- [ ] outbox integration test / DLQ ops（D008 partial）。
+- [x] outbox enqueue + worker publisher + SKIP LOCKED（D007-F008）。
+- [x] DLQ skeleton（D008 partial）。
 
 ## Phase 6 (infra partial)
 
@@ -70,13 +70,20 @@
 - [x] in-memory event bus + worker skeleton（F005-F007 partial）。
 - [ ] Kafka consumer production path（F008 partial — outbox drainer done）。
 
-## Phase 7 (media partial)
+## Phase 7 (media/search partial)
 
-- [x] MinIO presign upload URL（G001-G002）。
-- [x] attachments 元数据表 + 附件消息发送（G003-G004 partial）。
+- [x] MinIO presign upload/download URL（G001-G002, G005）。
+- [x] attachments 元数据 + 附件消息（G003-G004）。
+- [x] PostgreSQL 全文搜索 + search API（G005-G008 partial）。
+
+## Phase 8 (observability partial)
+
+- [x] trace_id + Prometheus metrics（I001-I005 partial）。
+- [x] 登录/会话/conv_send 限流（H001-H003）。
 
 ## Phase 8 (frontend partial)
 
-- [x] Vite React 登录/会话/聊天/分页/WS 重连（J001-J006 partial）。
+- [x] Vite React 登录/会话/聊天/分页/WS 重连（J001-J006）。
+- [x] 乐观发送 + 附件上传 + 搜索 UI（J007-J009 partial）。
 
 ## Phase 2+

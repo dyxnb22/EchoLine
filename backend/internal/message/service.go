@@ -99,6 +99,29 @@ func (s *Service) List(ctx context.Context, convID uuid.UUID, beforeSeq *int64, 
 	return s.repo.List(ctx, convID, beforeSeq, limit)
 }
 
+// Edit updates a message body for the sender.
+func (s *Service) Edit(ctx context.Context, convID, messageID, senderID uuid.UUID, body string) (*Message, error) {
+	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
+		return nil, err
+	}
+	return s.repo.Edit(ctx, convID, messageID, senderID, body)
+}
+
+// Recall marks a message recalled; sender or admin may recall.
+func (s *Service) Recall(ctx context.Context, convID, messageID, actorID uuid.UUID) (*Message, error) {
+	msg, err := s.repo.GetByID(ctx, convID, messageID)
+	if err != nil {
+		return nil, err
+	}
+	if msg.SenderID != actorID {
+		member, err := s.conversations.GetMember(ctx, convID, actorID)
+		if err != nil || !conversation.CanManageMembers(member.Role) {
+			return nil, conversation.ErrForbidden
+		}
+	}
+	return s.repo.Recall(ctx, convID, messageID)
+}
+
 // ToCreatedPayload converts a message for WS/REST responses.
 func ToCreatedPayload(msg *Message) map[string]any {
 	return ToCreatedPayloadWithAttachment(msg, nil)

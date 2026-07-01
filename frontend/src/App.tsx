@@ -6,6 +6,9 @@ import {
   listMessages,
   login,
   Message,
+  presignUpload,
+  searchMessages,
+  SearchHit,
   sendMessage,
   WSStatus,
 } from "./api";
@@ -20,9 +23,13 @@ export default function App() {
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [draft, setDraft] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<WSStatus>("closed");
+  const [uploading, setUploading] = useState(false);
   const activeIdRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const deviceId = useMemo(() => localStorage.getItem("echoline_device") ?? crypto.randomUUID(), []);
 
@@ -76,8 +83,9 @@ export default function App() {
       if (env.payload?.conversation_id !== activeIdRef.current) return;
       setMessages((prev) => {
         const seq = env.payload!.seq ?? 0;
-        if (prev.some((m) => m.seq === seq)) return prev;
-        return [...prev, {
+        const withoutPending = prev.filter((m) => !(m.pending && m.body === (env.payload!.body ?? "")));
+        if (withoutPending.some((m) => m.seq === seq)) return withoutPending;
+        return [...withoutPending, {
           id: env.payload!.id ?? crypto.randomUUID(),
           seq,
           body: env.payload!.body ?? "",
@@ -103,9 +111,54 @@ export default function App() {
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !activeId || !draft.trim()) return;
+    const body = draft.trim();
+    const tempId = crypto.randomUUID();
+    const optimistic: Message = {
+      id: tempId,
+      seq: Date.now(),
+      body,
+      sender_id: "me",
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setDraft("");
     try {
-      await sendMessage(token, activeId, draft.trim());
-      setDraft("");
+      await sendMessage(token, activeId, body);
+    } catch (err) {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m)));
+      setError(String(err));
+    }
+  }
+
+  async function handleUpload(file: File) {
+    if (!token || !activeId) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const { object_key } = await presignUpload(token, file);
+      const tempId = crypto.randomUUID();
+      setMessages((prev) => [...prev, {
+        id: tempId,
+        seq: Date.now(),
+        body: file.name,
+        sender_id: "me",
+        pending: true,
+        attachment: { object_key, mime_type: file.type },
+      }]);
+      await sendMessage(token, activeId, file.name, object_key);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || !searchQ.trim()) return;
+    try {
+      const hits = await searchMessages(token, searchQ.trim());
+      setSearchHits(hits);
     } catch (err) {
       setError(String(err));
     }
@@ -147,6 +200,19 @@ export default function App() {
           <span className={`ws-status ws-${wsStatus}`}>{wsStatus}</span>
           <button onClick={() => { localStorage.removeItem("echoline_token"); setToken(null); }}>Logout</button>
         </header>
+        <form onSubmit={handleSearch} className="search">
+          <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search messages" />
+          <button type="submit">Search</button>
+        </form>
+        {searchHits.length > 0 && (
+          <ul className="search-results">
+            {searchHits.map((h) => (
+              <li key={h.message_id}>
+                <button onClick={() => setActiveId(h.conversation_id)}>#{h.seq} {h.body}</button>
+              </li>
+            ))}
+          </ul>
+        )}
         <ul>
           {conversations.map((c) => (
             <li key={c.id}>
@@ -166,14 +232,29 @@ export default function App() {
         )}
         <div className="messages">
           {messages.map((m) => (
-            <div key={`${m.id}-${m.seq}`} className="message">
+            <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""}`}>
               <strong>#{m.seq}</strong> {m.body}
+              {m.pending && <em> sending...</em>}
+              {m.failed && <em> failed</em>}
             </div>
           ))}
         </div>
         {activeId && (
           <form onSubmit={handleSend} className="composer">
             <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Type a message" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleUpload(file);
+                e.target.value = "";
+              }}
+            />
+            <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+              {uploading ? "..." : "Attach"}
+            </button>
             <button type="submit">Send</button>
           </form>
         )}
