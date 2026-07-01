@@ -32,7 +32,7 @@
 | 用户注册/登录 | partial | 可注册、登录、鉴权；密码 hash；refresh token |
 | 多设备登录 | partial | device 表/repo；WS device_id 绑定 |
 | 私聊 | partial | 去重 direct API + 消息读写（待 DB integration） |
-| 群聊 | partial | 群创建 API（角色权限待 E001） |
+| 群聊 | partial | 创建/邀请/踢人/退群 + owner/admin/member 校验 |
 | 会话列表 | partial | 列表 + unread 字段 |
 | 历史消息 | partial | cursor 分页 + next_before |
 | WebSocket | partial | 连接、鉴权、ping/pong、message.send、push、ACK |
