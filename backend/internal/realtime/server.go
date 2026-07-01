@@ -274,6 +274,8 @@ func (c *Connection) readPump(s *Server) {
 			s.handleMessageSend(c, env)
 		case "message.ack":
 			s.handleMessageAck(c, env)
+		case "typing.start":
+			s.handleTypingStart(c, env)
 		default:
 			c.sendError(env.RequestID, "unknown_type", "unsupported message type")
 		}
@@ -372,6 +374,44 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 		"acked_at":   rec.AckedAt,
 	})
 	c.enqueue(resp)
+}
+
+func (s *Server) handleTypingStart(c *Connection, env Envelope) {
+	var payload TypingPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid typing.start payload")
+		return
+	}
+
+	convID, err := uuid.Parse(payload.ConversationID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
+		return
+	}
+
+	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
+	if err != nil || !member {
+		c.sendError(env.RequestID, "forbidden", "not a conversation member")
+		return
+	}
+
+	memberIDs, err := s.conversations.ListMemberUserIDs(context.Background(), convID)
+	if err != nil {
+		return
+	}
+
+	indicator, _ := marshalEnvelope("typing.indicator", "", TypingIndicatorPayload{
+		ConversationID: payload.ConversationID,
+		UserID:         c.UserID.String(),
+	})
+
+	ctx := context.Background()
+	for _, uid := range memberIDs {
+		if uid == c.UserID {
+			continue
+		}
+		s.hub.PushToUser(ctx, uid, indicator)
+	}
 }
 
 func (c *Connection) sendError(requestID, code, message string) {

@@ -35,6 +35,18 @@ var (
 		Name: "echoline_mq_events_consumed_total",
 		Help: "Events consumed from bus",
 	}, []string{"topic"})
+
+	// MQLag tracks the consumer lag (pending events) for the in-process bus (F009 skeleton).
+	MQLag = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "echoline_mq_lag",
+		Help: "Approximate MQ consumer lag (pending events not yet processed)",
+	})
+
+	// HotConversations tracks the number of conversations with active WS connections (E009 skeleton).
+	HotConversations = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "echoline_hot_conversations",
+		Help: "Number of conversations with at least one active WebSocket subscriber",
+	})
 )
 
 // Handler returns Prometheus scrape handler.

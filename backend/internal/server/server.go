@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,6 +51,38 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("POST /api/media/download-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignDownload)))
 	}
 	mux.HandleFunc("GET /ws", s.realtime.HandleWS)
+
+	// Profile
+	mux.Handle("PATCH /api/me", auth.RequireAuth(s.auth, http.HandlerFunc(s.handlePatchMe)))
+
+	// Devices
+	mux.Handle("GET /api/devices", auth.RequireAuth(s.auth, http.HandlerFunc(s.deviceH.HandleList)))
+
+	// Pin / Unpin / List
+	mux.Handle("POST /api/conversations/{id}/pins/{message_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.pin.HandlePin)))
+	mux.Handle("DELETE /api/conversations/{id}/pins/{message_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.pin.HandleUnpin)))
+	mux.Handle("GET /api/conversations/{id}/pins", auth.RequireAuth(s.auth, http.HandlerFunc(s.pin.HandleList)))
+
+	// Mute / Unmute
+	mux.Handle("POST /api/conversations/{id}/mute", auth.RequireAuth(s.auth, http.HandlerFunc(s.mute.HandleMute)))
+	mux.Handle("POST /api/conversations/{id}/unmute", auth.RequireAuth(s.auth, http.HandlerFunc(s.mute.HandleUnmute)))
+
+	// Block / Unblock / List
+	mux.Handle("POST /api/blocks/{user_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.block.HandleBlock)))
+	mux.Handle("DELETE /api/blocks/{user_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.block.HandleUnblock)))
+	mux.Handle("GET /api/blocks", auth.RequireAuth(s.auth, http.HandlerFunc(s.block.HandleList)))
+
+	// Reports
+	mux.Handle("POST /api/conversations/{id}/messages/{message_id}/report", auth.RequireAuth(s.auth, http.HandlerFunc(s.report.HandleCreate)))
+
+	// Notifications
+	mux.Handle("GET /api/notifications", auth.RequireAuth(s.auth, http.HandlerFunc(s.notification.HandleList)))
+	mux.Handle("POST /api/notifications/{id}/read", auth.RequireAuth(s.auth, http.HandlerFunc(s.notification.HandleMarkRead)))
+	mux.Handle("POST /api/notifications/read-all", auth.RequireAuth(s.auth, http.HandlerFunc(s.notification.HandleMarkAllRead)))
+
+	// Admin
+	mux.Handle("GET /api/admin/health", auth.RequireAuth(s.auth, http.HandlerFunc(s.adminHandler.HandleHealth)))
+	mux.Handle("GET /api/admin/dlq", auth.RequireAuth(s.auth, http.HandlerFunc(s.dlqHandler.HandleList)))
 
 	s.applyRateLimits(mux)
 
@@ -135,6 +168,51 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	return s.httpServer.Shutdown(ctx)
+}
+
+type patchMeRequest struct {
+	DisplayName string `json:"display_name"`
+}
+
+func (s *Server) handlePatchMe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth context")
+		return
+	}
+
+	var req patchMeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON")
+		return
+	}
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	if req.DisplayName == "" {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "display_name is required")
+		return
+	}
+
+	if err := s.profileRepo.UpdateDisplayName(r.Context(), claims.UserID, req.DisplayName); err != nil {
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to update profile")
+		return
+	}
+
+	u, err := s.userRepo.GetByID(r.Context(), claims.UserID)
+	if err != nil {
+		if errors.Is(err, user.ErrNotFound) {
+			apierror.Write(w, r, http.StatusNotFound, "not_found", "user not found")
+			return
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to load profile")
+		return
+	}
+
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
+		"id":           u.ID,
+		"username":     u.Username,
+		"display_name": u.DisplayName,
+		"updated_at":   u.UpdatedAt,
+	})
 }
 
 // Keep writeJSON for tests that still reference server package helpers.

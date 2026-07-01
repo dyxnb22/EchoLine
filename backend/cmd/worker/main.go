@@ -83,6 +83,8 @@ func main() {
 			if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
 				logger.Error("fanout worker", "error", err)
 			}
+			// Notification mock worker: log that we would create a notification event.
+			logger.Info("notification worker: would create notification", "topic", evt.Type)
 		}
 	}()
 

@@ -7,20 +7,26 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/echoline/echoline/backend/internal/admin"
 	"github.com/echoline/echoline/backend/internal/audit"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/block"
 	"github.com/echoline/echoline/backend/internal/cache"
 	"github.com/echoline/echoline/backend/internal/config"
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
+	"github.com/echoline/echoline/backend/internal/device"
 	"github.com/echoline/echoline/backend/internal/eventbus"
 	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/message"
+	"github.com/echoline/echoline/backend/internal/notification"
 	"github.com/echoline/echoline/backend/internal/outbox"
+	"github.com/echoline/echoline/backend/internal/pin"
 	"github.com/echoline/echoline/backend/internal/presence"
 	"github.com/echoline/echoline/backend/internal/rate_limit"
 	"github.com/echoline/echoline/backend/internal/realtime"
 	"github.com/echoline/echoline/backend/internal/redisx"
+	"github.com/echoline/echoline/backend/internal/report"
 	"github.com/echoline/echoline/backend/internal/search"
 	"github.com/echoline/echoline/backend/internal/sync"
 	"github.com/echoline/echoline/backend/internal/user"
@@ -77,41 +83,66 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		}
 	}
 
+	pinRepo := pin.NewRepository(pool)
+	blockRepo := block.NewRepository(pool)
+	reportRepo := report.NewRepository(pool)
+	notifRepo := notification.NewRepository(pool)
+
 	return &Server{
-		cfg:        cfg,
-		pool:       pool,
-		logger:     logger,
-		auth:       authSvc,
-		conv:       convHandler,
-		msg:        message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo),
-		sync:       sync.NewHandler(convRepo, msgSvc, cursorRepo),
-		search:     search.NewHandler(searchRepo),
-		delivery:   delivery.NewHandler(deliveryRepo, convRepo),
-		realtime:   rt,
-		limiter:    limiter,
-		memBus:     memBus,
-		outboxRepo: outboxRepo,
-		media:      mediaHandler,
+		cfg:          cfg,
+		pool:         pool,
+		logger:       logger,
+		auth:         authSvc,
+		conv:         convHandler,
+		msg:          message.NewHandler(msgSvc, convRepo, attachmentRepo, auditRepo),
+		sync:         sync.NewHandler(convRepo, msgSvc, cursorRepo),
+		search:       search.NewHandler(searchRepo),
+		delivery:     delivery.NewHandler(deliveryRepo, convRepo),
+		realtime:     rt,
+		limiter:      limiter,
+		memBus:       memBus,
+		outboxRepo:   outboxRepo,
+		media:        mediaHandler,
+		pin:          pin.NewHandler(pinRepo, convRepo),
+		block:        block.NewHandler(blockRepo),
+		report:       report.NewHandler(reportRepo, convRepo),
+		notification: notification.NewHandler(notifRepo),
+		adminHandler: admin.NewHandler(pool, authSvc),
+		dlqHandler:   outbox.NewDLQHandler(pool),
+		userRepo:     userRepo,
+		profileRepo:  user.NewProfileRepository(pool),
+		deviceH:      device.NewHandler(pool),
+		mute:         conversation.NewMuteHandler(pool, convRepo),
 	}
 }
 
 // Server is the HTTP API server.
 type Server struct {
-	cfg        config.Config
-	pool       *pgxpool.Pool
-	logger     *slog.Logger
-	httpServer *http.Server
-	auth       *auth.Service
-	conv       *conversation.Handler
-	msg        *message.Handler
-	sync       *sync.Handler
-	search     *search.Handler
-	delivery   *delivery.Handler
-	realtime   *realtime.Server
-	limiter    rate_limit.Limiter
-	memBus     *eventbus.MemoryPublisher
-	outboxRepo *outbox.Repository
-	media      *media.Handler
+	cfg          config.Config
+	pool         *pgxpool.Pool
+	logger       *slog.Logger
+	httpServer   *http.Server
+	auth         *auth.Service
+	conv         *conversation.Handler
+	msg          *message.Handler
+	sync         *sync.Handler
+	search       *search.Handler
+	delivery     *delivery.Handler
+	realtime     *realtime.Server
+	limiter      rate_limit.Limiter
+	memBus       *eventbus.MemoryPublisher
+	outboxRepo   *outbox.Repository
+	media        *media.Handler
+	pin          *pin.Handler
+	block        *block.Handler
+	report       *report.Handler
+	notification *notification.Handler
+	adminHandler *admin.Handler
+	dlqHandler   *outbox.DLQHandler
+	userRepo     *user.Repository
+	profileRepo  *user.ProfileRepository
+	deviceH      *device.Handler
+	mute         *conversation.MuteHandler
 }
 
 // OutboxRepo exposes outbox repository for workers.

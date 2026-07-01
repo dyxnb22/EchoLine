@@ -57,6 +57,17 @@ type MessageAckPayload struct {
 	Status         string `json:"status"`
 }
 
+// TypingPayload is sent by a client to indicate typing activity.
+type TypingPayload struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// TypingIndicatorPayload is broadcast to conversation members.
+type TypingIndicatorPayload struct {
+	ConversationID string `json:"conversation_id"`
+	UserID         string `json:"user_id"`
+}
+
 func marshalEnvelope(typ, requestID string, payload any) ([]byte, error) {
 	var raw json.RawMessage
 	if payload != nil {

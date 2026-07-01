@@ -10,6 +10,7 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/media"
+	"github.com/echoline/echoline/backend/internal/risk"
 )
 
 // Broadcaster pushes realtime events to online users.
@@ -23,6 +24,7 @@ type Service struct {
 	conversations *conversation.Repository
 	attachments   *media.Repository
 	broadcaster   Broadcaster
+	spamChecker   *risk.SpamChecker
 }
 
 // SetBroadcaster attaches a realtime broadcaster after construction.
@@ -37,6 +39,7 @@ func NewService(repo *Repository, conversations *conversation.Repository, attach
 		conversations: conversations,
 		attachments:   attachments,
 		broadcaster:   broadcaster,
+		spamChecker:   risk.NewSpamChecker(),
 	}
 }
 
@@ -52,6 +55,14 @@ type SendInput struct {
 func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input SendInput) (*Message, error) {
 	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
 		return nil, err
+	}
+
+	if input.Body != "" && s.spamChecker != nil {
+		if err := s.spamChecker.CheckDuplicateBody(senderID, input.Body); err != nil {
+			if errors.Is(err, risk.ErrSpamDetected) {
+				return nil, errors.New("rate limit: duplicate message body")
+			}
+		}
 	}
 
 	msgType := input.Type
