@@ -2,6 +2,41 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Phase 1 backend foundation (checkpoint 1)
+
+任务：
+
+- A001-A010: Go API skeleton, config, health, DB pool, goose migrations, users repo, Argon2id, register/login, JWT middleware.
+- A012-A018: devices/conversations/messages schema and REST APIs.
+- Updated docs, Makefile, smoke script, repo state files.
+
+文件：
+
+- `backend/go.mod`, `backend/go.sum`
+- `backend/cmd/api/main.go`
+- `backend/internal/config/`, `db/`, `migrate/`, `server/`, `auth/`, `user/`, `device/`, `conversation/`, `message/`
+- `backend/migrations/00001_users.sql`, `00002_conversations_messages.sql`
+- `Makefile`, `scripts/smoke-test.sh`
+- `docs/api.md`, `docs/data-model.md`
+- `CURRENT_STATE.md`, `NEXT_ACTIONS.md`, `DONE.md`, `ACCEPTANCE_MATRIX.md`, `BLOCKERS.md`
+
+测试：
+
+- `cd backend && go test ./...` 通过（无 DATABASE_URL 时 integration tests skip）。
+- `make test` 通过。
+- `make smoke` 通过。
+
+阻塞：
+
+- Docker/PostgreSQL 不可用，未跑 full API integration smoke。
+
+- A011, C003, B001-B004: refresh token, conversation list API, WebSocket endpoint with auth/ping/connection hub.
+
+不要重复：
+
+- 不要重做 A001-A018 骨架。
+- 不要重写 Phase 0 文档。
+
 ## 2026-07-01 Phase 0 长时执行系统补强
 
 任务：

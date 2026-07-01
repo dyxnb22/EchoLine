@@ -1,4 +1,4 @@
-.PHONY: help test lint dev-up dev-down smoke
+.PHONY: help test lint dev-up dev-down smoke api-run
 
 help:
 	@echo "EchoLine commands:"
@@ -7,9 +7,13 @@ help:
 	@echo "  make dev-up    Start local dependencies"
 	@echo "  make dev-down  Stop local dependencies"
 	@echo "  make smoke     Run smoke checks"
+	@echo "  make api-run   Run API server (requires DATABASE_URL and JWT_SECRET)"
 
 test:
-	@echo "No tests yet. Phase 1 will add backend tests."
+	cd backend && go test ./...
+
+api-run:
+	cd backend && go run ./cmd/api
 
 lint:
 	@echo "No linters yet. Phase 1 will add backend linting."

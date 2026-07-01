@@ -43,6 +43,14 @@
 - `muted_until`
 - `joined_at`
 
+### direct_conversation_pairs
+
+- `user_low`
+- `user_high`
+- `conversation_id`
+
+用于保证两个用户之间只有一个 direct conversation。
+
 ### messages
 
 - `id`

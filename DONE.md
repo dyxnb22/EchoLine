@@ -24,11 +24,15 @@
 
 ## Phase 1
 
-- [ ] 后端服务初始化。
-- [ ] 数据库 migration。
-- [ ] 用户注册 / 登录。
-- [ ] 会话 API。
-- [ ] 消息写入 API。
+- [x] 后端服务初始化（A001-A005）。
+- [x] 数据库 migration（users + conversations/messages/devices）。
+- [x] 用户注册 / 登录 / JWT（A006-A010）。
+- [x] 私聊 / 群聊创建 API（A016-A017）。
+- [x] 消息写入与历史分页 API（A018-A019 partial）。
+- [x] refresh token skeleton（A011）。
+- [x] 会话列表 API（C003）。
+- [x] WebSocket endpoint + 鉴权 + 心跳（B001-B004 partial）。
+- [ ] 完整 integration smoke（依赖 Postgres）。
 
 ## Phase 2+
 

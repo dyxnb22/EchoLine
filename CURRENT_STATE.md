@@ -1,45 +1,37 @@
 # Current State
 
-Current phase: Phase 0 completed, ready for Phase 1.
+Current phase: Phase 1 in progress.
 
-Current milestone: long-run execution package.
+Current milestone: Phase 1 core APIs + Phase 2 WebSocket foundation (A001-C003, B001-B004).
 
 Last completed:
 
-- Created initial repo skeleton.
-- Added long-running execution prompt.
-- Added detailed task graph.
-- Added acceptance matrix.
-- Added context compaction rules.
-- Added backlog and future extension roadmap.
-- Added Cursor project rules and skills.
-- Added subagent orchestration plan and task packet template.
-- Added rule: subagents using Composer 2.5 must disable Fast mode.
+- A001-A018: backend foundation, auth, conversations, messages.
+- A011: refresh token endpoint.
+- C003: conversation list API.
+- B001-B004: WebSocket endpoint, token auth, connection hub, ping/pong heartbeat.
 
 Tests:
 
-- `make help` passed.
-- `make test` passed with Phase 1 placeholder.
-- `make smoke` passed with Phase 1 placeholder.
+- `cd backend && go test ./...` passed (integration tests skip without `DATABASE_URL`).
+- `make test` passed.
+- `make smoke` passed (unit-test based smoke).
+- Docker/PostgreSQL integration smoke not run in this environment.
 
 Known blockers:
 
-- None.
+- Docker unavailable in cloud VM (`make dev-up` fails). PostgreSQL not installed locally. DB integration tests and full API smoke require `DATABASE_URL` pointing to a running Postgres instance.
 
 Next actions:
 
-1. Start Phase 1.
-2. Initialize Go backend module.
-3. Add config loader.
-4. Add health endpoint.
-5. Add PostgreSQL connection.
-6. Add first migration.
-7. Implement users/auth foundation.
-8. If dispatching subagents, use `SUBAGENT_TASK_PACKET.md` and require Composer 2.5 Fast mode disabled.
+1. B005-B007: WS event envelope, message.send over WS, online push.
+2. A019: history pagination tests with DB.
+3. A020-A022: error envelope, OpenAPI, seed script.
+4. Full integration smoke when Postgres available.
 
 Do not repeat:
 
-- Do not recreate repo skeleton.
-- Do not rewrite README as a first task.
-- Do not re-plan all phases unless `TASK_GRAPH_DETAILED.md` is missing or obsolete.
-- Do not skip Phase 1 implementation to work on future extensions.
+- Do not recreate Go module skeleton.
+- Do not re-implement auth/register/login.
+- Do not rewrite Phase 0 docs.
+- Do not skip tests before marking Phase 1 done.

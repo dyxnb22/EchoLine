@@ -15,7 +15,7 @@
 | Phase | 状态 | 必须能力 | 必须测试 | 必须文档 |
 |---|---|---|---|---|
 | Phase 0 | done | repo skeleton、长时执行文档 | `make help`, `make test`, `make smoke` | README、AGENTS、TASKS、规则文档 |
-| Phase 1 | todo | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
+| Phase 1 | doing | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
 | Phase 2 | todo | WebSocket 连接、心跳、在线推送 | WS smoke | websocket-protocol |
 | Phase 3 | todo | 会话列表、未读、历史、离线 sync | sync/unread tests | reliability、api |
 | Phase 4 | todo | 群聊、频道、presence、多端 | role/presence tests | architecture、data-model |
@@ -30,14 +30,14 @@
 
 | 能力 | 状态 | 验收标准 |
 |---|---|---|
-| 用户注册/登录 | todo | 可注册、登录、鉴权；密码 hash；错误码稳定 |
-| 多设备登录 | todo | device 记录和 session 管理可用 |
-| 私聊 | todo | 双方会话唯一，消息可写可读 |
-| 群聊 | todo | 成员角色和权限正确 |
+| 用户注册/登录 | partial | 可注册、登录、鉴权；密码 hash；错误码稳定 |
+| 多设备登录 | partial | device 表和 repository 已建，API 未接 |
+| 私聊 | partial | 双方会话唯一 API 已实现，待 DB integration 验证 |
+| 群聊 | partial | owner/member 创建 API 已实现，待 DB integration 验证 |
 | 频道 | todo | owner/admin 可发布，subscriber 可接收 |
 | 会话列表 | todo | 最近消息排序，未读数展示 |
-| 历史消息 | todo | cursor 分页不漏不重 |
-| WebSocket | todo | 心跳、断线清理、在线推送 |
+| 历史消息 | partial | cursor 分页 API 已实现，待 DB integration 验证 |
+| WebSocket | partial | endpoint、鉴权、ping/pong、连接管理已实现 |
 | 离线同步 | todo | 重连后可补拉缺失消息 |
 | 多端同步 | todo | 多设备在线接收，读状态一致 |
 | ACK | todo | delivered/read 状态可记录 |
