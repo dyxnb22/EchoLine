@@ -2,24 +2,26 @@ package message
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
 )
 
 // Handler exposes message REST endpoints.
 type Handler struct {
-	messages      *Repository
+	service       *Service
 	conversations *conversation.Repository
 }
 
 // NewHandler creates a message handler.
-func NewHandler(messages *Repository, conversations *conversation.Repository) *Handler {
+func NewHandler(service *Service, conversations *conversation.Repository) *Handler {
 	return &Handler{
-		messages:      messages,
+		service:       service,
 		conversations: conversations,
 	}
 }
@@ -34,63 +36,57 @@ type sendRequest struct {
 func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "missing auth")
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
 
 	convID, err := conversation.ParseConversationID(r.URL.Path, "/api/conversations/", "/messages")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
-		return
-	}
-
-	member, err := h.conversations.IsMember(r.Context(), convID, claims.UserID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to check membership")
-		return
-	}
-	if !member {
-		writeError(w, http.StatusForbidden, "forbidden", "not a conversation member")
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
 		return
 	}
 
 	var req sendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
 
-	msg, err := h.messages.Create(r.Context(), convID, claims.UserID, req.ClientMsgID, Type(req.Type), req.Body)
+	msg, err := h.service.Send(r.Context(), convID, claims.UserID, req.ClientMsgID, Type(req.Type), req.Body)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		if errors.Is(err, conversation.ErrNotMember) {
+			apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+			return
+		}
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toMessageResponse(msg))
+	apierror.WriteJSON(w, http.StatusCreated, ToCreatedPayload(msg))
 }
 
 // HandleList returns paginated conversation messages.
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "missing auth")
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
 
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	convID, err := conversation.ParseConversationID(path, "/api/conversations/", "/messages")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
 		return
 	}
 
 	member, err := h.conversations.IsMember(r.Context(), convID, claims.UserID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to check membership")
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to check membership")
 		return
 	}
 	if !member {
-		writeError(w, http.StatusForbidden, "forbidden", "not a conversation member")
+		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
 		return
 	}
 
@@ -105,54 +101,78 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("before_seq"); raw != "" {
 		parsed, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "invalid before_seq")
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid before_seq")
 			return
 		}
 		beforeSeq = &parsed
 	}
 
-	messages, err := h.messages.List(r.Context(), convID, beforeSeq, limit)
+	messages, err := h.service.List(r.Context(), convID, beforeSeq, limit)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list messages")
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to list messages")
 		return
 	}
 
 	items := make([]map[string]any, 0, len(messages))
-	for _, msg := range messages {
-		items = append(items, toMessageResponse(&msg))
+	for i := range messages {
+		items = append(items, ToCreatedPayload(&messages[i]))
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"messages": items,
+	var nextBefore *int64
+	if len(messages) == limit {
+		seq := messages[len(messages)-1].Seq
+		nextBefore = &seq
+	}
+
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
+		"messages":    items,
+		"next_before": nextBefore,
 	})
 }
 
-func toMessageResponse(msg *Message) map[string]any {
-	return map[string]any{
-		"id":              msg.ID,
-		"conversation_id": msg.ConversationID,
-		"sender_id":       msg.SenderID,
-		"client_msg_id":   msg.ClientMsgID,
-		"seq":             msg.Seq,
-		"type":            msg.Type,
-		"body":            msg.Body,
-		"status":          msg.Status,
-		"created_at":      msg.CreatedAt,
-		"updated_at":      msg.UpdatedAt,
+// HandleMarkRead updates last_read_seq for a conversation.
+func (h *Handler) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
+		return
 	}
-}
 
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
-}
+	convID, err := conversation.ParseConversationID(r.URL.Path, "/api/conversations/", "/read")
+	if err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
+		return
+	}
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{
-		"error": map[string]string{
-			"code":    code,
-			"message": message,
-		},
+	var req struct {
+		LastReadSeq int64 `json:"last_read_seq"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+
+	if err := h.conversations.MarkRead(r.Context(), convID, claims.UserID, req.LastReadSeq); err != nil {
+		if errors.Is(err, conversation.ErrNotMember) {
+			apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+			return
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to mark read")
+		return
+	}
+
+	state, _ := h.conversations.GetMemberState(r.Context(), convID, claims.UserID)
+	unread := int64(0)
+	if state != nil {
+		unread = state.LatestSeq - state.LastReadSeq
+		if unread < 0 {
+			unread = 0
+		}
+	}
+
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
+		"conversation_id": convID,
+		"last_read_seq":   req.LastReadSeq,
+		"unread":          unread,
 	})
 }

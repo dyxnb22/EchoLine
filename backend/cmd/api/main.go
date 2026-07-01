@@ -12,6 +12,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/config"
 	"github.com/echoline/echoline/backend/internal/db"
 	"github.com/echoline/echoline/backend/internal/migrate"
+	"github.com/echoline/echoline/backend/internal/redisx"
 	"github.com/echoline/echoline/backend/internal/server"
 )
 
@@ -38,7 +39,17 @@ func main() {
 	}
 	defer pool.Close()
 
-	srv := server.New(cfg, pool, logger)
+	var redisClient *redisx.Client
+	if cfg.RedisAddr != "" {
+		redisClient, err = redisx.Connect(ctx, cfg.RedisAddr)
+		if err != nil {
+			logger.Warn("redis unavailable, continuing without presence", "error", err)
+		} else {
+			defer redisClient.Close()
+		}
+	}
+
+	srv := server.NewWithOptions(cfg, pool, logger, redisClient)
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

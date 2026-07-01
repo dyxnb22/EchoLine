@@ -216,6 +216,116 @@ func (r *Repository) IsMember(ctx context.Context, conversationID, userID uuid.U
 	return true, nil
 }
 
+// ListMemberUserIDs returns all member user IDs for a conversation.
+func (r *Repository) ListMemberUserIDs(ctx context.Context, conversationID uuid.UUID) ([]uuid.UUID, error) {
+	const q = `
+		SELECT user_id
+		FROM conversation_members
+		WHERE conversation_id = $1
+	`
+	rows, err := r.pool.Query(ctx, q, conversationID)
+	if err != nil {
+		return nil, fmt.Errorf("list members: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan member: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// MemberState holds per-user read state in a conversation.
+type MemberState struct {
+	ConversationID uuid.UUID
+	UserID         uuid.UUID
+	LastReadSeq    int64
+	LatestSeq      int64
+}
+
+// GetMemberState returns read/unread context for a user in a conversation.
+func (r *Repository) GetMemberState(ctx context.Context, conversationID, userID uuid.UUID) (*MemberState, error) {
+	const q = `
+		SELECT m.conversation_id, m.user_id, m.last_read_seq, c.latest_seq
+		FROM conversation_members m
+		JOIN conversations c ON c.id = m.conversation_id
+		WHERE m.conversation_id = $1 AND m.user_id = $2
+	`
+	var state MemberState
+	err := r.pool.QueryRow(ctx, q, conversationID, userID).Scan(
+		&state.ConversationID, &state.UserID, &state.LastReadSeq, &state.LatestSeq,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotMember
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get member state: %w", err)
+	}
+	return &state, nil
+}
+
+// MarkRead advances last_read_seq monotonically.
+func (r *Repository) MarkRead(ctx context.Context, conversationID, userID uuid.UUID, seq int64) error {
+	const q = `
+		UPDATE conversation_members
+		SET last_read_seq = GREATEST(last_read_seq, $3)
+		WHERE conversation_id = $1 AND user_id = $2
+	`
+	tag, err := r.pool.Exec(ctx, q, conversationID, userID, seq)
+	if err != nil {
+		return fmt.Errorf("mark read: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotMember
+	}
+	return nil
+}
+
+// ListForUserWithUnread returns conversations with unread counts.
+func (r *Repository) ListForUserWithUnread(ctx context.Context, userID uuid.UUID, limit int) ([]Conversation, []int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	const q = `
+		SELECT c.id, c.type, c.title, c.latest_seq, c.last_message_id, c.created_by, c.created_at, c.updated_at,
+		       GREATEST(c.latest_seq - m.last_read_seq, 0) AS unread
+		FROM conversations c
+		INNER JOIN conversation_members m ON m.conversation_id = c.id
+		WHERE m.user_id = $1
+		ORDER BY c.updated_at DESC
+		LIMIT $2
+	`
+	rows, err := r.pool.Query(ctx, q, userID, limit)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list conversations with unread: %w", err)
+	}
+	defer rows.Close()
+
+	var conversations []Conversation
+	var unreads []int64
+	for rows.Next() {
+		var conv Conversation
+		var convType string
+		var unread int64
+		if err := rows.Scan(
+			&conv.ID, &convType, &conv.Title, &conv.LatestSeq, &conv.LastMessageID,
+			&conv.CreatedBy, &conv.CreatedAt, &conv.UpdatedAt, &unread,
+		); err != nil {
+			return nil, nil, fmt.Errorf("scan conversation: %w", err)
+		}
+		conv.Type = Type(convType)
+		conversations = append(conversations, conv)
+		unreads = append(unreads, unread)
+	}
+	return conversations, unreads, rows.Err()
+}
+
 type scannable interface {
 	Scan(dest ...any) error
 }

@@ -141,6 +141,36 @@ func (r *Repository) List(ctx context.Context, conversationID uuid.UUID, beforeS
 	return messages, rows.Err()
 }
 
+// ListSince returns messages with seq strictly greater than afterSeq.
+func (r *Repository) ListSince(ctx context.Context, conversationID uuid.UUID, afterSeq int64, limit int) ([]Message, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+
+	const q = `
+		SELECT id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
+		FROM messages
+		WHERE conversation_id = $1 AND seq > $2
+		ORDER BY seq ASC
+		LIMIT $3
+	`
+	rows, err := r.pool.Query(ctx, q, conversationID, afterSeq, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list since seq: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []Message
+	for rows.Next() {
+		msg, err := scanMessage(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan message: %w", err)
+		}
+		messages = append(messages, *msg)
+	}
+	return messages, rows.Err()
+}
+
 type queryRower interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }

@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: EchoLine API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /api/auth/register:
+    post:
+      summary: Register user
+  /api/auth/login:
+    post:
+      summary: Login
+  /api/auth/refresh:
+    post:
+      summary: Refresh tokens
+  /api/me:
+    get:
+      summary: Current user
+      security:
+        - bearerAuth: []
+  /api/conversations:
+    get:
+      summary: List conversations with unread counts
+      security:
+        - bearerAuth: []
+  /api/conversations/direct:
+    post:
+      summary: Create or get direct conversation
+      security:
+        - bearerAuth: []
+  /api/conversations/groups:
+    post:
+      summary: Create group conversation
+      security:
+        - bearerAuth: []
+  /api/conversations/{conversation_id}/messages:
+    get:
+      summary: List messages
+      security:
+        - bearerAuth: []
+    post:
+      summary: Send message
+      security:
+        - bearerAuth: []
+  /api/conversations/{conversation_id}/read:
+    post:
+      summary: Mark conversation read
+      security:
+        - bearerAuth: []
+  /api/sync:
+    post:
+      summary: Offline sync by conversation cursors
+      security:
+        - bearerAuth: []
+  /api/messages/ack:
+    post:
+      summary: Record delivered/read ACK
+      security:
+        - bearerAuth: []
+  /ws:
+    get:
+      summary: WebSocket realtime gateway
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

@@ -103,15 +103,17 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conversations, err := h.repo.ListForUser(r.Context(), claims.UserID, 50)
+	conversations, unreads, err := h.repo.ListForUserWithUnread(r.Context(), claims.UserID, 50)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list conversations")
 		return
 	}
 
 	items := make([]map[string]any, 0, len(conversations))
-	for _, conv := range conversations {
-		items = append(items, toConversationResponse(&conv))
+	for i, conv := range conversations {
+		item := toConversationResponse(&conv)
+		item["unread"] = unreads[i]
+		items = append(items, item)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

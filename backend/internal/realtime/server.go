@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -12,6 +13,9 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/delivery"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 const (
@@ -83,23 +87,80 @@ type Connection struct {
 
 // Server handles websocket upgrades and lifecycle.
 type Server struct {
-	auth   *auth.Service
-	hub    *Hub
-	logger *slog.Logger
+	auth          *auth.Service
+	hub           *Hub
+	messages      *message.Service
+	conversations *conversation.Repository
+	deliveries    *delivery.Repository
+	presence      PresenceTracker
+	logger        *slog.Logger
+}
+
+// PresenceTracker optionally records online state.
+type PresenceTracker interface {
+	Online(ctx context.Context, userID, deviceID string) error
+	Offline(ctx context.Context, userID, deviceID string) error
+	Refresh(ctx context.Context, userID, deviceID string) error
 }
 
 // NewServer creates a realtime websocket server.
-func NewServer(authSvc *auth.Service, logger *slog.Logger) *Server {
-	return &Server{
-		auth:   authSvc,
-		hub:    NewHub(),
-		logger: logger,
+func NewServer(
+	authSvc *auth.Service,
+	messages *message.Service,
+	conversations *conversation.Repository,
+	deliveries *delivery.Repository,
+	presence PresenceTracker,
+	logger *slog.Logger,
+) *Server {
+	s := &Server{
+		auth:          authSvc,
+		hub:           NewHub(),
+		messages:      messages,
+		conversations: conversations,
+		deliveries:    deliveries,
+		presence:      presence,
+		logger:        logger,
 	}
+	if messages != nil {
+		messages.SetBroadcaster(s)
+	}
+	return s
 }
 
 // Hub returns the connection hub.
 func (s *Server) Hub() *Hub {
 	return s.hub
+}
+
+// BroadcastMessageCreated implements message.Broadcaster.
+func (s *Server) BroadcastMessageCreated(ctx context.Context, convID uuid.UUID, msg *message.Message, excludeSender bool, senderID uuid.UUID) error {
+	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return err
+	}
+
+	payload := MessageCreatedPayload{
+		ID:             msg.ID.String(),
+		ConversationID: msg.ConversationID.String(),
+		SenderID:       msg.SenderID.String(),
+		ClientMsgID:    msg.ClientMsgID,
+		Seq:            msg.Seq,
+		Type:           string(msg.Type),
+		Body:           msg.Body,
+		CreatedAt:      msg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	raw, err := marshalEnvelope("message.created", "", payload)
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range memberIDs {
+		if excludeSender && userID == senderID {
+			continue
+		}
+		s.hub.PushToUser(ctx, userID, raw)
+	}
+	return nil
 }
 
 // HandleWS upgrades HTTP to websocket after token validation.
@@ -131,6 +192,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.hub.Register(claims.UserID, deviceID, conn)
+	if s.presence != nil {
+		_ = s.presence.Online(r.Context(), claims.UserID.String(), deviceID)
+	}
 	s.logger.Info("websocket connected", "user_id", claims.UserID, "device_id", deviceID)
 
 	go conn.writePump()
@@ -140,6 +204,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 func (c *Connection) readPump(s *Server) {
 	defer func() {
 		s.hub.Unregister(c.UserID, c.DeviceID)
+		if s.presence != nil {
+			_ = s.presence.Offline(context.Background(), c.UserID.String(), c.DeviceID)
+		}
 		_ = c.conn.Close()
 		s.logger.Info("websocket disconnected", "user_id", c.UserID, "device_id", c.DeviceID)
 	}()
@@ -159,31 +226,132 @@ func (c *Connection) readPump(s *Server) {
 			break
 		}
 
-		var envelope struct {
-			Type    string          `json:"type"`
-			Payload json.RawMessage `json:"payload"`
-		}
-		if err := json.Unmarshal(data, &envelope); err != nil {
+		env, err := parseEnvelope(data)
+		if err != nil {
+			c.sendError("", "invalid_request", err.Error())
 			continue
 		}
 
-		switch envelope.Type {
+		switch env.Type {
 		case "ping":
-			var payload struct {
-				TS int64 `json:"ts"`
+			var payload PingPayload
+			_ = json.Unmarshal(env.Payload, &payload)
+			if s.presence != nil {
+				_ = s.presence.Refresh(context.Background(), c.UserID.String(), c.DeviceID)
 			}
-			_ = json.Unmarshal(envelope.Payload, &payload)
-			resp, _ := json.Marshal(map[string]any{
-				"type": "pong",
-				"payload": map[string]any{
-					"ts": payload.TS,
-				},
-			})
-			select {
-			case c.send <- resp:
-			default:
-			}
+			resp, _ := marshalEnvelope("pong", env.RequestID, PongPayload{TS: payload.TS})
+			c.enqueue(resp)
+		case "message.send":
+			s.handleMessageSend(c, env)
+		case "message.ack":
+			s.handleMessageAck(c, env)
+		default:
+			c.sendError(env.RequestID, "unknown_type", "unsupported message type")
 		}
+	}
+}
+
+func (s *Server) handleMessageSend(c *Connection, env Envelope) {
+	var payload MessageSendPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid message.send payload")
+		return
+	}
+
+	convID, err := uuid.Parse(payload.ConversationID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
+		return
+	}
+
+	msg, err := s.messages.Send(context.Background(), convID, c.UserID, payload.ClientMsgID, message.Type(payload.Type), payload.Body)
+	if err != nil {
+		if errors.Is(err, conversation.ErrNotMember) {
+			c.sendError(env.RequestID, "forbidden", "not a conversation member")
+			return
+		}
+		c.sendError(env.RequestID, "invalid_request", err.Error())
+		return
+	}
+
+	created := MessageCreatedPayload{
+		ID:             msg.ID.String(),
+		ConversationID: msg.ConversationID.String(),
+		SenderID:       msg.SenderID.String(),
+		ClientMsgID:    msg.ClientMsgID,
+		Seq:            msg.Seq,
+		Type:           string(msg.Type),
+		Body:           msg.Body,
+		CreatedAt:      msg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	resp, _ := marshalEnvelope("message.created", env.RequestID, created)
+	c.enqueue(resp)
+}
+
+func (s *Server) handleMessageAck(c *Connection, env Envelope) {
+	var payload MessageAckPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid message.ack payload")
+		return
+	}
+
+	convID, err := uuid.Parse(payload.ConversationID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
+		return
+	}
+	msgID, err := uuid.Parse(payload.MessageID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid message_id")
+		return
+	}
+
+	status := delivery.Status(payload.Status)
+	if status != delivery.StatusDelivered && status != delivery.StatusRead {
+		c.sendError(env.RequestID, "invalid_request", "invalid ack status")
+		return
+	}
+
+	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
+	if err != nil || !member {
+		c.sendError(env.RequestID, "forbidden", "not a conversation member")
+		return
+	}
+
+	rec, err := s.deliveries.UpsertACK(context.Background(), msgID, c.UserID, c.DeviceID, status)
+	if err != nil {
+		if errors.Is(err, delivery.ErrInvalidTransition) {
+			c.sendError(env.RequestID, "invalid_transition", "status cannot move backward")
+			return
+		}
+		c.sendError(env.RequestID, "internal_error", "failed to record ack")
+		return
+	}
+
+	if status == delivery.StatusRead && payload.Seq > 0 {
+		_ = s.conversations.MarkRead(context.Background(), convID, c.UserID, payload.Seq)
+	}
+
+	resp, _ := marshalEnvelope("message.ack", env.RequestID, map[string]any{
+		"message_id": rec.MessageID.String(),
+		"status":     rec.Status,
+		"acked_at":   rec.AckedAt,
+	})
+	c.enqueue(resp)
+}
+
+func (c *Connection) sendError(requestID, code, message string) {
+	raw, err := marshalError(requestID, code, message)
+	if err != nil {
+		return
+	}
+	c.enqueue(raw)
+}
+
+func (c *Connection) enqueue(raw []byte) {
+	select {
+	case c.send <- raw:
+	default:
 	}
 }
 

@@ -15,6 +15,12 @@ test:
 api-run:
 	cd backend && go run ./cmd/api
 
+seed:
+	cd backend && go run ./cmd/seed
+
+worker-run:
+	cd backend && go run ./cmd/worker
+
 lint:
 	@echo "No linters yet. Phase 1 will add backend linting."
 

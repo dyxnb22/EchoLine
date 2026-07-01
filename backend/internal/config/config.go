@@ -11,6 +11,7 @@ type Config struct {
 	AppEnv      string
 	HTTPAddr    string
 	DatabaseURL string
+	RedisAddr   string
 	JWTSecret   string
 }
 
@@ -20,6 +21,7 @@ func Load() (Config, error) {
 		AppEnv:      envOrDefault("APP_ENV", "development"),
 		HTTPAddr:    envOrDefault("HTTP_ADDR", ":8080"),
 		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		RedisAddr:   strings.TrimSpace(os.Getenv("REDIS_ADDR")),
 		JWTSecret:   strings.TrimSpace(os.Getenv("JWT_SECRET")),
 	}
 

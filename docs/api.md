@@ -88,7 +88,7 @@
 
 ### GET `/api/conversations`
 
-返回当前用户的会话列表，按 `updated_at` 降序。需要 Bearer token。
+返回当前用户的会话列表，按 `updated_at` 降序，包含 `unread` 字段。需要 Bearer token。
 
 ### POST `/api/conversations/direct`
 
@@ -140,6 +140,36 @@
 - `before_seq`
 - `limit`
 
+响应包含 `messages` 和可选 `next_before` cursor。
+
+### POST `/api/conversations/{conversation_id}/read`
+
+更新 `last_read_seq`。需要 Bearer token。
+
+请求：
+
+```json
+{
+  "last_read_seq": 42
+}
+```
+
+### POST `/api/messages/ack`
+
+记录 delivered/read ACK。需要 Bearer token。
+
+请求：
+
+```json
+{
+  "message_id": "uuid",
+  "conversation_id": "uuid",
+  "seq": 42,
+  "status": "read",
+  "device_id": "device-1"
+}
+```
+
 ## Sync
 
 ### POST `/api/sync`
@@ -162,6 +192,8 @@
 
 ## 错误格式
 
+REST 错误统一为：
+
 ```json
 {
   "error": {
@@ -171,4 +203,6 @@
   }
 }
 ```
+
+WebSocket 错误见 `docs/websocket-protocol.md`。
 

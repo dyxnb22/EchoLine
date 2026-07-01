@@ -1,37 +1,38 @@
 # Current State
 
-Current phase: Phase 1 in progress.
+Current phase: Phase 2 in progress (Phase 1 core APIs implemented).
 
-Current milestone: Phase 1 core APIs + Phase 2 WebSocket foundation (A001-C003, B001-B004).
+Current milestone: realtime push + sync/unread/ACK foundation (A019-D004, B005-B010, C004-C006, F001-F007 skeleton).
 
 Last completed:
 
-- A001-A018: backend foundation, auth, conversations, messages.
-- A011: refresh token endpoint.
-- C003: conversation list API.
-- B001-B004: WebSocket endpoint, token auth, connection hub, ping/pong heartbeat.
+- Phase 1: auth, conversations, messages REST, refresh token, seed, OpenAPI skeleton, unified API errors.
+- Phase 2: WS protocol envelope, message.send over WS, online push to conversation members, ping/pong, connection hub, WS error envelope, WS unit smoke.
+- Phase 3: mark read API, unread in conversation list, sync endpoint, history pagination cursor.
+- Reliability: message_deliveries table, ACK REST + WS, forward-only delivery state, client_msg_id idempotency.
+- Infra skeleton: Redis client + presence TTL, in-memory event bus, worker process skeleton.
 
 Tests:
 
-- `cd backend && go test ./...` passed (integration tests skip without `DATABASE_URL`).
+- `cd backend && go test ./...` passed.
 - `make test` passed.
-- `make smoke` passed (unit-test based smoke).
-- Docker/PostgreSQL integration smoke not run in this environment.
+- `RUN_WS_SMOKE=1 make smoke` passed.
+- Full Postgres integration smoke not run (no Docker/DB in cloud VM).
 
 Known blockers:
 
-- Docker unavailable in cloud VM (`make dev-up` fails). PostgreSQL not installed locally. DB integration tests and full API smoke require `DATABASE_URL` pointing to a running Postgres instance.
+- Docker/PostgreSQL unavailable in cloud VM. Set external `DATABASE_URL` for integration tests.
 
 Next actions:
 
-1. B005-B007: WS event envelope, message.send over WS, online push.
-2. A019: history pagination tests with DB.
-3. A020-A022: error envelope, OpenAPI, seed script.
-4. Full integration smoke when Postgres available.
+1. E001-E005: group roles, channel model/APIs.
+2. F005-F008: Kafka/Redpanda client + message.created consumer.
+3. H001-H002: login/message rate limiting middleware.
+4. Full integration smoke when Postgres/Redis available.
+5. J001: frontend bootstrap after API freeze checkpoint.
 
 Do not repeat:
 
-- Do not recreate Go module skeleton.
-- Do not re-implement auth/register/login.
-- Do not rewrite Phase 0 docs.
-- Do not skip tests before marking Phase 1 done.
+- Do not re-implement auth/register/login/migrations skeleton.
+- Do not rewrite Phase 0/long-run docs.
+- Do not mark Phase 1/2 done without integration smoke.

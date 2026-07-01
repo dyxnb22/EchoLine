@@ -1,50 +1,32 @@
 # Next Actions
 
-Agent should start here after reading `CURRENT_STATE.md`.
+## Immediate P0
 
-## 10h+ Session Plan (checkpoint 1)
+1. E001: group member role checks in APIs.
+2. E003-E005: channel model, subscribe, publish permissions.
+3. F005: Redpanda/Kafka client wiring.
+4. Integration smoke with `make dev-up` when Docker available.
 
-### Sequential P0 (Orchestrator)
+## Sequential after P0
 
-1. A019: history pagination tests + edge cases.
-2. A011: refresh token endpoint skeleton.
-3. C003: conversation list API.
-4. C001-C002: latest_seq + seq allocation hardening tests.
-5. B001-B003: WebSocket endpoint, auth handshake, connection manager.
-6. B004-B007: heartbeat, event envelope, message.send, online push.
-7. L001: iteration report for Phase 1 completion.
-8. Phase 1 acceptance: full integration smoke with Postgres.
+5. F008: message.created consumer in worker.
+6. H001-H002: rate limit middleware on login/send.
+7. B009: reconnect fallback doc.
+8. J001-J006: frontend login/chat/WS.
 
-### Parallelizable after B003 (subagents, Fast mode disabled)
+## Parallelizable (Composer 2.5, Fast mode disabled)
 
-- Docs ADR Agent: L002-L004 updates alongside API/WS changes.
-- Reliability Agent: C004-C006 sync/unread after seq stable.
-- Review Agent: M001 API consistency after A020.
+- Docs Agent: L005-L006 reliability/interview notes after E/F tasks.
+- Review Agent: M001 API consistency review.
 
-### Phase 2-3 stretch in same session if unblocked
-
-- B010 WS smoke test.
-- C006 sync endpoint.
-- D001 client_msg_id idempotency (partially in message repo).
-
-## Immediate P0 Tasks
-
-1. A019: Implement and test history message pagination edge cases.
-2. A011: Refresh token skeleton.
-3. C003: Conversation list API.
-4. B001: WebSocket endpoint.
-
-## Environment Setup (when Docker available)
+## Environment
 
 ```bash
 make dev-up
 export DATABASE_URL=postgres://echoline:echoline@localhost:5432/echoline?sslmode=disable
 export JWT_SECRET=change-me
+export REDIS_ADDR=localhost:6379
 make api-run
-RUN_API_SMOKE=1 make smoke
+make seed
+RUN_API_SMOKE=1 RUN_WS_SMOKE=1 make smoke
 ```
-
-## If Blocked
-
-- Record blocker in `BLOCKERS.md`.
-- Continue with code that does not require DB (protocol structs, WS handler skeleton, docs).

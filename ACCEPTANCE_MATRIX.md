@@ -15,9 +15,9 @@
 | Phase | 状态 | 必须能力 | 必须测试 | 必须文档 |
 |---|---|---|---|---|
 | Phase 0 | done | repo skeleton、长时执行文档 | `make help`, `make test`, `make smoke` | README、AGENTS、TASKS、规则文档 |
-| Phase 1 | doing | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
-| Phase 2 | todo | WebSocket 连接、心跳、在线推送 | WS smoke | websocket-protocol |
-| Phase 3 | todo | 会话列表、未读、历史、离线 sync | sync/unread tests | reliability、api |
+| Phase 1 | partial | auth、user、device、conversation、message REST API | unit + API smoke | data-model、api、iteration report |
+| Phase 2 | partial | WebSocket 连接、心跳、在线推送 | WS smoke | websocket-protocol |
+| Phase 3 | partial | 会话列表、未读、历史、离线 sync | sync/unread tests | reliability、api |
 | Phase 4 | todo | 群聊、频道、presence、多端 | role/presence tests | architecture、data-model |
 | Phase 5 | todo | 幂等、ACK、重试、去重、顺序性 | reliability tests | reliability ADR |
 | Phase 6 | todo | Redis、MQ、worker、异步化 | eventbus tests | cache/MQ ADR |
