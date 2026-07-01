@@ -40,6 +40,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/conversations/{id}/read", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleMarkRead)))
 	mux.Handle("POST /api/sync", auth.RequireAuth(s.auth, http.HandlerFunc(s.sync.HandleSync)))
 	mux.Handle("POST /api/messages/ack", auth.RequireAuth(s.auth, http.HandlerFunc(s.delivery.HandleACK)))
+	if s.media != nil {
+		mux.Handle("POST /api/media/upload-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignUpload)))
+	}
 	mux.HandleFunc("GET /ws", s.realtime.HandleWS)
 
 	s.applyRateLimits(mux)

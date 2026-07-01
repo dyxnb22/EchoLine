@@ -88,6 +88,15 @@
 - `checksum`
 - `created_at`
 
+### dead_letter_events
+
+- `id`
+- `source_topic`
+- `payload`
+- `error_message`
+- `attempts`
+- `created_at`
+
 ### audit_logs
 
 - `id`

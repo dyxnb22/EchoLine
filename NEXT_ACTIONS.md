@@ -2,15 +2,14 @@
 
 ## Immediate P0
 
-1. F008 + D007: outbox publisher worker (replace direct Kafka publish in hot path).
-2. E006: fanout to online group members (already via hub; add tests).
-3. Integration smoke with docker compose when available.
+1. Integration smoke with docker compose when available (`RUN_API_SMOKE=1 RUN_WS_SMOKE=1 make smoke`).
+2. Outbox integration test with Postgres (`FOR UPDATE SKIP LOCKED` hardening optional).
 
 ## Sequential
 
-4. H003: conversation-scoped rate limit.
-5. G001-G004: MinIO attachment skeleton.
-6. J001-J003: frontend login + conversation list.
+3. G005: presigned download URL for attachments.
+4. I001: request_id in structured logs (partially done via middleware).
+5. J007: optimistic send + error toast polish.
 
 ## Environment
 
@@ -20,6 +19,12 @@ export DATABASE_URL=postgres://echoline:echoline@localhost:5432/echoline?sslmode
 export JWT_SECRET=change-me
 export REDIS_ADDR=localhost:6379
 export KAFKA_BROKERS=localhost:9092
+export S3_ENDPOINT=http://localhost:9000
+export S3_ACCESS_KEY=minio
+export S3_SECRET_KEY=minio123
+export S3_BUCKET=echoline
 make api-run
 make worker-run
+make seed
+make frontend-dev
 ```

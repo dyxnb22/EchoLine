@@ -1,0 +1,122 @@
+package outbox
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Event is a pending outbox row.
+type Event struct {
+	ID        uuid.UUID
+	Topic     string
+	Payload   []byte
+	Attempts  int
+	CreatedAt time.Time
+}
+
+// Repository stores transactional outbox events.
+type Repository struct {
+	pool *pgxpool.Pool
+}
+
+// NewRepository creates an outbox repository.
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool}
+}
+
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+// EnqueueInTx inserts an outbox event in the caller transaction.
+func (r *Repository) EnqueueInTx(ctx context.Context, tx execer, topic string, payload []byte) error {
+	const q = `
+		INSERT INTO outbox_events (id, topic, payload, status, attempts, created_at)
+		VALUES ($1, $2, $3, 'pending', 0, $4)
+	`
+	_, err := tx.Exec(ctx, q, uuid.New(), topic, payload, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("enqueue outbox: %w", err)
+	}
+	return nil
+}
+
+// FetchPending returns pending events ordered by creation time.
+func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	const q = `
+		SELECT id, topic, payload::text, attempts, created_at
+		FROM outbox_events
+		WHERE status = 'pending'
+		ORDER BY created_at ASC
+		LIMIT $1
+	`
+	rows, err := r.pool.Query(ctx, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pending outbox: %w", err)
+	}
+	defer rows.Close()
+
+	var events []Event
+	for rows.Next() {
+		var e Event
+		var payload string
+		if err := rows.Scan(&e.ID, &e.Topic, &payload, &e.Attempts, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan outbox: %w", err)
+		}
+		e.Payload = []byte(payload)
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
+// MarkPublished marks an event as published.
+func (r *Repository) MarkPublished(ctx context.Context, id uuid.UUID) error {
+	const q = `
+		UPDATE outbox_events
+		SET status = 'published', published_at = $2
+		WHERE id = $1
+	`
+	_, err := r.pool.Exec(ctx, q, id, time.Now().UTC())
+	return err
+}
+
+// MarkFailed increments attempts, moves to DLQ after threshold, or leaves pending.
+func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID) error {
+	const fetchQ = `
+		SELECT topic, payload::text, attempts
+		FROM outbox_events
+		WHERE id = $1
+	`
+	var topic, payload string
+	var attempts int
+	if err := r.pool.QueryRow(ctx, fetchQ, id).Scan(&topic, &payload, &attempts); err != nil {
+		return err
+	}
+
+	nextAttempts := attempts + 1
+	if nextAttempts >= 5 {
+		const dlqQ = `
+			INSERT INTO dead_letter_events (id, source_topic, payload, error_message, attempts, created_at)
+			VALUES ($1, $2, $3::jsonb, 'publish failed', $4, $5)
+		`
+		now := time.Now().UTC()
+		if _, err := r.pool.Exec(ctx, dlqQ, uuid.New(), topic, payload, nextAttempts, now); err != nil {
+			return err
+		}
+		const failQ = `UPDATE outbox_events SET attempts = $2, status = 'failed' WHERE id = $1`
+		_, err := r.pool.Exec(ctx, failQ, id, nextAttempts)
+		return err
+	}
+
+	const q = `UPDATE outbox_events SET attempts = attempts + 1 WHERE id = $1`
+	_, err := r.pool.Exec(ctx, q, id)
+	return err
+}

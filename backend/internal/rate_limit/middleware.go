@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/echoline/echoline/backend/internal/apierror"
+	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/redisx"
 )
 
@@ -75,4 +77,23 @@ func IPKey(r *http.Request) string {
 // PathKey combines path with IP.
 func PathKey(r *http.Request) string {
 	return fmt.Sprintf("%s:%s", r.URL.Path, IPKey(r))
+}
+func ConversationUserKey(r *http.Request) string {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		return PathKey(r)
+	}
+	path := r.URL.Path
+	const prefix = "/api/conversations/"
+	const suffix = "/messages"
+	if len(path) > len(prefix)+len(suffix) && strings.HasSuffix(path, suffix) {
+		raw := path[len(prefix) : len(path)-len(suffix)]
+		return fmt.Sprintf("%s:%s", raw, claims.UserID)
+	}
+	return fmt.Sprintf("%s:%s", path, claims.UserID)
+}
+
+// AuthConversationMiddleware applies rate limits after auth context exists.
+func AuthConversationMiddleware(limiter Limiter, keyPrefix string, limit int64, window time.Duration) func(http.Handler) http.Handler {
+	return Middleware(limiter, keyPrefix, limit, window, ConversationUserKey)
 }

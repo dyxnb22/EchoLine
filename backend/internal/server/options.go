@@ -13,7 +13,9 @@ import (
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
 	"github.com/echoline/echoline/backend/internal/eventbus"
+	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/message"
+	"github.com/echoline/echoline/backend/internal/outbox"
 	"github.com/echoline/echoline/backend/internal/presence"
 	"github.com/echoline/echoline/backend/internal/rate_limit"
 	"github.com/echoline/echoline/backend/internal/realtime"
@@ -39,18 +41,13 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	authSvc.SetLoginAuditor(auditRepo)
 
 	convRepo := conversation.NewRepository(pool)
-	msgRepo := message.NewRepository(pool)
-	msgSvc := message.NewService(msgRepo, convRepo, nil)
+	outboxRepo := outbox.NewRepository(pool)
+	attachmentRepo := media.NewRepository(pool)
+	msgRepo := message.NewRepository(pool, outboxRepo)
+	msgSvc := message.NewService(msgRepo, convRepo, attachmentRepo, nil)
 	deliveryRepo := delivery.NewRepository(pool)
 
 	memBus := eventbus.NewMemoryPublisher(256)
-	memPub := eventbus.NewMemoryBytesPublisher(memBus)
-	var publisher eventbus.BytesPublisher = memPub
-	if cfg.KafkaBrokers != "" {
-		kafkaPub := eventbus.NewKafkaPublisher(cfg.KafkaBrokers, eventbus.TopicMessageCreated)
-		publisher = eventbus.NewFanoutPublisher(kafkaPub, memPub)
-	}
-	msgSvc.SetPublisher(publisher)
 
 	var presenceTracker realtime.PresenceTracker
 	var limiter rate_limit.Limiter
@@ -61,18 +58,29 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	rt := realtime.NewServer(authSvc, msgSvc, convRepo, deliveryRepo, presenceTracker, logger)
 
+	var mediaHandler *media.Handler
+	if cfg.S3Endpoint != "" {
+		if mediaClient, err := media.NewClient(cfg); err == nil {
+			mediaHandler = media.NewHandler(mediaClient, attachmentRepo)
+		} else {
+			logger.Warn("media client unavailable", "error", err)
+		}
+	}
+
 	return &Server{
 		cfg:      cfg,
 		pool:     pool,
 		logger:   logger,
 		auth:     authSvc,
 		conv:     conversation.NewHandler(convRepo),
-		msg:      message.NewHandler(msgSvc, convRepo),
+		msg:      message.NewHandler(msgSvc, convRepo, attachmentRepo),
 		sync:     sync.NewHandler(convRepo, msgSvc),
 		delivery: delivery.NewHandler(deliveryRepo, convRepo),
 		realtime: rt,
 		limiter:  limiter,
 		memBus:   memBus,
+		outboxRepo: outboxRepo,
+		media:    mediaHandler,
 	}
 }
 
@@ -90,6 +98,13 @@ type Server struct {
 	realtime   *realtime.Server
 	limiter    rate_limit.Limiter
 	memBus     *eventbus.MemoryPublisher
+	outboxRepo *outbox.Repository
+	media      *media.Handler
+}
+
+// OutboxRepo exposes outbox repository for workers.
+func (s *Server) OutboxRepo() *outbox.Repository {
+	return s.outboxRepo
 }
 
 // MemoryBus exposes the in-process event bus for workers/tests.
@@ -100,8 +115,11 @@ func (s *Server) MemoryBus() *eventbus.MemoryPublisher {
 // applyRateLimits wraps handlers with Redis rate limiting when configured.
 func (s *Server) applyRateLimits(mux *http.ServeMux) {
 	loginMW := rate_limit.Middleware(s.limiter, "login", 20, time.Minute, rate_limit.IPKey)
-	sendMW := rate_limit.Middleware(s.limiter, "send", 120, time.Minute, rate_limit.PathKey)
+	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
 
 	mux.Handle("POST /api/auth/login", loginMW(http.HandlerFunc(s.auth.HandleLogin)))
-	mux.Handle("POST /api/conversations/{id}/messages", sendMW(auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleSend))))
+	mux.Handle(
+		"POST /api/conversations/{id}/messages",
+		auth.RequireAuth(s.auth, convSendMW(http.HandlerFunc(s.msg.HandleSend))),
+	)
 }

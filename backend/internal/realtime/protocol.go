@@ -30,10 +30,11 @@ type PongPayload struct {
 
 // MessageSendPayload creates a message over WebSocket.
 type MessageSendPayload struct {
-	ConversationID string `json:"conversation_id"`
-	ClientMsgID    string `json:"client_msg_id"`
-	Type           string `json:"type"`
-	Body           string `json:"body"`
+	ConversationID      string `json:"conversation_id"`
+	ClientMsgID         string `json:"client_msg_id"`
+	Type                string `json:"type"`
+	Body                string `json:"body"`
+	AttachmentObjectKey string `json:"attachment_object_key,omitempty"`
 }
 
 // MessageCreatedPayload is pushed when a message is persisted.

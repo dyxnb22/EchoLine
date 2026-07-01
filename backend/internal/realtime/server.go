@@ -85,12 +85,19 @@ type Connection struct {
 	send     chan []byte
 }
 
+// conversationGateway supports fanout and ack flows over WS.
+type conversationGateway interface {
+	ListMemberUserIDs(ctx context.Context, conversationID uuid.UUID) ([]uuid.UUID, error)
+	IsMember(ctx context.Context, conversationID, userID uuid.UUID) (bool, error)
+	MarkRead(ctx context.Context, conversationID, userID uuid.UUID, seq int64) error
+}
+
 // Server handles websocket upgrades and lifecycle.
 type Server struct {
 	auth          *auth.Service
 	hub           *Hub
 	messages      *message.Service
-	conversations *conversation.Repository
+	conversations conversationGateway
 	deliveries    *delivery.Repository
 	presence      PresenceTracker
 	logger        *slog.Logger
@@ -107,7 +114,7 @@ type PresenceTracker interface {
 func NewServer(
 	authSvc *auth.Service,
 	messages *message.Service,
-	conversations *conversation.Repository,
+	conversations conversationGateway,
 	deliveries *delivery.Repository,
 	presence PresenceTracker,
 	logger *slog.Logger,
@@ -264,7 +271,12 @@ func (s *Server) handleMessageSend(c *Connection, env Envelope) {
 		return
 	}
 
-	msg, err := s.messages.Send(context.Background(), convID, c.UserID, payload.ClientMsgID, message.Type(payload.Type), payload.Body)
+	msg, err := s.messages.Send(context.Background(), convID, c.UserID, message.SendInput{
+		ClientMsgID: payload.ClientMsgID,
+		Type:        message.Type(payload.Type),
+		Body:        payload.Body,
+		ObjectKey:   payload.AttachmentObjectKey,
+	})
 	if err != nil {
 		if errors.Is(err, conversation.ErrNotMember) {
 			c.sendError(env.RequestID, "forbidden", "not a conversation member")

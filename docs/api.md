@@ -210,6 +210,46 @@
 }
 ```
 
+## Media
+
+### POST `/api/media/upload-url`
+
+获取直传对象存储的预签名 PUT URL。需要 Bearer token，且服务端已配置 `S3_ENDPOINT`。
+
+请求：
+
+```json
+{
+  "mime_type": "image/png",
+  "size_bytes": 1024,
+  "checksum": "sha256:..."
+}
+```
+
+响应：
+
+```json
+{
+  "upload_url": "https://...",
+  "object_key": "uploads/<user-id>/<uuid>",
+  "bucket": "echoline",
+  "expires_in": 900
+}
+```
+
+上传完成后，发送消息时引用 `attachment.object_key`：
+
+```json
+{
+  "client_msg_id": "uuid",
+  "type": "image",
+  "body": "optional caption",
+  "attachment": {
+    "object_key": "uploads/<user-id>/<uuid>"
+  }
+}
+```
+
 ## 错误格式
 
 REST 错误统一为：

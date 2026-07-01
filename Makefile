@@ -21,6 +21,12 @@ seed:
 worker-run:
 	cd backend && go run ./cmd/worker
 
+frontend-dev:
+	cd frontend && npm install && npm run dev
+
+frontend-build:
+	cd frontend && npm install && npm run build
+
 lint:
 	@echo "No linters yet. Phase 1 will add backend linting."
 

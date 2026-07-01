@@ -7,22 +7,27 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/media"
 )
 
 // Handler exposes message REST endpoints.
 type Handler struct {
 	service       *Service
 	conversations *conversation.Repository
+	attachments   *media.Repository
 }
 
 // NewHandler creates a message handler.
-func NewHandler(service *Service, conversations *conversation.Repository) *Handler {
+func NewHandler(service *Service, conversations *conversation.Repository, attachments *media.Repository) *Handler {
 	return &Handler{
 		service:       service,
 		conversations: conversations,
+		attachments:   attachments,
 	}
 }
 
@@ -30,6 +35,9 @@ type sendRequest struct {
 	ClientMsgID string `json:"client_msg_id"`
 	Type        string `json:"type"`
 	Body        string `json:"body"`
+	Attachment  *struct {
+		ObjectKey string `json:"object_key"`
+	} `json:"attachment"`
 }
 
 // HandleSend creates a message in a conversation.
@@ -52,7 +60,16 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.service.Send(r.Context(), convID, claims.UserID, req.ClientMsgID, Type(req.Type), req.Body)
+	input := SendInput{
+		ClientMsgID: req.ClientMsgID,
+		Type:        Type(req.Type),
+		Body:        req.Body,
+	}
+	if req.Attachment != nil {
+		input.ObjectKey = req.Attachment.ObjectKey
+	}
+
+	msg, err := h.service.Send(r.Context(), convID, claims.UserID, input)
 	if err != nil {
 		if errors.Is(err, conversation.ErrNotMember) {
 			apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
@@ -60,6 +77,10 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, conversation.ErrCannotPublish) {
 			apierror.Write(w, r, http.StatusForbidden, "forbidden", "cannot publish to this conversation")
+			return
+		}
+		if errors.Is(err, media.ErrAttachmentNotFound) {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "attachment not found")
 			return
 		}
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
@@ -117,9 +138,24 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attachmentByMsg := map[uuid.UUID]media.Attachment{}
+	if h.attachments != nil && len(messages) > 0 {
+		ids := make([]uuid.UUID, 0, len(messages))
+		for i := range messages {
+			ids = append(ids, messages[i].ID)
+		}
+		if m, err := h.attachments.ListByMessageIDs(r.Context(), ids); err == nil {
+			attachmentByMsg = m
+		}
+	}
+
 	items := make([]map[string]any, 0, len(messages))
 	for i := range messages {
-		items = append(items, ToCreatedPayload(&messages[i]))
+		var att *media.Attachment
+		if a, ok := attachmentByMsg[messages[i].ID]; ok {
+			att = &a
+		}
+		items = append(items, ToCreatedPayloadWithAttachment(&messages[i], att))
 	}
 
 	var nextBefore *int64

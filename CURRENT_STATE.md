@@ -1,22 +1,25 @@
 # Current State
 
-Current phase: Phase 4 in progress (group/channel permissions + infra).
+Current phase: Phase 4/5/7 partial (group/channel + reliability + media + frontend).
 
-Current milestone: E001-E005, F005-F008, H001-H005, D006 skeleton.
+Current milestone: D007-D008, E006, G001-G004, H003, J001-J006.
 
 Last completed:
 
-- E001-E002: group role checks, invite/kick/leave APIs.
-- E003-E005: channel create, subscribe/unsubscribe, publish permission on send.
-- F005-F008: Kafka publisher/consumer, message.created event schema, worker consumer.
-- H001-H002: Redis rate limit on login and message send.
-- H004-H005: audit_logs table + login audit.
-- D006: outbox_events migration skeleton.
+- D007: transactional outbox enqueue on message create; worker drains to Kafka/memory.
+- D008: dead_letter_events migration + outbox DLQ on publish failure threshold.
+- E006: fanout unit test excluding sender.
+- F008: outbox publisher worker (no direct Kafka on hot path).
+- G001-G004: MinIO presign, attachment metadata repo, attachment message send.
+- H003: per-conversation send rate limit (`conv_send`, 60/min).
+- J001-J006: Vite React frontend with login, list, chat, pagination, WS reconnect.
 
 Tests:
 
 - `cd backend && go test ./...` passed.
 - `make test` passed.
+- `RUN_WS_SMOKE=1 make smoke` passed.
+- `cd frontend && npm run build` passed.
 
 Known blockers:
 
@@ -24,11 +27,10 @@ Known blockers:
 
 Next actions:
 
-1. E006: small group online fanout optimization.
-2. F008 hardening: outbox publisher instead of direct Kafka publish.
-3. H003: per-conversation send rate limit.
-4. J001: frontend bootstrap.
-5. Integration smoke when Postgres/Redis/Kafka available.
+1. Integration smoke when Postgres/Redis/Kafka available.
+2. G005-G007: attachment download URL, search skeleton.
+3. I001-I003: structured logs/metrics.
+4. J007-J008: optimistic send UI, attachment upload UI.
 
 Do not repeat:
 

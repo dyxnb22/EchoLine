@@ -33,6 +33,7 @@
 | 多设备登录 | partial | device 表/repo；WS device_id 绑定 |
 | 私聊 | partial | 去重 direct API + 消息读写（待 DB integration） |
 | 群聊 | partial | 创建/邀请/踢人/退群 + owner/admin/member 校验 |
+| 频道 | partial | 创建/订阅/退订 + owner/admin 发布权限 |
 | 会话列表 | partial | 列表 + unread 字段 |
 | 历史消息 | partial | cursor 分页 + next_before |
 | WebSocket | partial | 连接、鉴权、ping/pong、message.send、push、ACK |
@@ -41,17 +42,17 @@
 | 幂等去重 | partial | client_msg_id 唯一约束 + 重复返回原消息 |
 | 顺序性 | partial | conversation seq 事务分配 |
 | Redis presence | partial | Redis TTL presence on WS（可选 REDIS_ADDR） |
-| MQ worker | partial | memory event bus + worker skeleton |
-| 附件 | todo | 预签名上传、元数据、权限校验 |
+| MQ worker | partial | outbox drainer + Kafka/memory publish |
+| 附件 | partial | 预签名上传、元数据入库、附件消息发送 |
 | 搜索 | todo | 消息搜索和权限过滤 |
 | 通知 | todo | 异步通知事件不阻塞主链路 |
-| 限流 | todo | 用户/IP/会话维度限流 |
+| 限流 | partial | 登录、全局发消息、会话级 conv_send 限流（需 REDIS_ADDR） |
 | 风控 | todo | 高频、重复内容基础规则 |
-| 审计 | todo | 登录、撤回、管理操作可追溯 |
+| 审计 | partial | audit_logs + 登录成功/失败审计 |
 | 可观测性 | todo | logs、metrics、trace_id |
 | 压测 | todo | k6 脚本和报告 |
 | chaos | todo | Redis/MQ 故障演练 |
-| 前端 | todo | 登录、会话、聊天、实时消息 |
+| 前端 | partial | 登录、会话列表、聊天、分页、WS 重连 |
 | 移动/桌面原型 | todo | PWA 或原型 ADR |
 
 ## Definition of Done

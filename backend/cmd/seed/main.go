@@ -12,6 +12,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/db"
 	"github.com/echoline/echoline/backend/internal/message"
 	"github.com/echoline/echoline/backend/internal/migrate"
+	"github.com/echoline/echoline/backend/internal/outbox"
 	"github.com/echoline/echoline/backend/internal/user"
 )
 
@@ -34,7 +35,8 @@ func main() {
 
 	userRepo := user.NewRepository(pool)
 	convRepo := conversation.NewRepository(pool)
-	msgRepo := message.NewRepository(pool)
+	outboxRepo := outbox.NewRepository(pool)
+	msgRepo := message.NewRepository(pool, outboxRepo)
 
 	aliceName := envOr("SEED_ALICE", "alice")
 	bobName := envOr("SEED_BOB", "bob")
@@ -57,7 +59,7 @@ func main() {
 		log.Fatalf("create direct conversation: %v", err)
 	}
 
-	msg, err := msgRepo.Create(ctx, conv.ID, alice.ID, "seed-msg-1", message.TypeText, "hello from seed")
+	msg, err := msgRepo.Create(ctx, conv.ID, alice.ID, "seed-msg-1", message.TypeText, "hello from seed", nil)
 	if err != nil {
 		log.Fatalf("seed message: %v", err)
 	}

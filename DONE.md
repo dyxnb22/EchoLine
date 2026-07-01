@@ -49,7 +49,7 @@
 - [x] 群邀请/踢人/退群 API（E002）。
 - [x] 频道模型与订阅 API（E003-E004）。
 - [x] 频道发布权限（E005）。
-- [ ] 小群在线 fanout 测试（E006）。
+- [x] 小群在线 fanout 测试（E006 unit test）。
 
 ## Phase 6 (infra partial)
 
@@ -61,14 +61,22 @@
 
 - [x] client_msg_id 幂等（D001-D002 partial）。
 - [x] ACK REST/WS + delivery 状态机（D003-D004）。
-- [ ] outbox / DLQ（D006-D008）。
+- [x] outbox enqueue + worker publisher（D007-F008 partial）。
+- [ ] outbox integration test / DLQ ops（D008 partial）。
 
 ## Phase 6 (infra partial)
 
 - [x] Redis client + presence TTL skeleton（F001/F003）。
 - [x] in-memory event bus + worker skeleton（F005-F007 partial）。
-- [ ] Kafka consumer production path（F008）。
+- [ ] Kafka consumer production path（F008 partial — outbox drainer done）。
+
+## Phase 7 (media partial)
+
+- [x] MinIO presign upload URL（G001-G002）。
+- [x] attachments 元数据表 + 附件消息发送（G003-G004 partial）。
+
+## Phase 8 (frontend partial)
+
+- [x] Vite React 登录/会话/聊天/分页/WS 重连（J001-J006 partial）。
 
 ## Phase 2+
-
-后续阶段完成后继续追加。

@@ -2,6 +2,35 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Phase 4/5/7 outbox + media + frontend (checkpoint 4)
+
+任务：D007-D008, E006, F008, G001-G004, H003, J001-J006.
+
+文件：
+
+- `backend/internal/outbox/`, updated `message/repository.go`
+- `backend/internal/media/repository.go`, updated `handler.go`
+- `backend/migrations/00005_attachments.sql`, `00006_dead_letter.sql`
+- `backend/internal/rate_limit/middleware.go` (conv_send)
+- `backend/internal/realtime/fanout_test.go`
+- `frontend/` Vite React app
+- `docs/api.md`, `docs/data-model.md`
+
+测试：
+
+- `go test ./...` 通过
+- `make test` 通过
+- `RUN_WS_SMOKE=1 make smoke` 通过
+- `npm run build` 通过
+
+阻塞：
+
+- 仍无 Docker/Postgres，integration smoke 未跑
+
+下一步：
+
+- integration smoke, G005 download URL, observability I001
+
 ## 2026-07-01 Phase 4/6 group/channel + kafka + rate limit (checkpoint 3)
 
 任务：E001-E005, F005-F008, H001-H002, H004-H005, D006 migration.

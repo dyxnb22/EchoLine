@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,23 +12,27 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/echoline/echoline/backend/internal/eventbus"
+	"github.com/echoline/echoline/backend/internal/outbox"
 )
 
 // Repository persists messages.
 type Repository struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	outbox *outbox.Repository
 }
 
 // NewRepository creates a message repository.
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(pool *pgxpool.Pool, outboxRepo *outbox.Repository) *Repository {
+	return &Repository{pool: pool, outbox: outboxRepo}
 }
 
 // Create inserts a message and allocates the next conversation seq in one transaction.
-func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.UUID, clientMsgID string, msgType Type, body string) (*Message, error) {
+func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.UUID, clientMsgID string, msgType Type, body string, attachmentID *uuid.UUID) (*Message, error) {
 	clientMsgID = strings.TrimSpace(clientMsgID)
 	body = strings.TrimSpace(body)
-	if body == "" {
+	if body == "" && attachmentID == nil {
 		return nil, fmt.Errorf("message body is required")
 	}
 	if msgType == "" {
@@ -89,6 +94,43 @@ func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.U
 	`
 	if _, err := tx.Exec(ctx, updateConv, conversationID, msg.ID); err != nil {
 		return nil, fmt.Errorf("update conversation last message: %w", err)
+	}
+
+	if attachmentID != nil {
+		const linkQ = `
+			UPDATE attachments
+			SET message_id = $2
+			WHERE id = $1 AND message_id IS NULL
+		`
+		tag, err := tx.Exec(ctx, linkQ, *attachmentID, msg.ID)
+		if err != nil {
+			return nil, fmt.Errorf("link attachment: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return nil, fmt.Errorf("attachment not available")
+		}
+	}
+
+	if r.outbox != nil {
+		payloadMap := map[string]any{
+			"id":              msg.ID.String(),
+			"conversation_id": msg.ConversationID.String(),
+			"sender_id":       msg.SenderID.String(),
+			"seq":             msg.Seq,
+			"type":            msg.Type,
+			"body":            msg.Body,
+			"created_at":      msg.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if attachmentID != nil {
+			payloadMap["attachment_id"] = attachmentID.String()
+		}
+		payload, err := json.Marshal(payloadMap)
+		if err != nil {
+			return nil, fmt.Errorf("marshal outbox payload: %w", err)
+		}
+		if err := r.outbox.EnqueueInTx(ctx, tx, eventbus.TopicMessageCreated, payload); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
