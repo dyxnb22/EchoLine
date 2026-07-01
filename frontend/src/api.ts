@@ -53,6 +53,49 @@ export async function login(username: string, password: string): Promise<TokenPa
   return res.json();
 }
 
+export async function register(username: string, password: string, displayName: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, display_name: displayName }),
+  });
+  if (!res.ok) throw new Error("register failed");
+}
+
+export async function refreshToken(refresh: string): Promise<TokenPair> {
+  const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refresh }),
+  });
+  if (!res.ok) throw new Error("refresh failed");
+  return res.json();
+}
+
+export type Notification = {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  read_at?: string | null;
+};
+
+export async function listNotifications(token: string): Promise<Notification[]> {
+  const res = await fetch(`${API_BASE}/api/notifications`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("notifications failed");
+  const data = await res.json();
+  return data.notifications ?? [];
+}
+
+export async function markConversationRead(token: string, conversationId: string, lastReadSeq: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/read`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ last_read_seq: lastReadSeq }),
+  });
+  if (!res.ok) throw new Error("mark read failed");
+}
+
 export async function listConversations(token: string): Promise<Conversation[]> {
   const res = await fetch(`${API_BASE}/api/conversations`, {
     headers: authHeaders(token),
@@ -142,7 +185,7 @@ export function connectWS(
   deviceId: string,
   onMessage: (data: unknown) => void,
   onStatus?: (status: WSStatus) => void,
-): { close: () => void } {
+): { close: () => void; send: (payload: unknown) => void } {
   let ws: WebSocket | null = null;
   let closed = false;
   let attempt = 0;
@@ -190,6 +233,11 @@ export function connectWS(
       closed = true;
       if (timer) window.clearTimeout(timer);
       ws?.close();
+    },
+    send: (payload: unknown) => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      }
     },
   };
 }

@@ -62,6 +62,31 @@ GET /ws?token=<access_token>&device_id=<device_id>
 }
 ```
 
+### `typing.start`
+
+Ephemeral typing indicator (not persisted).
+
+```json
+{
+  "type": "typing.start",
+  "payload": {
+    "conversation_id": "c1"
+  }
+}
+```
+
+Server broadcasts to conversation members:
+
+```json
+{
+  "type": "typing.start",
+  "payload": {
+    "conversation_id": "c1",
+    "user_id": "u1"
+  }
+}
+```
+
 ## 服务端到客户端
 
 ### `pong`

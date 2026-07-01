@@ -4,9 +4,13 @@ import {
   Conversation,
   listConversations,
   listMessages,
+  listNotifications,
   login,
+  markConversationRead,
   Message,
+  Notification,
   presignUpload,
+  register,
   searchMessages,
   SearchHit,
   sendMessage,
@@ -28,8 +32,14 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [wsStatus, setWsStatus] = useState<WSStatus>("closed");
   const [uploading, setUploading] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [displayName, setDisplayName] = useState("");
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const activeIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wsRef = useRef<{ close: () => void; send: (p: unknown) => void } | null>(null);
+  const typingTimer = useRef<number | undefined>(undefined);
 
   const deviceId = useMemo(() => localStorage.getItem("echoline_device") ?? crypto.randomUUID(), []);
 
@@ -49,7 +59,7 @@ export default function App() {
   }, [token]);
 
   const loadMessages = useCallback(async (conversationId: string, beforeSeq?: number) => {
-    if (!token) return;
+    if (!token) return [];
     const page = await listMessages(token, conversationId, beforeSeq);
     const ordered = [...page.messages].reverse();
     if (beforeSeq == null) {
@@ -58,13 +68,25 @@ export default function App() {
       setMessages((prev) => [...ordered, ...prev]);
     }
     setNextBefore(page.next_before);
+    return ordered;
   }, [token]);
 
   useEffect(() => {
     if (!token || !activeId) return;
     setNextBefore(null);
-    loadMessages(activeId).catch((e) => setError(String(e)));
+    setTypingUsers([]);
+    loadMessages(activeId).then((ordered) => {
+      const last = ordered[ordered.length - 1];
+      if (last?.seq) {
+        markConversationRead(token, activeId, last.seq).catch(() => undefined);
+      }
+    }).catch((e) => setError(String(e)));
   }, [token, activeId, loadMessages]);
+
+  useEffect(() => {
+    if (!token) return;
+    listNotifications(token).then(setNotifications).catch(() => undefined);
+  }, [token, messages.length]);
 
   useEffect(() => {
     if (!token) return;
@@ -77,8 +99,17 @@ export default function App() {
           body?: string;
           id?: string;
           sender_id?: string;
+          user_id?: string;
         };
       };
+      if (env.type === "typing.start" && env.payload?.conversation_id === activeIdRef.current) {
+        const uid = env.payload.user_id ?? "someone";
+        setTypingUsers((prev) => (prev.includes(uid) ? prev : [...prev, uid]));
+        window.setTimeout(() => {
+          setTypingUsers((prev) => prev.filter((u) => u !== uid));
+        }, 3000);
+        return;
+      }
       if (env.type !== "message.created") return;
       if (env.payload?.conversation_id !== activeIdRef.current) return;
       setMessages((prev) => {
@@ -93,15 +124,28 @@ export default function App() {
         }];
       });
     }, setWsStatus);
+    wsRef.current = conn;
     return () => conn.close();
   }, [token, deviceId]);
 
-  async function handleLogin(e: React.FormEvent) {
+  function emitTyping() {
+    if (!activeId || !wsRef.current) return;
+    wsRef.current.send({
+      type: "typing.start",
+      payload: { conversation_id: activeId },
+    });
+  }
+
+  async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     try {
+      if (authMode === "register") {
+        await register(username, password, displayName || username);
+      }
       const tokens = await login(username, password);
       localStorage.setItem("echoline_token", tokens.access_token);
+      localStorage.setItem("echoline_refresh", tokens.refresh_token);
       setToken(tokens.access_token);
     } catch (err) {
       setError(String(err));
@@ -180,11 +224,18 @@ export default function App() {
     return (
       <main className="shell">
         <h1>EchoLine</h1>
-        <form onSubmit={handleLogin} className="card">
+        <form onSubmit={handleAuth} className="card">
+          <div className="auth-tabs">
+            <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => setAuthMode("login")}>Login</button>
+            <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => setAuthMode("register")}>Register</button>
+          </div>
           <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" />
+          {authMode === "register" && (
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="display name" />
+          )}
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="password" />
-          <button type="submit">Login</button>
-          {error && <p className="error">{error}</p>}
+          <button type="submit">{authMode === "login" ? "Login" : "Register & Login"}</button>
+          {error && <p className="error toast">{error}</p>}
         </form>
       </main>
     );
@@ -198,6 +249,7 @@ export default function App() {
         <header>
           <h1>EchoLine</h1>
           <span className={`ws-status ws-${wsStatus}`}>{wsStatus}</span>
+          {notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
           <button onClick={() => { localStorage.removeItem("echoline_token"); setToken(null); }}>Logout</button>
         </header>
         <form onSubmit={handleSearch} className="search">
@@ -224,7 +276,10 @@ export default function App() {
         </ul>
       </aside>
       <section className="chat">
-        <header>{active ? (active.title || active.type) : "Select a conversation"}</header>
+        <header>
+          {active ? (active.title || active.type) : "Select a conversation"}
+          {typingUsers.length > 0 && <span className="typing">typing...</span>}
+        </header>
         {nextBefore != null && (
           <button className="load-more" onClick={handleLoadMore} disabled={loadingMore}>
             {loadingMore ? "Loading..." : "Load older messages"}
@@ -241,7 +296,15 @@ export default function App() {
         </div>
         {activeId && (
           <form onSubmit={handleSend} className="composer">
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Type a message" />
+            <input
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (typingTimer.current) window.clearTimeout(typingTimer.current);
+                typingTimer.current = window.setTimeout(emitTyping, 300);
+              }}
+              placeholder="Type a message"
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -258,7 +321,7 @@ export default function App() {
             <button type="submit">Send</button>
           </form>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error toast">{error}</p>}
       </section>
     </main>
   );

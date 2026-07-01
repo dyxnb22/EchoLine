@@ -115,6 +115,37 @@
 - `search_vector` (tsvector, generated)
 - `created_at`
 
+### pinned_messages
+
+- `conversation_id`
+- `message_id`
+- `pinned_by`
+- `pinned_at`
+
+### user_blocks
+
+- `blocker_id`
+- `blocked_id`
+- `created_at`
+
+### message_reports
+
+- `id`
+- `reporter_id`
+- `message_id`
+- `conversation_id`
+- `reason`
+- `created_at`
+
+### notification_events
+
+- `id`
+- `user_id`
+- `type`
+- `payload`
+- `read_at`
+- `created_at`
+
 ### audit_logs
 
 - `id`

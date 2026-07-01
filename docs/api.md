@@ -291,6 +291,52 @@
 
 撤回消息（发送者或群 admin/owner）。
 
+## Social & Notifications
+
+### POST/DELETE `/api/conversations/{id}/pins/{message_id}`
+
+置顶/取消置顶消息。
+
+### GET `/api/conversations/{id}/pins`
+
+列出会话置顶消息。
+
+### POST `/api/conversations/{id}/mute` / `/unmute`
+
+静音/取消静音会话（`muted_until`）。
+
+### POST/DELETE `/api/blocks/{user_id}`
+
+拉黑/取消拉黑用户。
+
+### GET `/api/blocks`
+
+列出拉黑用户。
+
+### POST `/api/conversations/{id}/messages/{message_id}/report`
+
+举报消息。
+
+### GET `/api/notifications`
+
+通知列表。
+
+### POST `/api/notifications/{id}/read` / `POST /api/notifications/read-all`
+
+标记通知已读。
+
+### PATCH `/api/me`
+
+更新 `display_name`。
+
+### GET `/api/devices`
+
+当前用户设备列表。
+
+### GET `/api/admin/health` / GET `/api/admin/dlq`
+
+管理接口骨架（需 Bearer token）。
+
 ## Observability
 
 ### GET `/metrics`

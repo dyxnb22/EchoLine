@@ -84,6 +84,14 @@
 ## Phase 8 (frontend partial)
 
 - [x] Vite React 登录/会话/聊天/分页/WS 重连（J001-J006）。
-- [x] 乐观发送 + 附件上传 + 搜索 UI（J007-J009 partial）。
+- [x] 乐观发送 + 附件上传 + 搜索 UI（J007-J009）。
+- [x] 注册页 + typing + 通知 badge + PWA manifest + Playwright skeleton（batch-100）。
+
+## Phase 9 (batch-100)
+
+- [x] 社交功能：pin/block/report/mute/notifications（00009 migration）。
+- [x] 可观测性：k6/chaos/Grafana（I006-I010）。
+- [x] 文档/ADR/面试/review 报告（L/M/RS/X tracks）。
+- [x] `BATCH_100_MANIFEST.md` 任务清单。
 
 ## Phase 2+

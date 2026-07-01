@@ -2,6 +2,20 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Batch-100: social, ops, docs, frontend (checkpoint 6)
+
+任务：100项见 `BATCH_100_MANIFEST.md`（主线+backlog+stretch+research+extension）。
+
+代码：pin/block/report/notification/mute/spam/typing/admin/dlq/reliability tests。
+
+前端：register/typing/notifications/PWA/playwright。
+
+运维：k6/chaos/grafana/.env.example/Makefile。
+
+文档：12 ADR + 9 review reports + interview docs。
+
+测试：go test + frontend build 通过。
+
 ## 2026-07-01 Batch-20: search, edit/recall, metrics, frontend (checkpoint 5)
 
 任务（20项）：G005-G008, C007-C009, D007 SKIP LOCKED, E007-E008, F004/F008, H006, I001-I005, J007-J009.
