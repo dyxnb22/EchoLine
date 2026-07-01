@@ -115,6 +115,26 @@
 }
 ```
 
+### POST `/api/conversations/channels`
+
+创建频道。创建者为 owner，可发布消息。
+
+### POST `/api/conversations/{conversation_id}/subscribe`
+
+订阅频道（subscriber 角色，只读）。
+
+### DELETE `/api/conversations/{conversation_id}/subscribe`
+
+退订频道。
+
+### POST `/api/conversations/{conversation_id}/members`
+
+邀请用户加入群聊（需要 owner/admin）。
+
+### DELETE `/api/conversations/{conversation_id}/members/{user_id}`
+
+踢出成员或自己退群（owner 不可被踢）。
+
 ## Messages
 
 ### POST `/api/conversations/{conversation_id}/messages`

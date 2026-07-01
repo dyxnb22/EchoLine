@@ -10,6 +10,8 @@ import (
 var (
 	ErrNotFound        = errors.New("conversation not found")
 	ErrNotMember       = errors.New("not a conversation member")
+	ErrForbidden       = errors.New("forbidden")
+	ErrCannotPublish   = errors.New("cannot publish to this conversation")
 	ErrInvalidType     = errors.New("invalid conversation type")
 	ErrDuplicateDirect = errors.New("direct conversation already exists")
 )

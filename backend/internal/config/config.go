@@ -11,18 +11,20 @@ type Config struct {
 	AppEnv      string
 	HTTPAddr    string
 	DatabaseURL string
-	RedisAddr   string
-	JWTSecret   string
+	RedisAddr     string
+	KafkaBrokers  string
+	JWTSecret     string
 }
 
 // Load reads configuration from environment variables and validates required fields.
 func Load() (Config, error) {
 	cfg := Config{
-		AppEnv:      envOrDefault("APP_ENV", "development"),
-		HTTPAddr:    envOrDefault("HTTP_ADDR", ":8080"),
-		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		RedisAddr:   strings.TrimSpace(os.Getenv("REDIS_ADDR")),
-		JWTSecret:   strings.TrimSpace(os.Getenv("JWT_SECRET")),
+		AppEnv:       envOrDefault("APP_ENV", "development"),
+		HTTPAddr:     envOrDefault("HTTP_ADDR", ":8080"),
+		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		RedisAddr:    strings.TrimSpace(os.Getenv("REDIS_ADDR")),
+		KafkaBrokers: strings.TrimSpace(os.Getenv("KAFKA_BROKERS")),
+		JWTSecret:    strings.TrimSpace(os.Getenv("JWT_SECRET")),
 	}
 
 	var missing []string

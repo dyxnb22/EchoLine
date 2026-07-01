@@ -43,6 +43,20 @@
 - [x] mark read + sync endpoint（C004/C006）。
 - [ ] 历史分页集成测试（A019 with DB）。
 
+## Phase 4
+
+- [x] 群成员角色 owner/admin/member 校验（E001）。
+- [x] 群邀请/踢人/退群 API（E002）。
+- [x] 频道模型与订阅 API（E003-E004）。
+- [x] 频道发布权限（E005）。
+- [ ] 小群在线 fanout 测试（E006）。
+
+## Phase 6 (infra partial)
+
+- [x] Kafka client + message.created publish/consume（F005-F008 partial）。
+- [x] Redis rate limit middleware（H001-H002 via F002）。
+- [x] audit log + login audit（H004-H005）。
+
 ## Phase 5 (reliability partial)
 
 - [x] client_msg_id 幂等（D001-D002 partial）。

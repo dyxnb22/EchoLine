@@ -2,7 +2,7 @@ package message
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,16 +15,27 @@ type Broadcaster interface {
 	BroadcastMessageCreated(ctx context.Context, convID uuid.UUID, msg *Message, excludeSender bool, senderID uuid.UUID) error
 }
 
+// Publisher emits async domain events after commit.
+type Publisher interface {
+	Publish(ctx context.Context, topic string, payload []byte) error
+}
+
 // Service coordinates message persistence and realtime fanout.
 type Service struct {
 	repo          *Repository
 	conversations *conversation.Repository
 	broadcaster   Broadcaster
+	publisher     Publisher
 }
 
 // SetBroadcaster attaches a realtime broadcaster after construction.
 func (s *Service) SetBroadcaster(b Broadcaster) {
 	s.broadcaster = b
+}
+
+// SetPublisher attaches an async event publisher.
+func (s *Service) SetPublisher(p Publisher) {
+	s.publisher = p
 }
 
 // NewService creates a message service.
@@ -38,12 +49,8 @@ func NewService(repo *Repository, conversations *conversation.Repository, broadc
 
 // Send persists a message and notifies online members.
 func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, clientMsgID string, msgType Type, body string) (*Message, error) {
-	member, err := s.conversations.IsMember(ctx, convID, senderID)
-	if err != nil {
-		return nil, fmt.Errorf("check membership: %w", err)
-	}
-	if !member {
-		return nil, conversation.ErrNotMember
+	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
+		return nil, err
 	}
 
 	msg, err := s.repo.Create(ctx, convID, senderID, clientMsgID, msgType, body)
@@ -53,6 +60,10 @@ func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, clientMs
 
 	if s.broadcaster != nil {
 		_ = s.broadcaster.BroadcastMessageCreated(ctx, convID, msg, true, senderID)
+	}
+	if s.publisher != nil {
+		payload, _ := json.Marshal(ToCreatedPayload(msg))
+		_ = s.publisher.Publish(ctx, "message.created", payload)
 	}
 	return msg, nil
 }

@@ -14,10 +14,16 @@ import (
 	"github.com/echoline/echoline/backend/internal/user"
 )
 
+// LoginAuditor records login attempts.
+type LoginAuditor interface {
+	LogLogin(ctx context.Context, userID *uuid.UUID, username string, success bool, ip string) error
+}
+
 // Service handles authentication flows.
 type Service struct {
 	users     *user.Repository
 	jwtSecret []byte
+	auditor   LoginAuditor
 }
 
 // NewService creates an auth service.
@@ -26,6 +32,11 @@ func NewService(users *user.Repository, jwtSecret string) *Service {
 		users:     users,
 		jwtSecret: []byte(jwtSecret),
 	}
+}
+
+// SetLoginAuditor attaches optional login audit logging.
+func (s *Service) SetLoginAuditor(a LoginAuditor) {
+	s.auditor = a
 }
 
 type registerRequest struct {
@@ -130,6 +141,7 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	u, err := s.users.GetByUsername(r.Context(), req.Username)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
+			s.auditLogin(r, nil, req.Username, false)
 			writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 			return
 		}
@@ -139,6 +151,7 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := VerifyPassword(req.Password, u.PasswordHash)
 	if err != nil || !ok {
+		s.auditLogin(r, &u.ID, req.Username, false)
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 		return
 	}
@@ -149,7 +162,19 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.auditLogin(r, &u.ID, req.Username, true)
 	writeJSON(w, http.StatusOK, tokens)
+}
+
+func (s *Service) auditLogin(r *http.Request, userID *uuid.UUID, username string, success bool) {
+	if s.auditor == nil {
+		return
+	}
+	ip := r.RemoteAddr
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ip = xff
+	}
+	_ = s.auditor.LogLogin(r.Context(), userID, username, success, ip)
 }
 
 // HandleRefresh exchanges a refresh token for new access/refresh tokens.

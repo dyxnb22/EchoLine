@@ -38,6 +38,30 @@ paths:
       summary: Create group conversation
       security:
         - bearerAuth: []
+  /api/conversations/channels:
+    post:
+      summary: Create channel
+      security:
+        - bearerAuth: []
+  /api/conversations/{conversation_id}/subscribe:
+    post:
+      summary: Subscribe to channel
+      security:
+        - bearerAuth: []
+    delete:
+      summary: Unsubscribe from channel
+      security:
+        - bearerAuth: []
+  /api/conversations/{conversation_id}/members:
+    post:
+      summary: Invite group member
+      security:
+        - bearerAuth: []
+  /api/conversations/{conversation_id}/members/{user_id}:
+    delete:
+      summary: Remove group member or leave
+      security:
+        - bearerAuth: []
   /api/conversations/{conversation_id}/messages:
     get:
       summary: List messages

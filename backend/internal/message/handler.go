@@ -58,6 +58,10 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 			apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
 			return
 		}
+		if errors.Is(err, conversation.ErrCannotPublish) {
+			apierror.Write(w, r, http.StatusForbidden, "forbidden", "cannot publish to this conversation")
+			return
+		}
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}

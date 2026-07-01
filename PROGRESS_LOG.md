@@ -2,6 +2,14 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Phase 4/6 group/channel + kafka + rate limit (checkpoint 3)
+
+任务：E001-E005, F005-F008, H001-H002, H004-H005, D006 migration.
+
+测试：`go test ./...` 通过。
+
+下一步：outbox publisher, frontend J001, integration smoke.
+
 ## 2026-07-01 Phase 2/3 realtime + sync + ACK (checkpoint 2)
 
 任务：
