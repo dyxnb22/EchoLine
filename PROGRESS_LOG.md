@@ -14,7 +14,7 @@ OpenAPI：v0.3.0，61 paths + 27 schemas + core requestBody。
 
 工具：`scripts/validate-docs.py`，`make validate-docs`，接入 `make verify`。
 
-测试：`make validate-docs` 通过。
+测试：`make validate-docs` + `make verify`（go test + build + playwright 3/3）通过。
 
 阻塞：无新增。
 

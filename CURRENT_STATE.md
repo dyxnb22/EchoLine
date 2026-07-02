@@ -15,7 +15,7 @@ Last session highlights:
 Tests:
 
 - `make validate-docs` — OK
-- `make verify` — includes doc validation + go test + frontend build + playwright
+- `make verify` — OK (go test + vet + frontend build + Playwright 3/3)
 
 Blocker:
 
