@@ -1,7 +1,8 @@
 openapi: 3.0.3
 info:
   title: EchoLine API
-  version: 0.1.0
+  version: 0.2.0
+  description: OpenAPI mirror of backend routes. Authoritative detail in docs/api.md and backend/internal/server/server.go.
 paths:
   /health:
     get:
@@ -9,88 +10,828 @@ paths:
       responses:
         '200':
           description: OK
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: OK
   /api/auth/register:
     post:
       summary: Register user
+      responses:
+        '200':
+          description: OK
   /api/auth/login:
     post:
       summary: Login
+      responses:
+        '200':
+          description: OK
   /api/auth/refresh:
     post:
       summary: Refresh tokens
+      responses:
+        '200':
+          description: OK
   /api/me:
     get:
       summary: Current user
+      responses:
+        '200':
+          description: OK
+        '401': &id001
+          $ref: '#/components/responses/Unauthorized'
+        '422': &id002
+          $ref: '#/components/responses/ValidationError'
+        '429': &id003
+          $ref: '#/components/responses/RateLimited'
       security:
-        - bearerAuth: []
+      - bearerAuth: []
+    patch:
+      summary: Update display name
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/devices:
+    get:
+      summary: List devices
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
   /api/conversations:
     get:
-      summary: List conversations with unread counts
+      summary: List conversations
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
   /api/conversations/direct:
     post:
-      summary: Create or get direct conversation
+      summary: Create direct conversation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
   /api/conversations/groups:
     post:
-      summary: Create group conversation
+      summary: Create group
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
   /api/conversations/channels:
     post:
       summary: Create channel
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
-  /api/conversations/{conversation_id}/subscribe:
+      - bearerAuth: []
+  /api/conversations/{id}/subscribe:
     post:
       summary: Subscribe to channel
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
     delete:
       summary: Unsubscribe from channel
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
-  /api/conversations/{conversation_id}/members:
+      - bearerAuth: []
+  /api/conversations/{id}/members:
     post:
-      summary: Invite group member
+      summary: Invite member
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
-  /api/conversations/{conversation_id}/members/{user_id}:
+      - bearerAuth: []
+  /api/conversations/{id}/members/{user_id}:
     delete:
-      summary: Remove group member or leave
+      summary: Remove member or leave
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
-  /api/conversations/{conversation_id}/messages:
+      - bearerAuth: []
+  /api/conversations/{id}/messages:
     get:
       summary: List messages
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
     post:
       summary: Send message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
-  /api/conversations/{conversation_id}/read:
+      - bearerAuth: []
+  /api/conversations/{id}/messages/{message_id}:
+    patch:
+      summary: Edit message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/messages/{message_id}/recall:
+    post:
+      summary: Recall message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/read:
     post:
       summary: Mark conversation read
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
   /api/sync:
     post:
-      summary: Offline sync by conversation cursors
+      summary: Offline sync
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
+  /api/search/messages:
+    get:
+      summary: Search messages
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
   /api/messages/ack:
     post:
-      summary: Record delivered/read ACK
+      summary: Record ACK
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
       security:
-        - bearerAuth: []
+      - bearerAuth: []
+  /api/media/upload-url:
+    post:
+      summary: Presign upload URL
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/media/download-url:
+    post:
+      summary: Presign download URL
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
   /ws:
     get:
-      summary: WebSocket realtime gateway
+      summary: WebSocket gateway
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/pins/{message_id}:
+    post:
+      summary: Pin message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    delete:
+      summary: Unpin message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/pins:
+    get:
+      summary: List pins
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/mute:
+    post:
+      summary: Mute conversation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/unmute:
+    post:
+      summary: Unmute conversation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/blocks/{user_id}:
+    post:
+      summary: Block user
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    delete:
+      summary: Unblock user
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/blocks:
+    get:
+      summary: List blocks
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/messages/{message_id}/report:
+    post:
+      summary: Report message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/notifications:
+    get:
+      summary: List notifications
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/notifications/{id}/read:
+    post:
+      summary: Mark notification read
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/notifications/read-all:
+    post:
+      summary: Mark all notifications read
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/admin/health:
+    get:
+      summary: Admin health
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/admin/users:
+    get:
+      summary: Admin list users
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/admin/reports:
+    get:
+      summary: Admin list reports
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/admin/audit-logs:
+    get:
+      summary: Admin audit logs
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/admin/dlq:
+    get:
+      summary: Admin DLQ list
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/admin/dlq/{id}/replay:
+    post:
+      summary: Replay DLQ event
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/messages/{message_id}/reactions:
+    post:
+      summary: Add reaction
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: List reactions
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/messages/{message_id}/reactions/{emoji}:
+    delete:
+      summary: Remove reaction
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{conv_id}/messages/{message_id}/replies:
+    post:
+      summary: Send thread reply
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: List thread replies
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/messages/{message_id}/forward:
+    post:
+      summary: Forward message
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/presence/online:
+    get:
+      summary: Online presence
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/presence/last-seen:
+    get:
+      summary: Get last seen
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    post:
+      summary: Touch last seen
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/encryption/keys:
+    post:
+      summary: Register E2EE key bundle
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: List E2EE key bundles
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/export:
+    get:
+      summary: Export conversation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/archive:
+    post:
+      summary: Archive conversation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/{id}/unarchive:
+    post:
+      summary: Unarchive conversation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/conversations/archived:
+    get:
+      summary: List archived conversations
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/push/tokens:
+    post:
+      summary: Register push token
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: List push tokens
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/payments/ledger:
+    post:
+      summary: Create ledger entry
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: List ledger entries
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/payments/ledger/settle:
+    post:
+      summary: Settle ledger entry
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/channels/{channel_id}/campaigns:
+    post:
+      summary: Create ad campaign
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: List ad campaigns
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/channels/{channel_id}/campaigns/{campaign_id}/impressions:
+    post:
+      summary: Record impression
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /graphql:
+    post:
+      summary: GraphQL query/mutation
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+    get:
+      summary: GraphiQL UI
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/recommendations/channels:
+    get:
+      summary: Recommend channels
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/recommendations/friends:
+    get:
+      summary: Recommend friends
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/channels/{channel_id}/entitlements/grant:
+    post:
+      summary: Grant entitlement (admin)
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
+  /api/channels/{channel_id}/entitlements/require:
+    post:
+      summary: Require paid subscription (owner)
+      responses:
+        '200':
+          description: OK
+        '401': *id001
+        '422': *id002
+        '429': *id003
+      security:
+      - bearerAuth: []
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            request_id:
+              type: string
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: unauthorized
+              message: invalid or expired token
+              request_id: req-1
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: validation_error
+              message: body too long
+              request_id: req-1
+    RateLimited:
+      description: Rate limited
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: rate_limited
+              message: too many requests
+              request_id: req-1

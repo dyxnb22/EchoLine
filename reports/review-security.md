@@ -1,5 +1,7 @@
 # Code Review: Security (M006)
 
+> **Historical note (2026-07-02):** 报告中 `backend/internal/api/*` 路径为设计期命名；当前见 `auth/service.go`、`media/handler.go` 等。
+
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
 **Scope**: Authentication, authorization, input validation, rate limiting, audit logging

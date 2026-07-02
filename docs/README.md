@@ -22,7 +22,7 @@
 | [websocket-protocol.md](./websocket-protocol.md) | WS 消息类型与 envelope |
 | [data-model.md](./data-model.md) | 表结构与 migration 索引 |
 | [api.md](./api.md) | REST API 契约 |
-| [openapi.yaml](./openapi.yaml) | OpenAPI spec（部分端点） |
+| [openapi.yaml](./openapi.yaml) | OpenAPI 路由镜像（61 paths；body schema 详见 api.md） |
 | [engineering-standards.md](./engineering-standards.md) | 工程标准与 PR 检查项 |
 
 ## 决策记录

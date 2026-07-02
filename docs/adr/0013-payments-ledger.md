@@ -93,7 +93,7 @@ Running balance = sum of all `amount_cents` for an account. For performance:
 
 - `backend/migrations/` — `accounts`, `ledger_entries` tables
 - `backend/internal/payments/` _(planned)_ — ledger service, Stripe webhook handler, balance service
-- `backend/internal/api/payments.go` _(planned)_ — tip API, subscription API, balance API
+- `backend/internal/payment/handler.go` — ledger create/settle API
 - `docs/data-model.md` — update with payments schema reference
 
 ## Consequences

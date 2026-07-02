@@ -72,7 +72,7 @@ Design E2EE using the **Signal Protocol (Double Ratchet + X3DH)**:
 
 - `docs/adr/0011-e2ee-key-management.md` — key storage, rotation, pre-key bundle API
 - `backend/migrations/` — add `encrypted_body` column, make `body` nullable
-- `backend/internal/api/keys.go` _(planned)_ — pre-key bundle upload/fetch API
+- `backend/internal/encryption/handler.go` — pre-key bundle upload/fetch API
 - `docs/security-checklist.md` — E2EE deployment checklist
 
 ## Consequences

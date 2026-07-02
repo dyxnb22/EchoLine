@@ -42,7 +42,7 @@ Alternatively, validate at the application layer before insert and add a unit te
 ## Finding 3: `conversation_members.role` Stored as Text — No Enum
 
 **Severity**: Low
-**Files**: `backend/migrations/`, `backend/internal/conversation/roles.go`
+**Files**: `backend/migrations/`, `backend/internal/conversation/authz.go`
 
 **Observation**: `role TEXT CHECK (role IN ('owner', 'admin', 'member'))` — using a check constraint on TEXT rather than a Postgres enum.
 

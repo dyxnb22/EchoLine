@@ -1,5 +1,7 @@
 # EchoLine Batch-100 Task Manifest
 
+> **Note (2026-07-02):** `Key File(s)` 列中 `backend/internal/api/*` 为早期设计路径；实际实现为按领域分包（如 `auth/service.go`、`message/handler.go`）。任务状态以代码与 `FINAL_COMPLETION_MANIFEST.md` 为准。
+
 This manifest records 100 tasks (B001–B100) executed across the EchoLine backlog.
 Status: **done** = fully implemented and tested; **partial** = scaffolded or implemented without full integration test coverage (blocked by Docker/Postgres unavailability in cloud VM).
 

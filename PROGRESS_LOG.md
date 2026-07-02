@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Documentation alignment pass 2: full scan
+
+任务：全量扫描 116 个 markdown + openapi，纠正至与代码一致。
+
+ADR/技术文档：去除 ghost `internal/api/` 路径；0002 Accepted；architecture 模块表扩展。
+
+数据/API：data-model 补列；api.md 增 GET /ws；openapi.yaml 61 paths + Error schema。
+
+状态/计划：extensions-roadmap、RESEARCH_PLAN、CLOUD_AGENT_PROMPT、load-test-01 对齐。
+
+Manifest/报告：BATCH_* 历史路径说明；review M001–M007 免责声明。
+
+测试：文档-only。
+
+阻塞：无新增。
+
+下一步：本地 smoke-full；可选 openapi body schemas。
+
 ## 2026-07-02 Documentation alignment: dedupe, correct, consolidate
 
 任务：全库文档对齐 — 纠正过时内容、整合重复项、更新状态/memory 文件。

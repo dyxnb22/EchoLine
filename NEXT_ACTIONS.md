@@ -13,7 +13,7 @@
 1. Owner RBAC hardening on `POST /api/channels/{id}/entitlements/require`（已实现 owner-only，可补集成测试）
 2. Migrate `conversation/handler` legacy `writeError` → `apierror` envelope
 3. Swap OTel stub for real exporter SDK（ADR 0029 → 0008 Phase 2）
-4. Expand `docs/openapi.yaml` with error response examples on protected routes
+4. Expand `docs/openapi.yaml` with per-endpoint request/response body schemas
 
 ## Environment
 

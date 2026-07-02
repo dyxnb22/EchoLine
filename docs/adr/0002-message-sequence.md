@@ -2,7 +2,7 @@
 
 ## 状态
 
-待 Phase 5 实现时补充。
+Accepted — implemented in `backend/internal/message/repository.go` (transactional seq allocation).
 
 ## 初始方向
 

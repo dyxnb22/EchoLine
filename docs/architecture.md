@@ -99,21 +99,36 @@ flowchart LR
 | 模块 | 职责 |
 |---|---|
 | `auth` | 登录、token、鉴权中间件 |
-| `user` | 用户资料、设备、session |
-| `conversation` | 私聊、群聊、频道的会话抽象 |
+| `user` | 用户资料 |
+| `device` | 设备注册与列表 |
+| `conversation` | 私聊、群聊、频道（含成员与 RBAC；无独立 `channel` 包） |
 | `message` | 消息写入、查询、编辑、撤回 |
 | `realtime` | WebSocket 连接、心跳、推送 |
-| `delivery` | ACK、重试、去重、读状态 |
-| `presence` | 在线状态和 TTL |
-| `channel` | broadcast channel |
-| `media` | 附件上传下载和元数据 |
-| `search` | 消息索引和搜索 |
+| `delivery` | ACK、delivery 状态机 |
+| `sync` | 离线 sync endpoint |
+| `presence` | 在线状态、last-seen |
+| `media` | 附件预签名与元数据 |
+| `search` | 消息全文搜索 |
 | `audit` | append-only 审计日志 |
 | `rate_limit` | 用户、IP、会话维度限流 |
 | `entitlement` | 付费频道访问控制 |
 | `payment` | 账本与 settle → grant |
-| `worker` | 搜索索引、fanout push、webhook 重试 |
-| `observability` | metrics、logs、tracing stub |
+| `admin` | 用户/举报/审计/DLQ 管理 API |
+| `ads` | 广告 campaign 与 impression |
+| `block` / `pin` / `report` | 拉黑、置顶、举报 |
+| `notification` | 应用内通知 |
+| `reaction` / `thread` / `forward` | 反应、回复串、转发 |
+| `export` / `archive` | 会话导出与归档 |
+| `push` | Push token 与 fanout worker |
+| `encryption` | E2EE key bundle（demo） |
+| `recommendation` | 频道/好友推荐 |
+| `graph` | GraphQL facade 原型 |
+| `webhook` | 出站 webhook 投递与重试 |
+| `outbox` / `eventbus` | 事务 outbox、DLQ、事件总线 |
+| `worker` | 搜索索引、fanout push、webhook 重试（`cmd/worker`） |
+| `metrics` / `telemetry` | Prometheus 指标、OTel/Sentry stub |
+| `risk` | 重复内容 spam 检测 stub |
+| `apierror` / `validate` | 统一错误 envelope、输入校验 |
 
 ## 异步与 Worker
 

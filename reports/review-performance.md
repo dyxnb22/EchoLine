@@ -1,5 +1,7 @@
 # Code Review: Performance (M005)
 
+> **Historical note (2026-07-02):** 报告中 `backend/internal/api/*` 路径为设计期命名；当前见 `conversation/handler.go`、`search/handler.go`、`sync/handler.go`。
+
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
 **Scope**: DB query patterns, cache effectiveness, WS throughput, Kafka consumer throughput

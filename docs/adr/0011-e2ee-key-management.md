@@ -114,9 +114,9 @@ This is the Signal multi-device model (also used by WhatsApp). It means message 
 ## Implementation Files
 
 - `backend/migrations/` — `device_keys`, `one_time_pre_keys`, `message_ciphertext_per_device` tables
-- `backend/internal/api/keys.go` _(planned)_ — upload, fetch bundle, replenishment
+- `backend/internal/encryption/handler.go` — upload, fetch bundle, replenishment
 - `backend/internal/keys/` _(planned)_ — OPK atomic consumption service
-- `backend/internal/api/message.go` — accept `encrypted_body` per device alongside plaintext body
+- `backend/internal/message/handler.go` — accept `encrypted_body` per device alongside plaintext body (future)
 - `docs/security-checklist.md` — key management deployment checklist
 
 ## Consequences

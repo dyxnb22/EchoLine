@@ -1,20 +1,21 @@
 # Current State
 
-Current phase: **Documentation alignment** — post engineering review #03.
+Current phase: **Documentation alignment — pass 2 complete**.
 
-Milestone: `FINAL_COMPLETION_MANIFEST.md` (closed) + docs consistency pass.
+Milestone: `FINAL_COMPLETION_MANIFEST.md` (closed) + full doc scan aligned with code.
 
 Last session highlights:
 
-- ADR index complete (0001–0031); duplicate ADR 0003 resolved; 0013 superseded by 0019
-- `websocket-protocol.md` aligned with `realtime/protocol.go` (`message.edited`, typing events)
-- `data-model.md` adds `outbox_events`
-- State docs updated: `DONE.md`, `BACKLOG.md`, `ACCEPTANCE_MATRIX.md`, `TASKS.md` closure banners
-- Navigation: `docs/README.md`, `README.md` interview links, `review-docs-consistency.md` refresh
+- Living docs: fixed ghost `backend/internal/api/` paths in ADRs + interview/security docs
+- `architecture.md` module table expanded; `data-model.md` columns completed
+- `openapi.yaml` expanded to 61 paths with Error schema + standard error responses
+- `extensions-roadmap.md`, `RESEARCH_PLAN.md`, `CLOUD_AGENT_PROMPT.md` closure alignment
+- Manifests + review reports: historical path disclaimers
+- `conversation.read` WS event documented as proposed (not implemented)
 
 Tests:
 
-- `make verify` — go test + build + playwright (unchanged by doc-only pass)
+- `make verify` — unchanged (doc-only passes)
 
 Blocker:
 
@@ -22,6 +23,6 @@ Blocker:
 
 Next (optional):
 
-1. Migrate `conversation/handler` to `apierror` envelope (legacy `writeError`)
-2. Local `make dev-up && make smoke-full`
-3. Expand `docs/openapi.yaml` error response examples
+1. Local `make dev-up && make smoke-full`
+2. OpenAPI per-endpoint request/response schemas
+3. Migrate `conversation/handler` to `apierror` envelope

@@ -1,66 +1,73 @@
 # Code Review: Documentation Consistency (M008)
 
 **Reviewer**: Automated review via agent  
-**Date**: 2026-07-01 (initial), **2026-07-02 (resolution pass)**  
-**Scope**: All docs in `docs/`, `reports/`, ADRs, OpenAPI spec, code comments
+**Date**: 2026-07-01 (initial), **2026-07-02 (pass 1 + pass 2)**  
+**Scope**: All docs in `docs/`, `reports/`, ADRs, OpenAPI spec, manifests, agent prompts
 
 ---
 
 ## Summary
 
-EchoLine documentation covers architecture, API, data model, WebSocket protocol, ADRs, and interview materials. An initial pass (2026-07-01) identified gaps; engineering reviews #02/#03 and this alignment pass addressed most items.
+EchoLine documentation is aligned with the implemented codebase and T001–T440 closure state after two alignment passes.
 
-**Documentation consistency score**: **9/10** (post-alignment). Remaining gap: OpenAPI error examples on all routes.
-
----
-
-## Findings — Resolution Status
-
-| # | Finding | Severity | Status | Resolution |
-|---|---------|----------|--------|------------|
-| 1 | `docs/api.md` missing endpoints | Medium | **Fixed** | Endpoints documented through Batch Next-120 + entitlements (review #02/#03) |
-| 2 | `docs/websocket-protocol.md` missing events | Medium | **Fixed** | Added `message.edited`, `message.recalled`, `typing.stop`, `typing.indicator/stopped` (2026-07-02) |
-| 3 | `docs/data-model.md` missing infra tables | Medium | **Fixed** | Added `outbox_events`; deliveries/sync/audit already present |
-| 4 | ADR README incomplete | Low | **Fixed** | Full index 0001–0031 in `docs/adr/README.md` |
-| 5 | Architecture missing worker | Low | **Fixed** | Mermaid + worker table in `architecture.md` (review #03) |
-| 6 | OpenAPI missing error examples | Low | **Open** | `docs/openapi.yaml` — add 401/422/429 examples per route |
-| 7 | Interview docs not linked |  README | Low | **Fixed** | Links in `README.md` and `docs/README.md` |
-| 8 | `docs/reliability.md` language mix | Low | **Accepted** | Chinese body + English terms; consistent with project bilingual docs |
+**Documentation consistency score**: **10/10** for living docs (ADRs, api, data-model, websocket, architecture, state files, openapi route coverage). Historical manifests/review reports retain path snapshots with header disclaimers.
 
 ---
 
-## ADR Hygiene (2026-07-02)
+## Pass 1 (2026-07-02) — Completed
 
-| Issue | Resolution |
-|-------|------------|
-| Duplicate ADR number `0003` (`cache-and-mq` vs `large-group-fanout`) | Renamed cache/MQ draft to [ADR 0031](../docs/adr/0031-cache-and-mq-responsibilities.md); **0003** = large group fanout |
-| Duplicate payment ADRs 0013 / 0019 | 0013 marked **superseded by 0019** |
-
----
-
-## State / Memory Doc Alignment (2026-07-02)
-
-| File | Change |
-|------|--------|
-| `DONE.md` | Merged duplicate Phase 6; closure banner; post-closure optional |
-| `BACKLOG.md` | Marked closed; items mapped to manifest / research docs |
-| `ACCEPTANCE_MATRIX.md` | Phase 1–9 → done/partial reflecting T440 closure |
-| `TASKS.md` | Closure banner; ADR 0031 reference |
-| `CURRENT_STATE.md` / `NEXT_ACTIONS.md` | Optional work only; no stale phase labels |
+| Area | Fix |
+|------|-----|
+| ADR index | Full 0001–0031; duplicate 0003 → 0031; 0013 superseded by 0019 |
+| websocket-protocol | `message.edited`, typing events |
+| data-model | `outbox_events` |
+| State files | DONE, BACKLOG, ACCEPTANCE_MATRIX, TASKS closure banners |
+| Navigation | docs/README, README interview links |
 
 ---
 
-## Remaining Work (optional)
+## Pass 2 (2026-07-02) — Completed
 
-1. Expand `docs/openapi.yaml` error response examples (Finding 6).
-2. Run `make smoke-full` locally and note results in `PROGRESS_LOG.md`.
-3. GraphQL schema codegen — tracked in engineering-review-03 gaps.
+| Area | Fix |
+|------|-----|
+| ADR implementation paths | 0002 status; 0005/0006/0010–0014/0022 — remove ghost `backend/internal/api/` |
+| Living technical docs | security-checklist, research-presence, reliability-adr-suite, interview-* paths |
+| architecture.md | Expanded module table (30+ packages); removed phantom `channel` module |
+| data-model.md | `parent_message_id`, `archived_at`, extension table columns |
+| api.md | `GET /ws` entry; openapi now full route mirror |
+| openapi.yaml | **61 paths**, Error schema, 401/422/429 on protected routes |
+| extensions-roadmap.md | Prototype vs future per section |
+| RESEARCH_PLAN.md | Actual output paths (no `docs/research/` ghost dir) |
+| CLOUD_AGENT_PROMPT.md | Closure notice |
+| load-test-01.md | k6 scripts done |
+| scaling.md | `message.edited` event name |
+| interview-multi-device-sync | `conversation.read` marked proposed (not in code) |
+| BATCH_* manifests | Historical path disclaimers |
+| Review reports M001–M007 | Historical `internal/api/` disclaimers |
 
 ---
 
-## Files Updated (this pass)
+## Verification Checklist
 
-- `docs/adr/README.md`, `docs/adr/0031-cache-and-mq-responsibilities.md`, `docs/adr/0013-payments-ledger.md`
-- `docs/websocket-protocol.md`, `docs/data-model.md`, `docs/README.md`
-- `DONE.md`, `BACKLOG.md`, `ACCEPTANCE_MATRIX.md`, `TASKS.md`, `CURRENT_STATE.md`, `NEXT_ACTIONS.md`
-- `README.md`, `DECISIONS.md`, `EXECUTION_RULES.md`
+| Check | Status |
+|-------|--------|
+| All ADR files indexed in `docs/adr/README.md` | ✅ |
+| No `backend/internal/api/` in `docs/` (living) | ✅ |
+| `docs/openapi.yaml` paths match `server.go` | ✅ |
+| WS event names match `realtime/protocol.go` | ✅ |
+| Closure consistent across CURRENT_STATE, TASKS, BACKLOG, CLOUD_AGENT_PROMPT | ✅ |
+| Broken markdown links to deleted files | ✅ none found |
+
+---
+
+## Remaining Optional (non-blocking)
+
+1. Line-by-line correction of `BATCH_100_MANIFEST.md` Key File column (100+ rows; header disclaimer sufficient).
+2. Local `make smoke-full` results recorded in PROGRESS_LOG.
+3. OpenAPI request/response body schemas per endpoint (currently summary + error refs only).
+
+---
+
+## Files Updated (pass 2)
+
+See git diff on branch `cursor/docs-alignment-27cb` — 35+ markdown files + `docs/openapi.yaml`.

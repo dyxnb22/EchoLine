@@ -41,6 +41,7 @@
 - `last_read_seq`
 - `last_delivered_seq`
 - `muted_until`
+- `archived_at` (nullable) — per-member archive（migration `00013`）
 - `joined_at`
 
 ### direct_conversation_pairs
@@ -61,6 +62,7 @@
 - `type`: `text`、`image`、`file`、`system`
 - `body`
 - `status`: `normal`、`edited`、`recalled`、`deleted`
+- `parent_message_id` (nullable) — thread reply parent（migration `00010`）
 - `created_at`
 - `updated_at`
 
@@ -162,9 +164,28 @@
 - `platform`
 - `created_at`
 
-### payment_ledger / ad_campaigns / ad_impressions / encryption_key_bundles
+### payment_ledger
 
-见 `backend/migrations/00012_extensions_skeleton.sql`。
+- `id`, `user_id`, `amount_cents`, `currency`, `status`, `reference`, `created_at`
+
+Migration `00012`; settle via `POST /api/payments/ledger/settle` may grant channel entitlements when `reference = channel:{uuid}`.
+
+### ad_campaigns
+
+- `id`, `channel_id`, `title`, `status`, `created_at`
+- `budget_cents`, `frequency_cap` (migration `00014`)
+
+### ad_impressions
+
+- `id`, `campaign_id`, `user_id`, `created_at`
+- `impression_day` (migration `00014`) — daily frequency cap index
+
+### encryption_key_bundles
+
+- `id`, `user_id`, `device_id`, `public_key`, `created_at`
+- unique `(user_id, device_id)`
+
+Migration `00012`.
 
 ### users.is_admin
 

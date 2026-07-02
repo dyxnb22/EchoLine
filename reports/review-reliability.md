@@ -1,5 +1,7 @@
 # Code Review: Reliability (M004)
 
+> **Historical note (2026-07-02):** 报告中 `backend/internal/api/*` 路径为设计期命名；当前见 `sync/handler.go`、`delivery/handler.go`、`outbox/`。
+
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
 **Scope**: Outbox pattern, idempotency, delivery state machine, DLQ, sync endpoint
