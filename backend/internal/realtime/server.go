@@ -38,6 +38,8 @@ var upgrader = websocket.Upgrader{
 const (
 	convSendLimit  int64 = 60
 	convSendWindow       = time.Minute
+	typingLimit    int64 = 30
+	typingWindow         = time.Minute
 )
 
 // Hub tracks active WebSocket connections.
@@ -506,6 +508,14 @@ func (s *Server) handleTypingStart(c *Connection, env Envelope) {
 		return
 	}
 
+	if s.limiter != nil {
+		key := fmt.Sprintf("typing:%s:%s", convID, c.UserID)
+		ok, err := s.limiter.Allow(context.Background(), key, typingLimit, typingWindow)
+		if err != nil || !ok {
+			return
+		}
+	}
+
 	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
 	if err != nil || !member {
 		c.sendError(env.RequestID, "forbidden", "not a conversation member")
@@ -542,6 +552,14 @@ func (s *Server) handleTypingStop(c *Connection, env Envelope) {
 	if err != nil {
 		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
 		return
+	}
+
+	if s.limiter != nil {
+		key := fmt.Sprintf("typing:%s:%s", convID, c.UserID)
+		ok, err := s.limiter.Allow(context.Background(), key, typingLimit, typingWindow)
+		if err != nil || !ok {
+			return
+		}
 	}
 
 	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)

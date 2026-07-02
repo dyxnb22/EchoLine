@@ -134,9 +134,12 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	adminChecker := admin.NewCompositeAdminChecker(admin.NewStaticAdminChecker(cfg.AdminUserIDs), pool)
 	deviceRepo := device.NewRepository(pool)
-	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
-	graphHandler.SetMessageSender(msgSvc)
-	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool), convRepo, msgRepo))
+	var graphHandler *graph.Handler
+	if cfg.GraphQLEnabled {
+		graphHandler = graph.NewHandler(convRepo, cfg.GraphiQL)
+		graphHandler.SetMessageSender(msgSvc)
+		graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool), convRepo, msgRepo))
+	}
 
 	rt.SetDeviceTracker(deviceRepo)
 
@@ -270,6 +273,11 @@ func (s *Server) applyRateLimits(mux *http.ServeMux) {
 	refreshMW := rate_limit.Middleware(s.limiter, "refresh", 30, time.Minute, rate_limit.IPKey)
 	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
 	graphqlSendMW := rate_limit.Middleware(s.limiter, "graphql_send", 60, time.Minute, rate_limit.AuthUserKey)
+	syncMW := rate_limit.Middleware(s.limiter, "sync", 120, time.Minute, rate_limit.AuthUserKey)
+	ackMW := rate_limit.Middleware(s.limiter, "message_ack", 120, time.Minute, rate_limit.AuthUserKey)
+	searchMW := rate_limit.Middleware(s.limiter, "search", 60, time.Minute, rate_limit.AuthUserKey)
+	exportMW := rate_limit.Middleware(s.limiter, "export", 10, time.Minute, rate_limit.AuthUserKey)
+	mediaMW := rate_limit.Middleware(s.limiter, "media_presign", 60, time.Minute, rate_limit.AuthUserKey)
 
 	mux.Handle("POST /api/auth/register", registerMW(http.HandlerFunc(s.auth.HandleRegister)))
 	mux.Handle("POST /api/auth/refresh", refreshMW(http.HandlerFunc(s.auth.HandleRefresh)))
@@ -283,6 +291,14 @@ func (s *Server) applyRateLimits(mux *http.ServeMux) {
 			"POST /graphql",
 			auth.RequireAuth(s.auth, graphqlSendMW(http.HandlerFunc(s.graph.HandleGraphQL))),
 		)
+	}
+	mux.Handle("POST /api/sync", auth.RequireAuth(s.auth, syncMW(http.HandlerFunc(s.sync.HandleSync))))
+	mux.Handle("POST /api/messages/ack", auth.RequireAuth(s.auth, ackMW(http.HandlerFunc(s.delivery.HandleACK))))
+	mux.Handle("GET /api/search/messages", auth.RequireAuth(s.auth, searchMW(http.HandlerFunc(s.search.HandleSearch))))
+	mux.Handle("GET /api/conversations/{id}/export", auth.RequireAuth(s.auth, exportMW(http.HandlerFunc(s.export.HandleExport))))
+	if s.media != nil {
+		mux.Handle("POST /api/media/upload-url", auth.RequireAuth(s.auth, mediaMW(http.HandlerFunc(s.media.HandlePresignUpload))))
+		mux.Handle("POST /api/media/download-url", auth.RequireAuth(s.auth, mediaMW(http.HandlerFunc(s.media.HandlePresignDownload))))
 	}
 	wsMW := rate_limit.Middleware(s.limiter, "ws_upgrade", 30, time.Minute, rate_limit.IPKey)
 	mux.Handle("GET /ws", wsMW(http.HandlerFunc(s.realtime.HandleWS)))

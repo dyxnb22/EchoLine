@@ -490,7 +490,8 @@ export function connectWS(
   async function connect() {
     if (closed) return;
     if (refreshAccessToken && attempt > 0) {
-      await refreshAccessToken();
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) return;
     }
     onStatus?.("connecting");
     ws = new WebSocket(wsURL());

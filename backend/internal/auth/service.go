@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -189,11 +191,22 @@ func (s *Service) auditLogin(r *http.Request, userID *uuid.UUID, username string
 	if s.auditor == nil {
 		return
 	}
-	ip := r.RemoteAddr
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ip = xff
-	}
+	ip := clientIP(r)
 	_ = s.auditor.LogLogin(r.Context(), userID, username, success, ip)
+}
+
+func clientIP(r *http.Request) string {
+	if strings.EqualFold(os.Getenv("TRUSTED_PROXY"), "true") {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 // HandleRefresh exchanges a refresh token for new access/refresh tokens.

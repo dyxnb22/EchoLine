@@ -43,12 +43,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/conversations/{id}/messages/{message_id}", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleEdit)))
 	mux.Handle("POST /api/conversations/{id}/messages/{message_id}/recall", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleRecall)))
 	mux.Handle("POST /api/conversations/{id}/read", auth.RequireAuth(s.auth, http.HandlerFunc(s.msg.HandleMarkRead)))
-	mux.Handle("POST /api/sync", auth.RequireAuth(s.auth, http.HandlerFunc(s.sync.HandleSync)))
-	mux.Handle("GET /api/search/messages", auth.RequireAuth(s.auth, http.HandlerFunc(s.search.HandleSearch)))
-	mux.Handle("POST /api/messages/ack", auth.RequireAuth(s.auth, http.HandlerFunc(s.delivery.HandleACK)))
+	// sync, ack, search, export, media presign registered in applyRateLimits with rate limiting
 	if s.media != nil {
-		mux.Handle("POST /api/media/upload-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignUpload)))
-		mux.Handle("POST /api/media/download-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignDownload)))
+		// media routes registered in applyRateLimits
 	}
 	// GET /ws registered in applyRateLimits with rate limiting
 
@@ -112,8 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/encryption/keys", auth.RequireAuth(s.auth, http.HandlerFunc(s.encryption.HandleRegister)))
 	mux.Handle("GET /api/encryption/keys", auth.RequireAuth(s.auth, http.HandlerFunc(s.encryption.HandleList)))
 
-	// Export
-	mux.Handle("GET /api/conversations/{id}/export", auth.RequireAuth(s.auth, http.HandlerFunc(s.export.HandleExport)))
+	// Export registered in applyRateLimits with rate limiting
 
 	// Archive
 	mux.Handle("POST /api/conversations/{id}/archive", auth.RequireAuth(s.auth, http.HandlerFunc(s.archive.HandleArchive)))

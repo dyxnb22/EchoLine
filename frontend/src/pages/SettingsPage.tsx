@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { registerPushToken } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { getOrCreateDeviceId } from "../lib/deviceId";
 import { registerDeviceKey } from "../lib/e2ee";
 
 export function SettingsPage() {
   const { token } = useAuth();
   const [pushToken, setPushToken] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
-  const deviceId = localStorage.getItem("echoline_device") ?? "web";
+  const deviceId = getOrCreateDeviceId();
 
   if (!token) return null;
 

@@ -14,6 +14,8 @@ import (
 	"github.com/echoline/echoline/backend/internal/message"
 )
 
+const maxSyncCursors = 50
+
 type attachmentLookup interface {
 	ListByMessageIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]media.Attachment, error)
 }
@@ -57,6 +59,10 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 	var req syncRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		return
+	}
+	if len(req.Cursors) > maxSyncCursors {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "too many cursors in sync request")
 		return
 	}
 

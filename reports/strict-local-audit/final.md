@@ -1,47 +1,77 @@
-# Strict Local Audit — Final Report (Iteration 2)
+# Strict Local Audit — Final Report
 
 **Date:** 2026-07-02  
 **Branch:** cursor/strict-local-audit-90b4  
-**Total rounds:** 4 (iteration 1: rounds 01–02; iteration 2: rounds 03–04)
+**Session rounds:** 05, 06, 07 (fresh audit; prior rounds 01–04 not trusted)
 
 ## Round counts
 
 | Round | P0 | P1 | P2 | P3 | P4 |
 |-------|----|----|----|----|-----|
-| 01 found | 1 | 5 | 9 | 3 | 0 |
-| 02 new | 0 | 0 | 0 | 3 | 1 |
-| 03 found | 0 | 5 | 9 | 2 | 0 |
-| 04 new | 0 | 0 | 0 | 4 | 1 |
+| 05 found | 0 | 5 | 4 | 3 | 0 |
+| 06 found | 0 | 2 | 4 | 0 | 0 |
+| 07 new | 0 | 0 | 0 | 4 | 2 |
 
-## Iteration 2 (Round 03–04) P0/P1/P2 fixes
+## P0/P1/P2 fix summary
 
-1. **Redis refresh JTI store (P1)** — cluster-wide refresh rotation
-2. **Outbox mark retry + fanout dedup (P1)** — prevent duplicate side effects
-3. **Sync mark-read + cursor monotonicity (P1)** — unread + sync correctness
-4. **Sync attachment metadata (P2)** — download works on sync path
-5. **refreshTokenOnce (P2)** — concurrent refresh safe
-6. **Search limit cap, WS origin/metrics/rate-limit (P2)** — security hardening
-7. **Presence contact gate (P2)** — no arbitrary user probing
+### Round 05
+1. Frontend unread race while viewing active conversation
+2. WS reconnect churn on token rotation
+3. Multi-conversation sync on reconnect
+4. WS connect after refresh failure
+5. PAYMENT_SELF_SERVE blocked in production
+6. GraphQL disabled by default in production
+7. Rate limits on sync/ack/search/export/media
+8. Integration test JWT_SECRET default
+9. Shared device_id helper
 
-## Stop condition (iteration 2)
+### Round 06
+1. GraphQL sendMessage client_msg_id generation
+2. Sync cursor cap (50)
+3. Audit IP uses TRUSTED_PROXY gate
+4. WS typing rate limit
+5. Notification poll decoupled from message stream
+6. Reaction prefetch capped to 20 messages
 
-- Round 04 fresh audit: **0 new P0/P1/P2**
-- All tests PASS including integration + smoke-full
-- Open items: P3/P4 only (loading flash, sync error UI, WS query JWT MVP, dev rate limits)
+## Stop condition
 
-## Test results (latest)
+1. ≥2 full audit rounds — **yes** (05, 06, 07)
+2. Latest round (07) zero new P0/P1/P2 — **yes**
+3. No open P0/P1/P2 — **yes**
+4. All tests pass — **yes**
+5. `make smoke-full` pass — **yes**
+6. `final.md` written — **yes**
+
+## Latest test commands
 
 ```
 make test                          PASS
 go test ./...                      PASS
 go vet ./...                       PASS
-npm run lint / build               PASS
+npm run lint                       PASS
+npm run build                      PASS
+RUN_INTEGRATION=1 go test ./tests  PASS
 make smoke-full                    PASS
-RUN_INTEGRATION=1 integration      PASS
 npx playwright test                PASS (4/4)
 ```
 
-## Reports
+## Remaining P3/P4
 
-- `round-03/` — findings + fixes
-- `round-04/` — verification-only round
+- Sync error UI silent
+- Conversation switch loading flash
+- WS JWT in query string (MVP)
+- Dev in-memory rate limits without Redis
+- k6/wscat not installed locally
+- Reaction batch API (prefetch capped)
+
+## Local environment
+
+- Docker/Postgres/Redis available — full stack verified
+- k6, wscat, GNU timeout not installed — WS/k6 smoke skipped
+
+## Follow-up suggestions
+
+1. Add batch reactions API
+2. Install wscat in dev docs for WS smoke
+3. Short-lived WS ticket instead of query JWT
+4. Require Redis in multi-instance deployment docs

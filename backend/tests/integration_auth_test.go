@@ -30,6 +30,7 @@ func TestIntegrationAuthRegisterLogin(t *testing.T) {
 	if !integrationEnabled() {
 		t.Skip("integration tests require RUN_INTEGRATION=1 and DATABASE_URL")
 	}
+	ensureIntegrationEnv(t)
 
 	ctx := context.Background()
 	dbURL := os.Getenv("DATABASE_URL")

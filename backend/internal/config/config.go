@@ -23,6 +23,7 @@ type Config struct {
 	AdminUserIDs       string
 	SentryDSN          string
 	GraphiQL           bool
+	GraphQLEnabled     bool
 	PaymentSelfServe   bool
 	MetricsToken       string
 }
@@ -48,6 +49,7 @@ func Load() (Config, error) {
 		PaymentSelfServe: strings.EqualFold(os.Getenv("PAYMENT_SELF_SERVE"), "true"),
 		MetricsToken:     strings.TrimSpace(os.Getenv("METRICS_TOKEN")),
 	}
+	cfg.GraphQLEnabled = graphQLEnabled(cfg.AppEnv)
 
 	var missing []string
 	if cfg.DatabaseURL == "" {
@@ -59,8 +61,18 @@ func Load() (Config, error) {
 	if len(missing) > 0 {
 		return Config{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
+	if cfg.PaymentSelfServe && strings.EqualFold(cfg.AppEnv, "production") {
+		return Config{}, fmt.Errorf("PAYMENT_SELF_SERVE cannot be enabled when APP_ENV=production")
+	}
 
 	return cfg, nil
+}
+
+func graphQLEnabled(appEnv string) bool {
+	if v := strings.TrimSpace(os.Getenv("GRAPHQL_ENABLED")); v != "" {
+		return strings.EqualFold(v, "true")
+	}
+	return !strings.EqualFold(appEnv, "production")
 }
 
 func envOrDefault(key, fallback string) string {

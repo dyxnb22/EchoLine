@@ -29,4 +29,34 @@ func TestLoadSuccess(t *testing.T) {
 	if cfg.DatabaseURL == "" || cfg.JWTSecret == "" {
 		t.Fatal("expected database URL and JWT secret to be set")
 	}
+	if !cfg.GraphQLEnabled {
+		t.Fatal("expected GraphQLEnabled true in development")
+	}
+}
+
+func TestLoadRejectsPaymentSelfServeInProduction(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db?sslmode=disable")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("PAYMENT_SELF_SERVE", "true")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error when PAYMENT_SELF_SERVE is enabled in production")
+	}
+}
+
+func TestGraphQLEnabledDefaultsFalseInProduction(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db?sslmode=disable")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("GRAPHQL_ENABLED", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.GraphQLEnabled {
+		t.Fatal("expected GraphQLEnabled false in production by default")
+	}
 }
