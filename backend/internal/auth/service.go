@@ -23,9 +23,10 @@ type LoginAuditor interface {
 
 // Service handles authentication flows.
 type Service struct {
-	users     *user.Repository
-	jwtSecret []byte
-	auditor   LoginAuditor
+	users        *user.Repository
+	jwtSecret    []byte
+	auditor      LoginAuditor
+	refreshStore RefreshStore
 }
 
 // NewService creates an auth service.
@@ -39,6 +40,11 @@ func NewService(users *user.Repository, jwtSecret string) *Service {
 // SetLoginAuditor attaches optional login audit logging.
 func (s *Service) SetLoginAuditor(a LoginAuditor) {
 	s.auditor = a
+}
+
+// SetRefreshStore enables refresh token rotation via JTI consumption tracking.
+func (s *Service) SetRefreshStore(store RefreshStore) {
+	s.refreshStore = store
 }
 
 type registerRequest struct {
@@ -209,6 +215,22 @@ func (s *Service) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.refreshStore != nil && claims.ID != "" {
+		exp := time.Now().UTC().Add(7 * 24 * time.Hour)
+		if claims.ExpiresAt != nil {
+			exp = claims.ExpiresAt.Time
+		}
+		reused, err := s.refreshStore.Consume(r.Context(), claims.ID, exp)
+		if err != nil {
+			writeError(w, r, http.StatusInternalServerError, "internal_error", "failed to validate refresh token")
+			return
+		}
+		if reused {
+			writeError(w, r, http.StatusUnauthorized, "invalid_token", "refresh token already used")
+			return
+		}
+	}
+
 	u, err := s.users.GetByID(r.Context(), claims.UserID)
 	if err != nil {
 		writeError(w, r, http.StatusUnauthorized, "invalid_token", "invalid or expired refresh token")
@@ -269,6 +291,7 @@ func (s *Service) issueTokens(u *user.User) (tokenResponse, error) {
 
 	refreshClaims := accessClaims
 	refreshClaims.TokenType = TokenTypeRefresh
+	refreshClaims.ID = uuid.New().String()
 	refreshClaims.ExpiresAt = jwt.NewNumericDate(now.Add(7 * 24 * time.Hour))
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(s.jwtSecret)
 	if err != nil {

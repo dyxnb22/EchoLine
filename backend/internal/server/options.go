@@ -57,6 +57,7 @@ func NewWithOptions(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, 
 func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts Options) *Server {
 	userRepo := user.NewRepository(pool)
 	authSvc := auth.NewService(userRepo, cfg.JWTSecret)
+	authSvc.SetRefreshStore(auth.NewMemoryRefreshStore())
 	auditRepo := audit.NewRepository(pool)
 	authSvc.SetLoginAuditor(auditRepo)
 
@@ -90,7 +91,9 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	}
 
 	rt := realtime.NewServer(authSvc, msgSvc, convRepo, deliveryRepo, presenceTracker, logger)
+	rt.SetConvSendLimiter(limiter)
 	rt.SetHubMetrics()
+	rt.SetAttachments(attachmentRepo)
 
 	convHandler := conversation.NewHandler(convRepo)
 	convHandler.SetListCache(listCache)
@@ -119,6 +122,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	searchHandler := search.NewHandler(searchRepo)
 	osClient := search.NewOpenSearchClient(cfg.OpenSearchURL)
+	searchHandler.SetMemberChecker(convRepo)
 	searchHandler.SetOpenSearch(osClient)
 
 	adminChecker := admin.NewCompositeAdminChecker(admin.NewStaticAdminChecker(cfg.AdminUserIDs), pool)
@@ -247,9 +251,13 @@ func (s *Server) MemoryBus() *eventbus.MemoryPublisher {
 // applyRateLimits wraps handlers with rate limiting (Redis when configured, in-memory fallback).
 func (s *Server) applyRateLimits(mux *http.ServeMux) {
 	loginMW := rate_limit.Middleware(s.limiter, "login", 20, time.Minute, rate_limit.IPKey)
+	registerMW := rate_limit.Middleware(s.limiter, "register", 10, time.Minute, rate_limit.IPKey)
+	refreshMW := rate_limit.Middleware(s.limiter, "refresh", 30, time.Minute, rate_limit.IPKey)
 	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
 	graphqlSendMW := rate_limit.Middleware(s.limiter, "graphql_send", 60, time.Minute, rate_limit.AuthUserKey)
 
+	mux.Handle("POST /api/auth/register", registerMW(http.HandlerFunc(s.auth.HandleRegister)))
+	mux.Handle("POST /api/auth/refresh", refreshMW(http.HandlerFunc(s.auth.HandleRefresh)))
 	mux.Handle("POST /api/auth/login", loginMW(http.HandlerFunc(s.auth.HandleLogin)))
 	mux.Handle(
 		"POST /api/conversations/{id}/messages",

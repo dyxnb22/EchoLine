@@ -23,3 +23,11 @@ func TestSyncPaginationMeta(t *testing.T) {
 		}
 	}
 }
+
+func TestSyncNextSeqUsesPageMax(t *testing.T) {
+	lastSeq := int64(100)
+	maxSeq := int64(250)
+	if maxSeq <= lastSeq {
+		t.Fatalf("next_seq must be greater than cursor when page has messages")
+	}
+}

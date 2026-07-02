@@ -37,16 +37,23 @@ type MessageSendPayload struct {
 	AttachmentObjectKey string `json:"attachment_object_key,omitempty"`
 }
 
+// AttachmentPayload is optional file metadata on message.created.
+type AttachmentPayload struct {
+	ObjectKey string `json:"object_key"`
+	MimeType  string `json:"mime_type,omitempty"`
+}
+
 // MessageCreatedPayload is pushed when a message is persisted.
 type MessageCreatedPayload struct {
-	ID             string `json:"id"`
-	ConversationID string `json:"conversation_id"`
-	SenderID       string `json:"sender_id"`
-	ClientMsgID    string `json:"client_msg_id"`
-	Seq            int64  `json:"seq"`
-	Type           string `json:"type"`
-	Body           string `json:"body"`
-	CreatedAt      string `json:"created_at"`
+	ID             string             `json:"id"`
+	ConversationID string             `json:"conversation_id"`
+	SenderID       string             `json:"sender_id"`
+	ClientMsgID    string             `json:"client_msg_id"`
+	Seq            int64              `json:"seq"`
+	Type           string             `json:"type"`
+	Body           string             `json:"body"`
+	CreatedAt      string             `json:"created_at"`
+	Attachment     *AttachmentPayload `json:"attachment,omitempty"`
 }
 
 // MessageAckPayload acknowledges delivery/read state.

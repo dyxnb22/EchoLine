@@ -58,9 +58,10 @@ func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, erro
 	}
 	defer tx.Rollback(ctx)
 
+	now := time.Now().UTC()
 	const q = `
 		UPDATE outbox_events
-		SET status = 'processing'
+		SET status = 'processing', processing_started_at = $2
 		WHERE id IN (
 			SELECT id
 			FROM outbox_events
@@ -71,7 +72,7 @@ func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, erro
 		)
 		RETURNING id, topic, payload::text, attempts, created_at
 	`
-	rows, err := tx.Query(ctx, q, limit)
+	rows, err := tx.Query(ctx, q, limit, now)
 	if err != nil {
 		return nil, fmt.Errorf("claim pending outbox: %w", err)
 	}
@@ -117,11 +118,27 @@ func (r *Repository) Enqueue(ctx context.Context, topic string, payload []byte) 
 	return nil
 }
 
+// ReclaimStaleProcessing resets processing rows stuck longer than olderThan to pending.
+func (r *Repository) ReclaimStaleProcessing(ctx context.Context, olderThan time.Time) (int64, error) {
+	const q = `
+		UPDATE outbox_events
+		SET status = 'pending', processing_started_at = NULL
+		WHERE status = 'processing'
+		  AND processing_started_at IS NOT NULL
+		  AND processing_started_at < $1
+	`
+	tag, err := r.pool.Exec(ctx, q, olderThan)
+	if err != nil {
+		return 0, fmt.Errorf("reclaim stale outbox: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // MarkPublished marks an event as published.
 func (r *Repository) MarkPublished(ctx context.Context, id uuid.UUID) error {
 	const q = `
 		UPDATE outbox_events
-		SET status = 'published', published_at = $2
+		SET status = 'published', published_at = $2, processing_started_at = NULL
 		WHERE id = $1 AND status IN ('pending', 'processing')
 	`
 	_, err := r.pool.Exec(ctx, q, id, time.Now().UTC())
@@ -164,12 +181,12 @@ func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID) error {
 		if _, err := r.pool.Exec(ctx, dlqQ, uuid.New(), topic, payload, nextAttempts, now); err != nil {
 			return err
 		}
-		const failQ = `UPDATE outbox_events SET attempts = $2, status = 'failed' WHERE id = $1`
+		const failQ = `UPDATE outbox_events SET attempts = $2, status = 'failed', processing_started_at = NULL WHERE id = $1`
 		_, err := r.pool.Exec(ctx, failQ, id, nextAttempts)
 		return err
 	}
 
-	const q = `UPDATE outbox_events SET attempts = attempts + 1, status = 'pending' WHERE id = $1 AND status IN ('pending', 'processing')`
+	const q = `UPDATE outbox_events SET attempts = attempts + 1, status = 'pending', processing_started_at = NULL WHERE id = $1 AND status IN ('pending', 'processing')`
 	_, err := r.pool.Exec(ctx, q, id)
 	return err
 }

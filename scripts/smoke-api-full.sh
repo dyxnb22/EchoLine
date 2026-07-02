@@ -27,6 +27,9 @@ set -euo pipefail
 API_BASE=${API_BASE_URL:-http://localhost:8080}
 VERBOSE=${VERBOSE:-0}
 TIMESTAMP=$(date +%s)
+SMOKE_MSG1_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
+SMOKE_MSG2_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
+SMOKE_GROUP_MSG_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -183,7 +186,7 @@ section "Step 4: Send Messages"
 if [ -z "${DM_CONV_ID:-}" ]; then
   skip "DM conversation not available; skipping message send"
 else
-  MSG1_BODY="{\"body\":\"Hello Bob from smoke test\",\"client_msg_id\":\"smoke-msg-1-${TIMESTAMP}\",\"type\":\"text\"}"
+  MSG1_BODY="{\"body\":\"Hello Bob from smoke test\",\"client_msg_id\":\"${SMOKE_MSG1_ID}\",\"type\":\"text\"}"
   MSG1_RESP=$(post_json "/api/conversations/${DM_CONV_ID}/messages" "${MSG1_BODY}" "${TOKEN_ALICE}")
   if echo "${MSG1_RESP}" | grep -q '"seq"'; then
     pass "Alice sends message: seq assigned"
@@ -193,7 +196,7 @@ else
     fail "Message send failed: ${MSG1_RESP}"
   fi
 
-  MSG2_BODY="{\"body\":\"Hi Alice, smoke test reply\",\"client_msg_id\":\"smoke-msg-2-${TIMESTAMP}\",\"type\":\"text\"}"
+  MSG2_BODY="{\"body\":\"Hi Alice, smoke test reply\",\"client_msg_id\":\"${SMOKE_MSG2_ID}\",\"type\":\"text\"}"
   MSG2_RESP=$(post_json "/api/conversations/${DM_CONV_ID}/messages" "${MSG2_BODY}" "${TOKEN_BOB}")
   if echo "${MSG2_RESP}" | grep -q '"seq"'; then
     pass "Bob sends reply: seq assigned"
@@ -229,8 +232,8 @@ if [ -z "${BOB_ID:-}" ]; then
   skip "Bob ID not available; skipping group creation"
   GROUP_CONV_ID=""
 else
-  GROUP_BODY="{\"name\":\"Smoke Test Group ${TIMESTAMP}\",\"member_ids\":[\"${BOB_ID}\"]}"
-  GROUP_RESP=$(post_json "/api/conversations/group" "${GROUP_BODY}" "${TOKEN_ALICE}")
+  GROUP_BODY="{\"title\":\"Smoke Test Group ${TIMESTAMP}\",\"member_ids\":[\"${BOB_ID}\"]}"
+  GROUP_RESP=$(post_json "/api/conversations/groups" "${GROUP_BODY}" "${TOKEN_ALICE}")
   if echo "${GROUP_RESP}" | grep -q '"id"'; then
     pass "Group conversation created"
     GROUP_CONV_ID=$(echo "${GROUP_RESP}" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -241,7 +244,7 @@ else
 fi
 
 if [ -n "${GROUP_CONV_ID:-}" ]; then
-  GROUP_MSG_BODY="{\"body\":\"Group smoke test message ${TIMESTAMP}\",\"client_msg_id\":\"smoke-group-1-${TIMESTAMP}\",\"type\":\"text\"}"
+  GROUP_MSG_BODY="{\"body\":\"Group smoke test message ${TIMESTAMP}\",\"client_msg_id\":\"${SMOKE_GROUP_MSG_ID}\",\"type\":\"text\"}"
   GROUP_MSG_RESP=$(post_json "/api/conversations/${GROUP_CONV_ID}/messages" "${GROUP_MSG_BODY}" "${TOKEN_ALICE}")
   if echo "${GROUP_MSG_RESP}" | grep -q '"seq"'; then
     pass "Group message sent"

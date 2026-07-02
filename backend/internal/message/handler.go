@@ -212,7 +212,24 @@ func (h *Handler) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.conversations.MarkRead(r.Context(), convID, claims.UserID, req.LastReadSeq); err != nil {
+	state, err := h.conversations.GetMemberState(r.Context(), convID, claims.UserID)
+	if err != nil {
+		if errors.Is(err, conversation.ErrNotMember) {
+			apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+			return
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to load read state")
+		return
+	}
+	readSeq := req.LastReadSeq
+	if readSeq > state.LatestSeq {
+		readSeq = state.LatestSeq
+	}
+	if readSeq < 0 {
+		readSeq = 0
+	}
+
+	if err := h.conversations.MarkRead(r.Context(), convID, claims.UserID, readSeq); err != nil {
 		if errors.Is(err, conversation.ErrNotMember) {
 			apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
 			return
@@ -221,7 +238,7 @@ func (h *Handler) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, _ := h.conversations.GetMemberState(r.Context(), convID, claims.UserID)
+	state, _ = h.conversations.GetMemberState(r.Context(), convID, claims.UserID)
 	unread := int64(0)
 	if state != nil {
 		unread = state.LatestSeq - state.LastReadSeq

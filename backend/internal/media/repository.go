@@ -120,10 +120,10 @@ func (r *Repository) GetAccessible(ctx context.Context, userID uuid.UUID, object
 		return nil, err
 	}
 
-	if att.OwnerID == userID {
-		return &att, nil
-	}
 	if att.MessageID == nil || convID == nil {
+		if att.OwnerID == userID {
+			return &att, nil
+		}
 		return nil, ErrAttachmentNotFound
 	}
 	member, err := isMember(*convID, userID)

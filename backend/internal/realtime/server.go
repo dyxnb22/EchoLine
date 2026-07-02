@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -15,8 +16,10 @@ import (
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
+	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/message"
 	"github.com/echoline/echoline/backend/internal/metrics"
+	"github.com/echoline/echoline/backend/internal/rate_limit"
 )
 
 const (
@@ -29,10 +32,13 @@ const (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+	CheckOrigin:     checkWSOrigin,
 }
+
+const (
+	convSendLimit  int64 = 60
+	convSendWindow       = time.Minute
+)
 
 // Hub tracks active WebSocket connections.
 type Hub struct {
@@ -112,6 +118,11 @@ type DeviceTracker interface {
 	TouchByClientDevice(ctx context.Context, userID uuid.UUID, clientDeviceID, platform string) error
 }
 
+// attachmentLookup resolves attachment metadata for realtime payloads.
+type attachmentLookup interface {
+	ListByMessageIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]media.Attachment, error)
+}
+
 // Server handles websocket upgrades and lifecycle.
 type Server struct {
 	auth          *auth.Service
@@ -119,8 +130,10 @@ type Server struct {
 	messages      *message.Service
 	conversations conversationGateway
 	deliveries    *delivery.Repository
+	attachments   attachmentLookup
 	presence      PresenceTracker
 	devices       DeviceTracker
+	limiter       rate_limit.Limiter
 	logger        *slog.Logger
 }
 
@@ -160,6 +173,16 @@ func (s *Server) SetDeviceTracker(d DeviceTracker) {
 	s.devices = d
 }
 
+// SetConvSendLimiter applies the same per-conversation send quota as REST.
+func (s *Server) SetConvSendLimiter(l rate_limit.Limiter) {
+	s.limiter = l
+}
+
+// SetAttachments attaches optional attachment metadata lookup.
+func (s *Server) SetAttachments(a attachmentLookup) {
+	s.attachments = a
+}
+
 // SetHubMetrics enables websocket connection gauge updates.
 func (s *Server) SetHubMetrics() {
 	s.hub.onCountChange = func(n int) {
@@ -172,13 +195,7 @@ func (s *Server) Hub() *Hub {
 	return s.hub
 }
 
-// BroadcastMessageCreated implements message.Broadcaster.
-func (s *Server) BroadcastMessageCreated(ctx context.Context, convID uuid.UUID, msg *message.Message, excludeSender bool, senderID uuid.UUID) error {
-	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
-	if err != nil {
-		return err
-	}
-
+func (s *Server) messageCreatedPayload(ctx context.Context, msg *message.Message) MessageCreatedPayload {
 	payload := MessageCreatedPayload{
 		ID:             msg.ID.String(),
 		ConversationID: msg.ConversationID.String(),
@@ -189,6 +206,27 @@ func (s *Server) BroadcastMessageCreated(ctx context.Context, convID uuid.UUID, 
 		Body:           msg.Body,
 		CreatedAt:      msg.CreatedAt.UTC().Format(time.RFC3339),
 	}
+	if s.attachments != nil {
+		if m, err := s.attachments.ListByMessageIDs(ctx, []uuid.UUID{msg.ID}); err == nil {
+			if att, ok := m[msg.ID]; ok {
+				payload.Attachment = &AttachmentPayload{
+					ObjectKey: att.ObjectKey,
+					MimeType:  att.MimeType,
+				}
+			}
+		}
+	}
+	return payload
+}
+
+// BroadcastMessageCreated implements message.Broadcaster.
+func (s *Server) BroadcastMessageCreated(ctx context.Context, convID uuid.UUID, msg *message.Message, excludeSender bool, senderID uuid.UUID) error {
+	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return err
+	}
+
+	payload := s.messageCreatedPayload(ctx, msg)
 	raw, err := marshalEnvelope("message.created", "", payload)
 	if err != nil {
 		return err
@@ -311,6 +349,19 @@ func (s *Server) handleMessageSend(c *Connection, env Envelope) {
 		return
 	}
 
+	if s.limiter != nil {
+		key := fmt.Sprintf("conv_send:%s:%s", convID, c.UserID)
+		ok, err := s.limiter.Allow(context.Background(), key, convSendLimit, convSendWindow)
+		if err != nil {
+			c.sendError(env.RequestID, "internal_error", "rate limiter error")
+			return
+		}
+		if !ok {
+			c.sendError(env.RequestID, "rate_limited", "too many messages")
+			return
+		}
+	}
+
 	msg, err := s.messages.Send(context.Background(), convID, c.UserID, message.SendInput{
 		ClientMsgID: payload.ClientMsgID,
 		Type:        message.Type(payload.Type),
@@ -330,16 +381,7 @@ func (s *Server) handleMessageSend(c *Connection, env Envelope) {
 		return
 	}
 
-	created := MessageCreatedPayload{
-		ID:             msg.ID.String(),
-		ConversationID: msg.ConversationID.String(),
-		SenderID:       msg.SenderID.String(),
-		ClientMsgID:    msg.ClientMsgID,
-		Seq:            msg.Seq,
-		Type:           string(msg.Type),
-		Body:           msg.Body,
-		CreatedAt:      msg.CreatedAt.UTC().Format(time.RFC3339),
-	}
+	created := s.messageCreatedPayload(context.Background(), msg)
 	resp, _ := marshalEnvelope("message.created", env.RequestID, created)
 	c.enqueue(resp)
 }
@@ -374,7 +416,8 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 		return
 	}
 
-	if _, err := s.messages.GetByID(context.Background(), convID, msgID); err != nil {
+	msg, err := s.messages.GetByID(context.Background(), convID, msgID)
+	if err != nil {
 		c.sendError(env.RequestID, "invalid_request", "message not in conversation")
 		return
 	}
@@ -389,8 +432,8 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 		return
 	}
 
-	if status == delivery.StatusRead && payload.Seq > 0 {
-		_ = s.conversations.MarkRead(context.Background(), convID, c.UserID, payload.Seq)
+	if status == delivery.StatusRead && msg.Seq > 0 {
+		_ = s.conversations.MarkRead(context.Background(), convID, c.UserID, msg.Seq)
 	}
 
 	resp, _ := marshalEnvelope("message.ack", env.RequestID, map[string]any{
