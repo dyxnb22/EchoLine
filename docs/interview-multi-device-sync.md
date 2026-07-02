@@ -78,9 +78,11 @@ When Alice reads on her laptop, `last_read_seq` is updated for `(conversation_id
 
 **Effect**: Alice's phone will see `unread_count = latest_seq - last_read_seq = 0` on next sync. The phone's conversation list shows the conversation as read.
 
-### Read State Push (optional real-time sync)
+### Read State Push (proposed — not yet implemented)
 
-When `last_read_seq` is updated, the server can push a `conversation.read` WS event to Alice's other online devices:
+> **Current implementation:** multi-device read sync relies on REST `POST /api/conversations/{id}/read` updating `last_read_seq`; other devices observe the change on next sync/list refresh. The WS event below is a **proposed** enhancement.
+
+When `last_read_seq` is updated, the server could push a `conversation.read` WS event to Alice's other online devices:
 
 ```json
 {
@@ -175,8 +177,8 @@ When a device is evicted:
 ## Files Involved
 
 - `backend/internal/device/sync.go` — device sync cursor service
-- `backend/internal/api/sync.go` — sync endpoint
+- `backend/internal/sync/handler.go` — sync endpoint
 - `backend/internal/realtime/server.go` — multi-device push (sender exclusion)
 - `backend/internal/conversation/members.go` — `last_read_seq` update
 - `backend/migrations/` — `device_sync_cursors` table
-- `docs/websocket-protocol.md` — `conversation.read` event spec
+- `docs/websocket-protocol.md` — WS events（`conversation.read` 为 proposed，见本文）

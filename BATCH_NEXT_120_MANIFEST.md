@@ -1,5 +1,7 @@
 # EchoLine Batch-Next-120 Manifest (T121–T240)
 
+> **Note (2026-07-02):** T222–T228（微服务 ADR、gateway、分片、冷热分层、病毒扫描 mock、OTel）已在 Batch-Next-200 与 final completion 中完成；表中若仍显示 `planned`/`partial` 视为历史快照。
+
 Continuation after `BATCH_120_MANIFEST.md`. Focus: close batch-120 partials, ops maturity, tests, extensions.
 
 ---

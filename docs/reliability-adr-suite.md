@@ -137,7 +137,7 @@ EchoLine's reliability model is built on four principles:
 - `backend/internal/worker/outbox.go`
 - `backend/internal/worker/dlq.go`
 - `backend/internal/delivery/state.go`
-- `backend/internal/api/sync.go`
+- `backend/internal/sync/handler.go`
 - `backend/internal/device/sync.go`
 - `docs/reliability.md`
 - `docs/dlq-replay.md`

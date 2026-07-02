@@ -70,7 +70,7 @@ Stored in the existing `devices` table with a new `push_token` and `push_platfor
 - `mobile/` _(planned)_ — React Native app
 - `packages/shared/` _(planned)_ — shared API + hooks
 - `backend/migrations/` — add `push_token`, `push_platform` to `devices`
-- `backend/internal/api/devices.go` _(planned)_ — push token registration API
+- `backend/internal/device/handler.go` — push token registration API
 - `backend/internal/notification/` _(planned)_ — FCM/APNs dispatch
 
 ## Consequences

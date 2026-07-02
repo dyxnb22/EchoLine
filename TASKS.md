@@ -1,5 +1,7 @@
 # EchoLine 可持续消费任务图
 
+> **Status (2026-07-02):** Phase 0–10 主线与 T001–T440 已按 [`FINAL_COMPLETION_MANIFEST.md`](./FINAL_COMPLETION_MANIFEST.md) 关闭。下文保留各 phase 的历史定义与验收标准，供回顾与 interview 对照。**当前可选工作**见 [`NEXT_ACTIONS.md`](./NEXT_ACTIONS.md) 与 [`DONE.md`](./DONE.md) 的 Post-closure 节。
+
 本文件是 Cursor Cloud Agent 的长期任务入口。执行时优先推进当前 phase，完成验收后再进入下一 phase。
 
 细粒度任务见 `TASK_GRAPH_DETAILED.md`。验收状态见 `ACCEPTANCE_MATRIX.md`。主线之外的任务见 `BACKLOG.md` 和 `docs/extensions-roadmap.md`。
@@ -250,7 +252,7 @@
 
 - `backend/cmd/worker`
 - `backend/internal/eventbus`
-- `docs/adr/0003-cache-and-mq.md`
+- `docs/adr/0031-cache-and-mq-responsibilities.md`
 
 验收标准：
 
@@ -265,7 +267,7 @@
 更新文件：
 
 - `docs/scaling.md`
-- `docs/adr/0003-cache-and-mq.md`
+- `docs/adr/0031-cache-and-mq-responsibilities.md`
 - `PROGRESS_LOG.md`
 
 ## Phase 7：附件、搜索、通知

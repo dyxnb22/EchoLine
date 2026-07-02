@@ -173,7 +173,7 @@ At-least-once. The outbox worker retries on failure. The client deduplicates by 
 
 ## Files Involved
 
-- `backend/internal/api/` — REST handlers
+- Per-domain REST handlers under `backend/internal/*/handler.go` (e.g. `message`, `conversation`, `sync`)
 - `backend/internal/realtime/` — WS gateway
 - `backend/internal/worker/` — outbox drainer, fanout worker
 - `backend/internal/mq/` — Kafka producer/consumer

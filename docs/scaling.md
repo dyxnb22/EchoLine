@@ -16,7 +16,7 @@ PostgreSQL 仍然是 source of truth。
 消息写入后发布事件：
 
 - `message.created`
-- `message.updated`
+- `message.edited`
 - `message.recalled`
 - `user.presence.updated`
 - `audit.event.created`

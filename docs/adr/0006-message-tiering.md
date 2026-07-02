@@ -58,7 +58,7 @@ Implement a **three-tier architecture**:
 
 - `backend/migrations/` — add Postgres declarative partition DDL
 - `backend/internal/worker/archiver.go` _(planned)_ — hot-to-warm and warm-to-cold archival cron
-- `backend/internal/api/message.go` — "retrieve archive" endpoint placeholder
+- `backend/internal/message/handler.go` — "retrieve archive" endpoint placeholder
 - `backend/internal/cache/redis.go` — 1-hour cache for cold-tier retrieval results
 - `docs/data-model.md` — update partitioning notes
 

@@ -10,6 +10,13 @@ This file records lightweight decisions that do not yet require a full ADR. Prom
 - Redpanda/Kafka is used for async events after the core path exists.
 - Future extensions are documented but should not distract from the main phase sequence.
 
+## 2026-07-01 (review #03)
+
+- Frontend HTTP layer fully migrated to `api/http.ts` helpers (`authedJSON`, `authedVoid`, `authedBlob`).
+- Message `Edit` path applies `SanitizeBody` + `validate.MessageBody` symmetrically with Send.
+- Docs: `docs/README.md` index, architecture mermaid, `make verify` script.
+- E2EE client uses auth-aware HTTP layer.
+
 ## 2026-07-01 (review #02)
 
 - Channel entitlement grant is admin-only; require-paid is owner-only (ADR 0030).

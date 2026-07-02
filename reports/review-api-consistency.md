@@ -1,8 +1,10 @@
 # Code Review: API Consistency (M001)
 
+> **Historical note (2026-07-02):** 本报告引用 `backend/internal/api/` 为 Phase 1 设计路径。当前 handler 位于 `backend/internal/*/handler.go` 与 `auth/service.go`。
+
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
-**Scope**: All REST API endpoints in `backend/internal/api/`
+**Scope**: All REST API endpoints (originally `backend/internal/api/`)
 
 ---
 

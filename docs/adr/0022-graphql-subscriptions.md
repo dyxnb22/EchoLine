@@ -112,7 +112,7 @@ Every resolver checks the claims in the request context (same JWT middleware as 
 - `backend/graph/resolver.go` — root resolver wiring
 - `backend/graph/query.go`, `mutation.go`, `subscription.go` — resolver implementations
 - `backend/graph/loader/` — DataLoader instances
-- `backend/api/main.go` — mount `/graphql` and `/graphql/ws` routes
+- `backend/cmd/api/main.go` — mount `/graphql` and `/graphql/ws` routes
 - `docs/graphql-prototype.md` — client usage guide
 
 ## Testing

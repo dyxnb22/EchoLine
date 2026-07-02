@@ -1,5 +1,7 @@
 # Code Review: Test Coverage (M007)
 
+> **Historical note (2026-07-02):** 报告中 `backend/internal/api/` 为设计期包名；测试覆盖按 `backend/internal/*` 各领域包统计。
+
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
 **Scope**: Unit tests, integration tests, smoke tests, load tests

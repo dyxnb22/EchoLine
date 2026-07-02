@@ -55,8 +55,8 @@ After a user sends a message, the response includes the authoritative message fr
 - `backend/internal/cache/convlist.go` — conversation list cache read/write/invalidate
 - `backend/internal/cache/redis.go` — Redis client, `Get`/`Set`/`Del` wrappers
 - `backend/internal/presence/redis.go` — presence TTL set/refresh/delete
-- `backend/internal/api/message.go` — invalidates conv list on send/edit/recall
-- `backend/internal/api/conversation.go` — invalidates conv list on member changes
+- `backend/internal/message/handler.go` — invalidates conv list on send/edit/recall
+- `backend/internal/conversation/handler.go` — invalidates conv list on member changes
 
 ## Consequences
 

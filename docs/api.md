@@ -1,6 +1,6 @@
 # EchoLine API 设计
 
-本文档记录 REST API。WebSocket 协议见 `docs/websocket-protocol.md`。
+本文档记录 REST API 与 WebSocket 入口。WS 帧协议见 `docs/websocket-protocol.md`。机器可读契约见 `docs/openapi.yaml`（与 `backend/internal/server/server.go` 路由对齐；请求/响应细节以本文为准）。
 
 ## Health
 
@@ -16,6 +16,14 @@
   "env": "development"
 }
 ```
+
+## WebSocket
+
+### GET `/ws`
+
+WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
+
+连接、心跳、消息类型与重连策略见 [`docs/websocket-protocol.md`](./websocket-protocol.md)。
 
 ## Auth
 

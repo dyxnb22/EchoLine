@@ -1,5 +1,7 @@
 # EchoLine Done Index
 
+> **Closure:** T001–T440、secondary/stretch/research backlog 与 extensions 原型已按 [`FINAL_COMPLETION_MANIFEST.md`](./FINAL_COMPLETION_MANIFEST.md) 关闭。未勾选项多为 **环境阻塞**（云 VM 无 Docker/Postgres），非功能缺失。
+
 ## Phase 0
 
 - [x] 项目定位文档。
@@ -27,14 +29,14 @@
 - [x] 用户注册 / 登录 / JWT / refresh（A006-A011）。
 - [x] 私聊 / 群聊 / 会话列表 / 消息 REST（A016-C003）。
 - [x] 历史分页 + seed + OpenAPI + 错误 envelope（A019-A022）。
-- [ ] 完整 integration smoke（依赖 Postgres）。
+- [ ] 完整 integration smoke（**blocked:** 云 VM 无 Docker/Postgres — 见 `BLOCKERS.md`）。
 
 ## Phase 2
 
 - [x] WebSocket endpoint + 鉴权 + 连接管理 + 心跳（B001-B004）。
 - [x] WS 协议 envelope + message.send + 在线推送 + error envelope（B005-B008）。
 - [x] WS unit smoke hook（B010 partial）。
-- [ ] 双客户端集成 smoke（依赖环境）。
+- [ ] 双客户端集成 smoke（**blocked:** 依赖本地 compose 栈）。
 
 ## Phase 3
 
@@ -51,51 +53,43 @@
 - [x] 频道发布权限（E005）。
 - [x] 小群在线 fanout 测试（E006 unit test）。
 
-## Phase 6 (infra partial)
-
-- [x] Kafka client + message.created publish/consume（F005-F008 partial）。
-- [x] Redis rate limit middleware（H001-H002 via F002）。
-- [x] audit log + login audit（H004-H005）。
-
-## Phase 5 (reliability partial)
+## Phase 5 (reliability)
 
 - [x] client_msg_id 幂等（D001-D002 partial）。
 - [x] ACK REST/WS + delivery 状态机（D003-D004）。
 - [x] outbox enqueue + worker publisher + SKIP LOCKED（D007-F008）。
-- [x] DLQ skeleton（D008 partial）。
+- [x] DLQ skeleton + admin replay（D008 partial）。
 
-## Phase 6 (infra partial)
+## Phase 6 (infra)
 
 - [x] Redis client + presence TTL skeleton（F001/F003）。
+- [x] Kafka client + message.created publish/consume（F005-F008 partial）。
+- [x] Redis rate limit middleware（H001-H002 via F002）。
+- [x] audit log + login audit（H004-H005）。
 - [x] in-memory event bus + worker skeleton（F005-F007 partial）。
 - [ ] Kafka consumer production path（F008 partial — outbox drainer done）。
 
-## Phase 7 (media/search partial)
+## Phase 7 (media/search)
 
 - [x] MinIO presign upload/download URL（G001-G002, G005）。
 - [x] attachments 元数据 + 附件消息（G003-G004）。
 - [x] PostgreSQL 全文搜索 + search API（G005-G008 partial）。
 
-## Phase 8 (observability partial)
+## Phase 8 (observability + frontend)
 
 - [x] trace_id + Prometheus metrics（I001-I005 partial）。
 - [x] 登录/会话/conv_send 限流（H001-H003）。
-
-## Phase 8 (frontend partial)
-
 - [x] Vite React 登录/会话/聊天/分页/WS 重连（J001-J006）。
 - [x] 乐观发送 + 附件上传 + 搜索 UI（J007-J009）。
 - [x] 注册页 + typing + 通知 badge + PWA manifest + Playwright skeleton（batch-100）。
 
-## Phase 9 (batch-120)
+## Phase 9 (batch-120 + CI)
 
 - [x] Reactions/threads/forward/presence/export/archive APIs（T001-T030 partial）。
 - [x] Push/payment/ads/recommendation/extension migrations（00011-00013）。
 - [x] GitHub Actions CI + replay CLI + extended scripts（T051-T070）。
 - [x] ADRs 0016-0022 + prototype docs + iteration-04（T071-T090）。
 - [x] Frontend dark mode, reactions, channel filter, PWA sw（T031-T050 partial）。
-
-## Phase 2+
 
 ## Final completion (T001–T440 + backlog + extensions)
 
@@ -104,5 +98,11 @@
 - [x] Frontend react-router, AuthContext, ChatPage, notifications, group settings, edit/recall
 - [x] Integration messaging test; Playwright E2E (mocked); CI goose migrations
 - [x] API gateway prototype; OTel stub; ADR 0027–0029; code review report
-- [ ] Full `make smoke-full` (blocked: Docker/Postgres in cloud VM)
+- [x] Engineering review #02/#03 — docs index, RBAC, http.ts migration, validation depth
+- [ ] Full `make smoke-full` (**blocked:** Docker/Postgres in cloud VM)
 
+## Post-closure optional
+
+- [ ] `conversation/handler` 迁移至 `apierror` envelope
+- [ ] 本地 `make dev-up && make smoke-full` 全栈验收
+- [ ] OTel stub 换真实 exporter SDK

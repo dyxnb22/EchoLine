@@ -165,7 +165,7 @@ The sync endpoint is safe to call repeatedly (idempotent reads). Clients should 
 - `backend/internal/worker/outbox.go` — SKIP LOCKED drainer
 - `backend/internal/worker/dlq.go` — DLQ skeleton
 - `backend/internal/delivery/state.go` — delivery state machine
-- `backend/internal/api/sync.go` — sync endpoint
+- `backend/internal/sync/handler.go` — sync endpoint
 - `docs/reliability.md` — reliability design reference
 - `docs/dlq-replay.md` — DLQ replay runbook
 - `docs/reliability-adr-suite.md` — ADR index for reliability decisions

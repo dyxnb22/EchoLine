@@ -1,5 +1,7 @@
 # EchoLine Batch-120 Manifest
 
+> **Note (2026-07-02):** 部分 `Key Files` 使用早期路径（`backend/internal/api/`、`backend/worker/`、`group/`、`channel/`、`social/`）。实际实现见 `backend/cmd/*` 与 `backend/internal/{conversation,message,block,pin,...}/`。Cache/MQ ADR 现为 **0031**（非 0003）。
+
 120 tasks numbered T001–T120. Tracks: backend (T001–T030), frontend (T031–T050),
 ops/CI/scripts (T051–T070), docs/ADRs/research (T071–T090), tests/quality/extensions (T091–T120).
 

@@ -31,6 +31,8 @@
 
 ### 启动步骤
 
+> **2026-07-02:** T001–T440 与 secondary/stretch/research backlog 已关闭（见 [`FINAL_COMPLETION_MANIFEST.md`](./FINAL_COMPLETION_MANIFEST.md)）。续跑时优先 [`NEXT_ACTIONS.md`](./NEXT_ACTIONS.md) 可选项或 [`docs/extensions-roadmap.md`](./docs/extensions-roadmap.md) 中的生产级 future work，勿重复规划已完成主线。
+
 先进入计划阶段，但不要停在计划。
 
 1. 读取 `README.md`、`AGENTS.md`、`TASKS.md`、`TASK_GRAPH_DETAILED.md`、`EXECUTION_RULES.md`。

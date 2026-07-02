@@ -110,7 +110,7 @@ The feed API (`GET /api/conversations/:id/messages`) accepts a `?include_ads=1` 
 
 - `backend/migrations/` — ads tables DDL
 - `backend/internal/ads/` _(planned)_ — ad selection, budget enforcement, impression/click tracking
-- `backend/internal/api/message.go` — inject ad into feed response
+- `backend/internal/message/handler.go` — inject ad into feed response (future)
 - `docs/data-model.md` — update with ads schema reference
 
 ## Consequences

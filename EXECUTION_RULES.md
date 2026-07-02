@@ -19,6 +19,8 @@
 
 ## 主线做完后如何继续
 
+> **2026-07-02:** Phase 0–10 与 T001–T440 已关闭。Agent 继续执行时优先消费 `NEXT_ACTIONS.md` 可选项，或 `docs/extensions-roadmap.md` 中的 future work，而非重读完整 phase 列表。
+
 执行顺序固定为：
 
 1. Phase 0 到 Phase 10。
