@@ -21,23 +21,30 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-// Upsert creates or updates a device record for a user.
-func (r *Repository) Upsert(ctx context.Context, userID uuid.UUID, deviceName, platform string) (*Device, error) {
+// TouchByClientDevice upserts last_seen for a user/device client id string.
+func (r *Repository) TouchByClientDevice(ctx context.Context, userID uuid.UUID, clientDeviceID, platform string) error {
+	if platform == "" {
+		platform = "web"
+	}
 	now := time.Now().UTC()
-	id := uuid.New()
-
-	const q = `
+	const updateQ = `
+		UPDATE devices
+		SET last_seen_at = $3, platform = $4
+		WHERE user_id = $1 AND device_name = $2
+	`
+	tag, err := r.pool.Exec(ctx, updateQ, userID, clientDeviceID, now, platform)
+	if err != nil {
+		return fmt.Errorf("touch device: %w", err)
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+	const insertQ = `
 		INSERT INTO devices (id, user_id, device_name, platform, last_seen_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $5)
-		RETURNING id, user_id, device_name, platform, last_seen_at, created_at
 	`
-
-	row := r.pool.QueryRow(ctx, q, id, userID, deviceName, platform, now)
-	var d Device
-	if err := row.Scan(&d.ID, &d.UserID, &d.DeviceName, &d.Platform, &d.LastSeenAt, &d.CreatedAt); err != nil {
-		return nil, fmt.Errorf("upsert device: %w", err)
-	}
-	return &d, nil
+	_, err = r.pool.Exec(ctx, insertQ, uuid.New(), userID, clientDeviceID, platform, now)
+	return err
 }
 
 // GetByID loads a device by ID.

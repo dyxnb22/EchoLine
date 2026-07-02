@@ -1,21 +1,19 @@
 # Current State
 
-Current phase: **Documentation alignment — pass 2 complete**.
-
-Milestone: `FINAL_COMPLETION_MANIFEST.md` (closed) + full doc scan aligned with code.
+Current phase: **Full audit fix — Phases 0–4 complete**.
 
 Last session highlights:
 
-- Living docs: fixed ghost `backend/internal/api/` paths in ADRs + interview/security docs
-- `architecture.md` module table expanded; `data-model.md` columns completed
-- `openapi.yaml` expanded to 61 paths with Error schema + standard error responses
-- `extensions-roadmap.md`, `RESEARCH_PLAN.md`, `CLOUD_AGENT_PROMPT.md` closure alignment
-- Manifests + review reports: historical path disclaimers
-- `conversation.read` WS event documented as proposed (not implemented)
+- **P0:** thread/forward via `message.Service`; RBAC on export/reaction/thread/forward/ads; frontend typing/sync/composer fixes
+- **P1:** paid channel UI flow; DLQ replay requeue; reaction idempotent; apierror envelope; device WS touch; composite admin RBAC; fanout pagination; create-conversation modal
+- **P2:** WS buffer 256 + drop metric; outbox publisher fix; sync `has_more`; client_msg_id UUID required; Kafka consumer in worker; outbox cleanup job; edit/recall outbox
+- **P3:** integration RBAC tests; CI worker job; dual-client WS unit test; Playwright extended smoke
+- **P4:** admin-panel.md, business-flows, websocket-protocol alignment
 
 Tests:
 
-- `make verify` — unchanged (doc-only passes)
+- `go test ./...` — pass
+- `npm run build` — pass
 
 Blocker:
 
@@ -24,5 +22,4 @@ Blocker:
 Next (optional):
 
 1. Local `make dev-up && make smoke-full`
-2. OpenAPI per-endpoint request/response schemas
-3. Migrate `conversation/handler` to `apierror` envelope
+2. Full-stack Playwright against running compose stack

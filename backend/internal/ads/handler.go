@@ -13,6 +13,7 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/conversation"
 )
 
 // Campaign is an ad campaign for a channel.
@@ -123,12 +124,13 @@ func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uu
 
 // Handler exposes ad campaign REST endpoints.
 type Handler struct {
-	repo *Repository
+	repo    *Repository
+	owners  *conversation.OwnerChecker
 }
 
 // NewHandler creates an ads handler.
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, owners *conversation.OwnerChecker) *Handler {
+	return &Handler{repo: repo, owners: owners}
 }
 
 // HandleCreate creates a campaign.
@@ -139,11 +141,16 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
-	_ = claims
 
 	channelID, err := parseChannelID(r.URL.Path)
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid channel_id")
+		return
+	}
+
+	owner, err := h.owners.IsChannelOwner(r.Context(), channelID, claims.UserID)
+	if err != nil || !owner {
+		apierror.Write(w, r, http.StatusForbidden, "forbidden", "channel owner required")
 		return
 	}
 

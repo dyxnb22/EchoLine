@@ -13,15 +13,16 @@ import (
 
 // DLQReplayHandler exposes admin DLQ replay endpoint.
 type DLQReplayHandler struct {
-	repo *DLQRepository
+	dlq    *DLQRepository
+	outbox *Repository
 }
 
 // NewDLQReplayHandler creates a DLQ replay handler.
-func NewDLQReplayHandler(repo *DLQRepository) *DLQReplayHandler {
-	return &DLQReplayHandler{repo: repo}
+func NewDLQReplayHandler(dlq *DLQRepository, outbox *Repository) *DLQReplayHandler {
+	return &DLQReplayHandler{dlq: dlq, outbox: outbox}
 }
 
-// HandleReplay re-queues a dead letter event by ID (skeleton).
+// HandleReplay re-queues a dead letter event into the outbox.
 // POST /api/admin/dlq/{id}/replay
 func (h *DLQReplayHandler) HandleReplay(w http.ResponseWriter, r *http.Request) {
 	_, ok := auth.ClaimsFromContext(r.Context())
@@ -30,7 +31,6 @@ func (h *DLQReplayHandler) HandleReplay(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Extract id from path /api/admin/dlq/{id}/replay
 	path := strings.TrimSuffix(r.URL.Path, "/replay")
 	parts := strings.Split(path, "/")
 	rawID := parts[len(parts)-1]
@@ -41,29 +41,22 @@ func (h *DLQReplayHandler) HandleReplay(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	events, err := h.repo.ListLast50(r.Context())
+	evt, err := h.dlq.GetByID(r.Context(), id)
 	if err != nil {
-		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to access DLQ")
+		apierror.Write(w, r, http.StatusNotFound, "not_found", "dlq event not found")
 		return
 	}
 
-	var found *DeadLetterEvent
-	for i := range events {
-		if events[i].ID == id {
-			found = &events[i]
-			break
-		}
-	}
-	if found == nil {
-		apierror.Write(w, r, http.StatusNotFound, "not_found", "dlq event not found")
+	if err := h.outbox.Enqueue(r.Context(), evt.SourceTopic, evt.Payload); err != nil {
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to requeue event")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"id":           found.ID,
-		"source_topic": found.SourceTopic,
+		"id":           evt.ID,
+		"source_topic": evt.SourceTopic,
 		"status":       "replay_queued",
 	})
 }

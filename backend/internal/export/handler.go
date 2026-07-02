@@ -13,6 +13,7 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/conversation"
 )
 
 // MessageRow is a minimal message view for export.
@@ -63,12 +64,13 @@ func (r *Repository) ListAll(ctx context.Context, convID uuid.UUID) ([]MessageRo
 
 // Handler exposes export REST endpoints.
 type Handler struct {
-	repo *Repository
+	repo          *Repository
+	conversations *conversation.Repository
 }
 
 // NewHandler creates an export handler.
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, conversations *conversation.Repository) *Handler {
+	return &Handler{repo: repo, conversations: conversations}
 }
 
 // HandleExport returns all messages of a conversation as JSON.
@@ -79,7 +81,6 @@ func (h *Handler) HandleExport(w http.ResponseWriter, r *http.Request) {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
-	_ = claims
 
 	// Parse /api/conversations/{id}/export
 	path := r.URL.Path
@@ -93,6 +94,12 @@ func (h *Handler) HandleExport(w http.ResponseWriter, r *http.Request) {
 	convID, err := uuid.Parse(idStr)
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid conversation_id")
+		return
+	}
+
+	member, err := h.conversations.IsMember(r.Context(), convID, claims.UserID)
+	if err != nil || !member {
+		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
 		return
 	}
 

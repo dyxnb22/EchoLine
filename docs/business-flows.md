@@ -50,6 +50,8 @@ sequenceDiagram
 
 ## 3. 付费频道订阅
 
+前端 `ChatPage` 在收到 `402 payment_required` 时自动执行 ledger create → settle → 重试 subscribe（`docs/business-flows.md` 与 `frontend/src/api.ts` 对齐）。
+
 ```mermaid
 sequenceDiagram
   participant Owner as Channel Owner

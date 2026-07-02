@@ -20,6 +20,6 @@ func NewReactionService(repo *reaction.Repository) *ReactionService {
 
 // Add adds a reaction.
 func (s *ReactionService) Add(ctx context.Context, messageID, userID uuid.UUID, emoji string) error {
-	_, err := s.repo.Add(ctx, messageID, userID, emoji)
+	_, _, err := s.repo.Add(ctx, messageID, userID, emoji)
 	return err
 }

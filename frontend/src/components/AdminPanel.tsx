@@ -52,7 +52,7 @@ export function AdminPanel({ token, onClose }: Props) {
         <ul>
           {dlq.map((e) => (
             <li key={e.id}>
-              {e.event_type} ({e.status}, {e.attempts} attempts)
+              {e.source_topic} ({e.attempts} attempts)
               <button
                 type="button"
                 onClick={() => adminReplayDLQ(token, e.id)

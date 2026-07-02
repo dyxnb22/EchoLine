@@ -47,6 +47,11 @@ var (
 		Name: "echoline_hot_conversations",
 		Help: "Number of conversations with at least one active WebSocket subscriber",
 	})
+
+	WSMessagesDropped = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "echoline_ws_messages_dropped_total",
+		Help: "WebSocket messages dropped due to full send buffer",
+	})
 )
 
 // Handler returns Prometheus scrape handler.

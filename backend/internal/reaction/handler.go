@@ -2,6 +2,7 @@ package reaction
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -10,20 +11,41 @@ import (
 
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 // Handler exposes reaction REST endpoints.
 type Handler struct {
-	repo *Repository
+	repo          *Repository
+	conversations *conversation.Repository
+	messages      *message.Repository
 }
 
 // NewHandler creates a reaction handler.
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, conversations *conversation.Repository, messages *message.Repository) *Handler {
+	return &Handler{repo: repo, conversations: conversations, messages: messages}
+}
+
+func (h *Handler) requireMessageMember(w http.ResponseWriter, r *http.Request, messageID, userID uuid.UUID) bool {
+	convID, err := h.messages.GetConversationID(r.Context(), messageID)
+	if err != nil {
+		if errors.Is(err, message.ErrNotFound) {
+			apierror.Write(w, r, http.StatusNotFound, "not_found", "message not found")
+			return false
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to resolve message")
+		return false
+	}
+	member, err := h.conversations.IsMember(r.Context(), convID, userID)
+	if err != nil || !member {
+		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+		return false
+	}
+	return true
 }
 
 // HandleAdd adds a reaction.
-// POST /api/messages/{message_id}/reactions
 func (h *Handler) HandleAdd(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
@@ -36,6 +58,9 @@ func (h *Handler) HandleAdd(w http.ResponseWriter, r *http.Request) {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid message_id")
 		return
 	}
+	if !h.requireMessageMember(w, r, msgID, claims.UserID) {
+		return
+	}
 
 	var req struct {
 		Emoji string `json:"emoji"`
@@ -45,13 +70,17 @@ func (h *Handler) HandleAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rx, err := h.repo.Add(r.Context(), msgID, claims.UserID, req.Emoji)
+	rx, created, err := h.repo.Add(r.Context(), msgID, claims.UserID, req.Emoji)
 	if err != nil {
 		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to add reaction")
 		return
 	}
 
-	apierror.WriteJSON(w, http.StatusCreated, map[string]any{
+	status := http.StatusCreated
+	if !created {
+		status = http.StatusOK
+	}
+	apierror.WriteJSON(w, status, map[string]any{
 		"message_id": rx.MessageID,
 		"user_id":    rx.UserID,
 		"emoji":      rx.Emoji,
@@ -60,7 +89,6 @@ func (h *Handler) HandleAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleRemove removes a reaction.
-// DELETE /api/messages/{message_id}/reactions/{emoji}
 func (h *Handler) HandleRemove(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
@@ -73,6 +101,9 @@ func (h *Handler) HandleRemove(w http.ResponseWriter, r *http.Request) {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid path")
 		return
 	}
+	if !h.requireMessageMember(w, r, msgID, claims.UserID) {
+		return
+	}
 
 	if err := h.repo.Remove(r.Context(), msgID, claims.UserID, emoji); err != nil {
 		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to remove reaction")
@@ -83,9 +114,8 @@ func (h *Handler) HandleRemove(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleList lists reactions for a message.
-// GET /api/messages/{message_id}/reactions
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.ClaimsFromContext(r.Context())
+	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
@@ -94,6 +124,9 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	msgID, err := parseMessageID(r.URL.Path)
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid message_id")
+		return
+	}
+	if !h.requireMessageMember(w, r, msgID, claims.UserID) {
 		return
 	}
 
@@ -116,7 +149,6 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	apierror.WriteJSON(w, http.StatusOK, map[string]any{"reactions": items})
 }
 
-// parseMessageID extracts message_id from /api/messages/{message_id}/reactions
 func parseMessageID(path string) (uuid.UUID, error) {
 	const prefix = "/api/messages/"
 	if !strings.HasPrefix(path, prefix) {
@@ -127,14 +159,12 @@ func parseMessageID(path string) (uuid.UUID, error) {
 	return uuid.Parse(parts[0])
 }
 
-// parseMessageIDAndEmoji extracts message_id and emoji from /api/messages/{message_id}/reactions/{emoji}
 func parseMessageIDAndEmoji(path string) (uuid.UUID, string, error) {
 	const prefix = "/api/messages/"
 	if !strings.HasPrefix(path, prefix) {
 		return uuid.Nil, "", errInvalidPath
 	}
 	rest := strings.TrimPrefix(path, prefix)
-	// rest = {message_id}/reactions/{emoji}
 	parts := strings.Split(rest, "/")
 	if len(parts) < 3 || parts[1] != "reactions" {
 		return uuid.Nil, "", errInvalidPath

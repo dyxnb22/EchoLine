@@ -57,16 +57,16 @@ func (p *Publisher) flush(ctx context.Context) {
 		}
 		if err := pub.Publish(ctx, evt.Topic, evt.Payload); err != nil {
 			p.logger.Error("publish outbox event", "id", evt.ID, "error", err)
-			_ = p.outbox.MarkFailed(ctx, evt.ID)
 			if p.fallback != nil && pub != p.fallback {
 				if err2 := p.fallback.Publish(ctx, evt.Topic, evt.Payload); err2 == nil {
-					_ = p.outbox.MarkPublished(ctx, evt.ID)
+					if err := p.outbox.MarkPublished(ctx, evt.ID); err != nil {
+						p.logger.Error("mark outbox published", "id", evt.ID, "error", err)
+					}
+					continue
 				}
 			}
+			_ = p.outbox.MarkFailed(ctx, evt.ID)
 			continue
-		}
-		if p.fallback != nil && pub == p.primary {
-			_ = p.fallback.Publish(ctx, evt.Topic, evt.Payload)
 		}
 		if err := p.outbox.MarkPublished(ctx, evt.ID); err != nil {
 			p.logger.Error("mark outbox published", "id", evt.ID, "error", err)

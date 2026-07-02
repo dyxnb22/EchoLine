@@ -240,25 +240,25 @@ func (h *Handler) HandleRemoveMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleCreateDirect(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "missing auth")
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
 
 	var req directRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
 
 	peerID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid user_id")
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid user_id")
 		return
 	}
 
 	conv, created, err := h.repo.CreateDirect(r.Context(), claims.UserID, peerID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
@@ -266,20 +266,20 @@ func (h *Handler) HandleCreateDirect(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, toConversationResponse(conv))
+	apierror.WriteJSON(w, status, toConversationResponse(conv))
 }
 
 // HandleCreateGroup creates a group conversation.
 func (h *Handler) HandleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "missing auth")
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
 
 	var req groupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
 
@@ -287,7 +287,7 @@ func (h *Handler) HandleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	for _, raw := range req.MemberIDs {
 		id, err := uuid.Parse(raw)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "invalid member_ids")
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid member_ids")
 			return
 		}
 		memberIDs = append(memberIDs, id)
@@ -295,18 +295,18 @@ func (h *Handler) HandleCreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	conv, err := h.repo.CreateGroup(r.Context(), claims.UserID, req.Title, memberIDs)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toConversationResponse(conv))
+	apierror.WriteJSON(w, http.StatusCreated, toConversationResponse(conv))
 }
 
 // HandleList returns conversations for the authenticated user.
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "missing auth")
+		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
 	}
 
@@ -323,14 +323,14 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 					"latest_seq": c.LatestSeq,
 				})
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"conversations": items, "cached": true})
+			writeJSON(w, r, http.StatusOK, map[string]any{"conversations": items, "cached": true})
 			return
 		}
 	}
 
 	conversations, unreads, err := h.repo.ListForUserWithUnread(r.Context(), claims.UserID, 50)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list conversations")
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to list conversations")
 		return
 	}
 
@@ -339,6 +339,10 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	for i, conv := range conversations {
 		item := toConversationResponse(&conv)
 		item["unread"] = unreads[i]
+		if member, err := h.repo.GetMember(r.Context(), conv.ID, claims.UserID); err == nil {
+			item["role"] = member.Role
+			item["can_publish"] = CanPublish(conv.Type, member.Role)
+		}
 		items = append(items, item)
 		cacheItems = append(cacheItems, cache.ConversationSummary{
 			ID:        conv.ID.String(),
@@ -353,9 +357,13 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 		_ = h.cache.Set(r.Context(), userKey, cacheItems)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	apierror.WriteJSON(w, http.StatusOK, map[string]any{
 		"conversations": items,
 	})
+}
+
+func writeJSON(w http.ResponseWriter, r *http.Request, status int, payload any) {
+	apierror.WriteJSON(w, status, payload)
 }
 
 func toConversationResponse(conv *Conversation) map[string]any {
@@ -369,21 +377,6 @@ func toConversationResponse(conv *Conversation) map[string]any {
 		"created_at":      conv.CreatedAt,
 		"updated_at":      conv.UpdatedAt,
 	}
-}
-
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
-}
-
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{
-		"error": map[string]string{
-			"code":    code,
-			"message": message,
-		},
-	})
 }
 
 // ParseConversationID extracts conversation_id from route patterns like /api/conversations/{id}/...

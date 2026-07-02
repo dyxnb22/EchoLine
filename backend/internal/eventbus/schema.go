@@ -5,7 +5,11 @@ import (
 	"time"
 )
 
-const TopicMessageCreated = "message.created"
+const (
+	TopicMessageCreated = "message.created"
+	TopicMessageEdited  = "message.edited"
+	TopicMessageRecalled = "message.recalled"
+)
 
 // MessageCreatedEvent is published after a message is persisted.
 type MessageCreatedEvent struct {

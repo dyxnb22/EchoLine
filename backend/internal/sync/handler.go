@@ -48,11 +48,14 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const pageSize = 200
+
 	type convSync struct {
 		ConversationID string           `json:"conversation_id"`
 		Messages       []map[string]any `json:"messages"`
 		LatestSeq      int64            `json:"latest_seq"`
 		Unread         int64            `json:"unread"`
+		HasMore        bool             `json:"has_more"`
 	}
 
 	results := make([]convSync, 0, len(req.Cursors))
@@ -79,11 +82,13 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		msgs, err := h.messages.ListSince(r.Context(), convID, lastSeq, 200)
+		msgs, err := h.messages.ListSince(r.Context(), convID, lastSeq, pageSize)
 		if err != nil {
 			apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to sync messages")
 			return
 		}
+
+		hasMore := len(msgs) >= pageSize
 
 		state, err := h.conversations.GetMemberState(r.Context(), convID, claims.UserID)
 		if err != nil {
@@ -114,6 +119,7 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 			Messages:       items,
 			LatestSeq:      state.LatestSeq,
 			Unread:         unread,
+			HasMore:        hasMore,
 		})
 	}
 

@@ -87,6 +87,17 @@ func (r *Repository) Settle(ctx context.Context, userID uuid.UUID, reference str
 	`
 	row := r.pool.QueryRow(ctx, q, userID, reference)
 	var e LedgerEntry
+	if err := row.Scan(&e.ID, &e.UserID, &e.AmountCents, &e.Currency, &e.Status, &e.Reference, &e.CreatedAt); err == nil {
+		return &e, nil
+	}
+	const settledQ = `
+		SELECT id, user_id, amount_cents, currency, status, reference, created_at
+		FROM payment_ledger
+		WHERE user_id = $1 AND reference = $2 AND status = 'settled'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	row = r.pool.QueryRow(ctx, settledQ, userID, reference)
 	if err := row.Scan(&e.ID, &e.UserID, &e.AmountCents, &e.Currency, &e.Status, &e.Reference, &e.CreatedAt); err != nil {
 		return nil, fmt.Errorf("settle ledger: %w", err)
 	}

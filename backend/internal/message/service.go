@@ -70,6 +70,46 @@ type SendInput struct {
 // ErrBlocked is returned when the recipient has blocked the sender.
 var ErrBlocked = fmt.Errorf("recipient has blocked you")
 
+// SendReply persists a threaded reply through the main message pipeline.
+func (s *Service) SendReply(ctx context.Context, convID, senderID, parentMsgID uuid.UUID, body string) (*Message, error) {
+	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.GetByID(ctx, convID, parentMsgID); err != nil {
+		return nil, err
+	}
+	body = middleware.SanitizeBody(body)
+	if err := validate.MessageBody(body, false); err != nil {
+		return nil, err
+	}
+	parent := parentMsgID
+	msg, err := s.repo.Create(ctx, convID, senderID, uuid.New().String(), TypeText, body, nil, CreateOptions{ParentMessageID: &parent})
+	if err != nil {
+		return nil, err
+	}
+	if s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastMessageCreated(ctx, convID, msg, true, senderID)
+	}
+	return msg, nil
+}
+
+// Forward copies a message body into another conversation via the main pipeline.
+func (s *Service) Forward(ctx context.Context, sourceMsgID, targetConvID, senderID uuid.UUID) (*Message, error) {
+	src, err := s.repo.GetByMessageID(ctx, sourceMsgID)
+	if err != nil {
+		return nil, err
+	}
+	member, err := s.conversations.IsMember(ctx, src.ConversationID, senderID)
+	if err != nil || !member {
+		return nil, conversation.ErrForbidden
+	}
+	return s.Send(ctx, targetConvID, senderID, SendInput{
+		ClientMsgID: uuid.New().String(),
+		Type:        src.Type,
+		Body:        src.Body,
+	})
+}
+
 // Send persists a message and notifies online members.
 func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input SendInput) (*Message, error) {
 	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
@@ -101,6 +141,12 @@ func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input Se
 			}
 		}
 	}
+
+	clientMsgID, err := validate.ClientMsgID(input.ClientMsgID)
+	if err != nil {
+		return nil, err
+	}
+	input.ClientMsgID = clientMsgID
 
 	msgType := input.Type
 	if msgType == "" {

@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Full audit fix Phases 0–4
+
+任务：全量审计修复计划 Phase 0–4 实施。
+
+后端：thread/forward 主链路、RBAC、DLQ replay、outbox/sync/reliability、admin composite、device WS、client_msg_id UUID、fanout 分页、cmd/replay 对齐 schema。
+
+前端：typing/sync/付费频道/composer/can_publish、CreateConversationModal、AdminPanel DLQ 字段。
+
+测试/CI：integration RBAC、dual WS test、worker CI job、Playwright extended smoke。
+
+文档：admin-panel、business-flows、websocket-protocol、CURRENT_STATE。
+
+测试：go test ./... + npm run build 通过。
+
+阻塞：云 VM 无 Docker 全量 smoke。
+
+下一步：本地 make smoke-full。
+
 ## 2026-07-02 Documentation alignment pass 2: full scan
 
 任务：全量扫描 116 个 markdown + openapi，纠正至与代码一致。

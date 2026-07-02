@@ -6,6 +6,7 @@ import {
   blockUser,
   connectWS,
   Conversation,
+  createPaymentLedger,
   editMessage,
   listArchived,
   listConversations,
@@ -26,11 +27,14 @@ import {
   searchMessages,
   SearchHit,
   sendMessage,
+  settlePaymentLedger,
   subscribeChannel,
+  syncConversations,
   touchLastSeen,
   unarchiveConversation,
   WSStatus,
 } from "../api";
+import { CreateConversationModal } from "../components/CreateConversationModal";
 import { AdminPanel } from "../components/AdminPanel";
 import { ConversationActions } from "../components/ConversationActions";
 import { GroupSettings } from "../components/GroupSettings";
@@ -67,6 +71,8 @@ export function ChatPage() {
   const activeIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<{ close: () => void; send: (p: unknown) => void } | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const seqCursorsRef = useRef<Record<string, number>>({});
   const typingTimer = useRef<number | undefined>(undefined);
 
   const deviceId = useMemo(() => localStorage.getItem("echoline_device") ?? crypto.randomUUID(), []);
@@ -88,6 +94,43 @@ export function ChatPage() {
     if (!token) return;
     listConversations(token).then(setConversations).catch((e) => setError(String(e)));
   }, [token]);
+
+  const activeConv = conversations.find((c) => c.id === activeId);
+  const canPublish = activeConv?.can_publish !== false;
+
+  const runSync = useCallback(async () => {
+    if (!token) return;
+    const cursors = Object.entries(seqCursorsRef.current).map(([conversation_id, last_seq]) => ({
+      conversation_id,
+      last_seq,
+    }));
+    if (cursors.length === 0 && conversations.length > 0) {
+      for (const c of conversations) {
+        cursors.push({ conversation_id: c.id, last_seq: Math.max(0, c.latest_seq - 1) });
+      }
+    }
+    if (cursors.length === 0) return;
+    try {
+      const synced = await syncConversations(token, deviceId, cursors);
+      for (const block of synced) {
+        if (block.messages?.length) {
+          seqCursorsRef.current[block.conversation_id] = block.latest_seq;
+          if (block.conversation_id === activeIdRef.current) {
+            setMessages((prev) => {
+              const merged = [...prev];
+              for (const m of block.messages) {
+                if (!merged.some((x) => x.seq === m.seq)) merged.push(m);
+              }
+              return merged.sort((a, b) => a.seq - b.seq);
+            });
+          }
+        }
+      }
+      refreshConversations();
+    } catch {
+      // sync is best-effort on reconnect
+    }
+  }, [token, deviceId, conversations, refreshConversations]);
 
   useEffect(() => {
     if (!token) return;
@@ -128,6 +171,10 @@ export function ChatPage() {
       void prefetchReactions(ordered);
     }
     setNextBefore(page.next_before);
+    if (ordered.length > 0) {
+      const maxSeq = Math.max(...ordered.map((m) => m.seq));
+      seqCursorsRef.current[conversationId] = maxSeq;
+    }
     return ordered;
   }, [token, prefetchReactions]);
 
@@ -168,7 +215,7 @@ export function ChatPage() {
           user_id?: string;
         };
       };
-      if (env.type === "typing.start" && env.payload?.conversation_id === activeIdRef.current) {
+      if (env.type === "typing.indicator" && env.payload?.conversation_id === activeIdRef.current) {
         const uid = env.payload.user_id ?? "someone";
         setTypingUsers((prev) => (prev.includes(uid) ? prev : [...prev, uid]));
         window.setTimeout(() => {
@@ -176,12 +223,13 @@ export function ChatPage() {
         }, 3000);
         return;
       }
-      if (env.type === "typing.stop" && env.payload?.conversation_id === activeIdRef.current) {
+      if (env.type === "typing.stopped" && env.payload?.conversation_id === activeIdRef.current) {
         const uid = env.payload.user_id;
         if (uid) setTypingUsers((prev) => prev.filter((u) => u !== uid));
         return;
       }
       if (env.type !== "message.created") return;
+      refreshConversations();
       if (env.payload?.conversation_id !== activeIdRef.current) return;
       setMessages((prev) => {
         const seq = env.payload!.seq ?? 0;
@@ -194,10 +242,10 @@ export function ChatPage() {
           sender_id: env.payload!.sender_id ?? "",
         }];
       });
-    }, setWsStatus);
+    }, setWsStatus, () => { void runSync(); });
     wsRef.current = conn;
     return () => conn.close();
-  }, [token, deviceId]);
+  }, [token, deviceId, runSync]);
 
   function emitTyping() {
     if (!activeId || !wsRef.current) return;
@@ -227,7 +275,22 @@ export function ChatPage() {
       refreshConversations();
       setActiveId(channelId);
     } catch (err) {
-      setError(String(err));
+      const msg = String(err);
+      if (msg.includes("402") || msg.includes("payment_required")) {
+        try {
+          const reference = `channel:${channelId}`;
+          await createPaymentLedger(token, 999, reference);
+          await settlePaymentLedger(token, reference);
+          await subscribeChannel(token, channelId);
+          refreshConversations();
+          setActiveId(channelId);
+          return;
+        } catch (payErr) {
+          setError(String(payErr));
+          return;
+        }
+      }
+      setError(msg);
     }
   }
 
@@ -249,17 +312,20 @@ export function ChatPage() {
     if (!token || !activeId || !draft.trim()) return;
     const body = draft.trim();
     const tempId = crypto.randomUUID();
+    const clientMsgId = crypto.randomUUID();
     const optimistic: Message = {
       id: tempId,
       seq: Date.now(),
       body,
       sender_id: "me",
       pending: true,
+      client_msg_id: clientMsgId,
     };
     setMessages((prev) => [...prev, optimistic]);
     setDraft("");
     try {
-      await sendMessage(token, activeId, body);
+      await sendMessage(token, activeId, body, undefined, clientMsgId);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false } : m)));
     } catch (err) {
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m)));
       setError(String(err));
@@ -352,6 +418,7 @@ export function ChatPage() {
           </button>
           <Link to="/settings">Settings</Link>
           <button type="button" onClick={logout}>Logout</button>
+          <button type="button" onClick={() => setShowCreate(true)}>New chat</button>
           <button type="button" onClick={() => void toggleAdmin()}>Admin</button>
         </header>
         <div className="filter-tabs">
@@ -368,7 +435,18 @@ export function ChatPage() {
           <ul className="search-results">
             {searchHits.map((h) => (
               <li key={h.message_id}>
-                <button onClick={() => setActiveId(h.conversation_id)}>#{h.seq} {h.body}</button>
+                <button type="button" onClick={() => {
+                  setActiveId(h.conversation_id);
+                  void loadMessages(h.conversation_id, h.seq + 1).then((ordered) => {
+                    const target = ordered.find((m) => m.seq === h.seq);
+                    if (target) {
+                      setMessages((prev) => {
+                        if (prev.some((m) => m.seq === h.seq)) return prev;
+                        return [...prev, target].sort((a, b) => a.seq - b.seq);
+                      });
+                    }
+                  });
+                }}>#{h.seq} {h.body}</button>
               </li>
             ))}
           </ul>
@@ -480,7 +558,10 @@ export function ChatPage() {
             </div>
           ))}
         </div>
-        {activeId && (
+        {!canPublish && activeId && (
+          <p className="channel-readonly">Subscribe-only channel — you cannot post messages here.</p>
+        )}
+        {activeId && canPublish && (
           <form onSubmit={handleSend} className="composer">
             <input
               value={draft}
@@ -517,6 +598,16 @@ export function ChatPage() {
       )}
       {showAdmin && token && (
         <AdminPanel token={token} onClose={() => setShowAdmin(false)} />
+      )}
+      {showCreate && token && (
+        <CreateConversationModal
+          token={token}
+          onCreated={(id) => {
+            refreshConversations();
+            setActiveId(id);
+          }}
+          onClose={() => setShowCreate(false)}
+        />
       )}
     </main>
   );
