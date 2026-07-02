@@ -47,8 +47,10 @@ import { useAuth } from "../context/AuthContext";
 export function ChatPage() {
   const { token, logout } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [convsLoading, setConvsLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [convLoading, setConvLoading] = useState(false);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [draft, setDraft] = useState("");
@@ -95,7 +97,11 @@ export function ChatPage() {
 
   const refreshConversations = useCallback(() => {
     if (!token) return;
-    listConversations(token).then(setConversations).catch((e) => setError(String(e)));
+    setConvsLoading(true);
+    listConversations(token)
+      .then(setConversations)
+      .catch((e) => setError(String(e)))
+      .finally(() => setConvsLoading(false));
   }, [token]);
 
   const activeConv = conversations.find((c) => c.id === activeId);
@@ -215,9 +221,13 @@ export function ChatPage() {
 
   useEffect(() => {
     if (!token || !activeId) {
-      if (!activeId) setMessages([]);
+      if (!activeId) {
+        setMessages([]);
+        setConvLoading(false);
+      }
       return;
     }
+    setConvLoading(true);
     const pending = pendingSearchSeqRef.current;
     if (pending?.conversationId === activeId) {
       pendingSearchSeqRef.current = null;
@@ -235,7 +245,7 @@ export function ChatPage() {
         if (last?.seq) {
           markConversationRead(token, activeId, last.seq).catch(() => undefined);
         }
-      }).catch((e) => setError(String(e)));
+      }).catch((e) => setError(String(e))).finally(() => setConvLoading(false));
       listPins(token, activeId).then(setPins).catch(() => setPins([]));
       return;
     }
@@ -247,7 +257,7 @@ export function ChatPage() {
       if (last?.seq) {
         markConversationRead(token, activeId, last.seq).catch(() => undefined);
       }
-    }).catch((e) => setError(String(e)));
+    }).catch((e) => setError(String(e))).finally(() => setConvLoading(false));
     listPins(token, activeId).then(setPins).catch(() => setPins([]));
   }, [token, activeId, loadMessages]);
 
@@ -605,6 +615,10 @@ export function ChatPage() {
           </ul>
         )}
         <ul>
+          {convsLoading && <li className="empty-hint">Loading conversations…</li>}
+          {!convsLoading && filtered.length === 0 && (
+            <li className="empty-hint">No conversations yet. Create one to get started.</li>
+          )}
           {filtered.map((c) => (
             <li key={c.id}>
               <button className={c.id === activeId ? "active" : ""} onClick={() => setActiveId(c.id)}>
@@ -642,6 +656,10 @@ export function ChatPage() {
           </button>
         )}
         <div className="messages">
+          {convLoading && <p className="empty-hint">Loading messages…</p>}
+          {!convLoading && activeId && messages.length === 0 && (
+            <p className="empty-hint">No messages yet. Say hello!</p>
+          )}
           {messages.map((m) => (
             <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""} ${m.status === "recalled" ? "recalled" : ""}`}>
               <strong>#{m.seq}</strong> {m.status === "recalled" ? <em>(recalled)</em> : m.body}

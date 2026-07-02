@@ -23,7 +23,7 @@ export function ThreadPanel({ token, convId, parentMessage, onClose }: Props) {
     e.preventDefault();
     if (!draft.trim()) return;
     try {
-      await sendReply(token, convId, parentMessage.id, draft.trim());
+      await sendReply(token, convId, parentMessage.id, draft.trim(), crypto.randomUUID());
       setDraft("");
       const next = await listReplies(token, convId, parentMessage.id);
       setReplies(next);

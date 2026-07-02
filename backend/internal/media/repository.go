@@ -30,14 +30,25 @@ type Attachment struct {
 	CreatedAt time.Time
 }
 
+// ObjectCopier duplicates blobs in object storage for forward/share flows.
+type ObjectCopier interface {
+	CopyObject(ctx context.Context, srcKey, destKey string) error
+}
+
 // Repository persists attachment metadata.
 type Repository struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	copier ObjectCopier
 }
 
 // NewRepository creates an attachment repository.
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
+}
+
+// SetObjectCopier wires server-side object copy for cross-owner forwards.
+func (r *Repository) SetObjectCopier(copier ObjectCopier) {
+	r.copier = copier
 }
 
 // RegisterPending records upload metadata before a message references it.
@@ -169,6 +180,55 @@ func (r *Repository) LinkToMessageInTx(ctx context.Context, tx execer, attachmen
 		return ErrAttachmentInUse
 	}
 	return nil
+}
+
+// GetByMessageID returns the attachment linked to a message, if any.
+func (r *Repository) GetByMessageID(ctx context.Context, messageID uuid.UUID) (*Attachment, error) {
+	const q = `
+		SELECT id, message_id, owner_id, object_key, mime_type, size_bytes, checksum, created_at
+		FROM attachments
+		WHERE message_id = $1
+	`
+	row := r.pool.QueryRow(ctx, q, messageID)
+	att, err := scanAttachment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAttachmentNotFound
+		}
+		return nil, err
+	}
+	return att, nil
+}
+
+// CloneUnlinkedForForward creates a pending attachment row the forwarder can link when sending.
+func (r *Repository) CloneUnlinkedForForward(ctx context.Context, sourceMessageID, forwarderID uuid.UUID) (*Attachment, error) {
+	src, err := r.GetByMessageID(ctx, sourceMessageID)
+	if err != nil {
+		return nil, err
+	}
+
+	objectKey := src.ObjectKey
+	if src.OwnerID != forwarderID {
+		if r.copier == nil {
+			return nil, fmt.Errorf("object storage copy not configured")
+		}
+		objectKey = fmt.Sprintf("uploads/%s/%s", forwarderID, uuid.New())
+		if err := r.copier.CopyObject(ctx, src.ObjectKey, objectKey); err != nil {
+			return nil, err
+		}
+	} else if existing, lookupErr := r.GetUnlinkedByObjectKey(ctx, forwarderID, objectKey); lookupErr == nil {
+		return existing, nil
+	}
+
+	id := uuid.New()
+	now := time.Now().UTC()
+	const q = `
+		INSERT INTO attachments (id, message_id, owner_id, object_key, mime_type, size_bytes, checksum, created_at)
+		VALUES ($1, NULL, $2, $3, $4, $5, $6, $7)
+		RETURNING id, message_id, owner_id, object_key, mime_type, size_bytes, checksum, created_at
+	`
+	row := r.pool.QueryRow(ctx, q, id, forwarderID, objectKey, src.MimeType, src.SizeBytes, src.Checksum, now)
+	return scanAttachment(row)
 }
 
 // ListByMessageIDs returns attachments keyed by message id.

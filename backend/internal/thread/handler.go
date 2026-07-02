@@ -48,14 +48,19 @@ func (h *Handler) HandleSendReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Body string `json:"body"`
+		Body        string `json:"body"`
+		ClientMsgID string `json:"client_msg_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Body == "" {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "body is required")
 		return
 	}
+	if req.ClientMsgID == "" {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "client_msg_id is required")
+		return
+	}
 
-	msg, err := h.messages.SendReply(r.Context(), convID, claims.UserID, parentMsgID, req.Body)
+	msg, err := h.messages.SendReply(r.Context(), convID, claims.UserID, parentMsgID, req.Body, req.ClientMsgID)
 	if err != nil {
 		if errors.Is(err, conversation.ErrForbidden) || errors.Is(err, conversation.ErrCannotPublish) {
 			apierror.Write(w, r, http.StatusForbidden, "forbidden", err.Error())

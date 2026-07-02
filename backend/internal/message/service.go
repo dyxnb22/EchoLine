@@ -71,7 +71,7 @@ type SendInput struct {
 var ErrBlocked = fmt.Errorf("recipient has blocked you")
 
 // SendReply persists a threaded reply through the main message pipeline.
-func (s *Service) SendReply(ctx context.Context, convID, senderID, parentMsgID uuid.UUID, body string) (*Message, error) {
+func (s *Service) SendReply(ctx context.Context, convID, senderID, parentMsgID uuid.UUID, body, clientMsgID string) (*Message, error) {
 	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
 		return nil, err
 	}
@@ -82,8 +82,20 @@ func (s *Service) SendReply(ctx context.Context, convID, senderID, parentMsgID u
 	if err := validate.MessageBody(body, false); err != nil {
 		return nil, err
 	}
+
+	clientMsgID, err := validate.ClientMsgID(clientMsgID)
+	if err != nil {
+		return nil, err
+	}
+	if existing, lookupErr := s.repo.GetByClientMsgID(ctx, senderID, clientMsgID); lookupErr == nil {
+		if existing.ConversationID != convID {
+			return nil, ErrDuplicateClientID
+		}
+		return existing, nil
+	}
+
 	parent := parentMsgID
-	msg, err := s.repo.Create(ctx, convID, senderID, uuid.New().String(), TypeText, body, nil, CreateOptions{ParentMessageID: &parent})
+	msg, err := s.repo.Create(ctx, convID, senderID, clientMsgID, TypeText, body, nil, CreateOptions{ParentMessageID: &parent})
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +105,7 @@ func (s *Service) SendReply(ctx context.Context, convID, senderID, parentMsgID u
 	return msg, nil
 }
 
-// Forward copies a message body into another conversation via the main pipeline.
+// Forward copies a message into another conversation via the main pipeline.
 func (s *Service) Forward(ctx context.Context, sourceMsgID, targetConvID, senderID uuid.UUID) (*Message, error) {
 	src, err := s.repo.GetByMessageID(ctx, sourceMsgID)
 	if err != nil {
@@ -103,11 +115,18 @@ func (s *Service) Forward(ctx context.Context, sourceMsgID, targetConvID, sender
 	if err != nil || !member {
 		return nil, conversation.ErrForbidden
 	}
-	return s.Send(ctx, targetConvID, senderID, SendInput{
+
+	input := SendInput{
 		ClientMsgID: uuid.New().String(),
 		Type:        src.Type,
 		Body:        src.Body,
-	})
+	}
+	if s.attachments != nil && src.Type != TypeText {
+		if att, err := s.attachments.CloneUnlinkedForForward(ctx, src.ID, senderID); err == nil {
+			input.ObjectKey = att.ObjectKey
+		}
+	}
+	return s.Send(ctx, targetConvID, senderID, input)
 }
 
 // Send persists a message and notifies online members.

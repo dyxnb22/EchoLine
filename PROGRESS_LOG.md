@@ -2,6 +2,18 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Deep review iteration 05 (close remaining P2/P3/P4)
+
+任务：继续修复 iter 04 剩余项 — forward 附件、thread 幂等、JWT/注册限流、UI loading。
+
+修复：`CloneUnlinkedForForward` + S3 `CopyObject`；`SendReply` 客户端 `client_msg_id`；JWT ≥32；register 10/min/IP；ChatPage loading/empty。
+
+测试：go test ./... + npm run build 通过。
+
+阻塞：make smoke-full（无 Docker）。
+
+下一步：本地 smoke-full；消费 BACKLOG / extensions-roadmap。
+
 ## 2026-07-02 Deep review iteration 03–04 (full-scope)
 
 任务：按用户要求每轮全量审查；第 3–4 轮覆盖 15 后端域 + 14 前端流 + 架构/docs。

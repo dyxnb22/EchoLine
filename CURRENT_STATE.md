@@ -1,15 +1,14 @@
 # Current State
 
-Current phase: **Deep review iteration 04 — full-scope; P0/P1 clear, 2 P2 open**.
+Current phase: **Deep review iteration 05 — stop condition met**.
 
 Last session highlights:
 
-- **Policy:** Each iteration = full-project audit (not spot-check)
-- **Iter 03 P1:** cache invalidation, outbox reaper, payment settle gate, archived API, WS `message_id`
-- **Iter 03–04 P2:** sync attachments, MarkRead cap, pin/report, search lifecycle, GraphQL RBAC, download UI
-- **Open P2:** forward attachment metadata, thread `client_msg_id`
-- **Wontfix P2:** WS rate limit, CheckOrigin, notifications producer, client ACK (MVP)
+- **Iter 05 P2:** forward attachment clone (`CloneUnlinkedForForward` + S3 copy), thread reply `client_msg_id` idempotency
+- **Iter 05 P3:** JWT secret min 32 chars, register rate limit 10/min/IP
+- **Iter 05 P4:** conversation list + message loading/empty states
+- **Wontfix P2 (MVP):** WS rate limit, CheckOrigin, notifications producer, client ACK
 
-Tests: `go test ./...` + `npm run build` pass.
+Tests: `go test ./...` + `npm run build` pass. `make smoke-full` still blocked (no Docker in cloud VM).
 
-Reports: `reports/deep-review-final.md`, `reports/deep-review-iteration-03.md`, `04.md`
+Reports: `reports/deep-review-iteration-05.md`, `reports/deep-review-final.md`

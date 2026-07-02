@@ -100,6 +100,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	var mediaHandler *media.Handler
 	if cfg.S3Endpoint != "" {
 		if mediaClient, err := media.NewClient(cfg); err == nil {
+			attachmentRepo.SetObjectCopier(mediaClient)
 			mediaHandler = media.NewHandler(mediaClient, attachmentRepo, convRepo)
 		} else {
 			logger.Warn("media client unavailable", "error", err)
@@ -248,9 +249,11 @@ func (s *Server) MemoryBus() *eventbus.MemoryPublisher {
 // applyRateLimits wraps handlers with Redis rate limiting when configured.
 func (s *Server) applyRateLimits(mux *http.ServeMux) {
 	loginMW := rate_limit.Middleware(s.limiter, "login", 20, time.Minute, rate_limit.IPKey)
+	registerMW := rate_limit.Middleware(s.limiter, "register", 10, time.Minute, rate_limit.IPKey)
 	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
 
 	mux.Handle("POST /api/auth/login", loginMW(http.HandlerFunc(s.auth.HandleLogin)))
+	mux.Handle("POST /api/auth/register", registerMW(http.HandlerFunc(s.auth.HandleRegister)))
 	mux.Handle(
 		"POST /api/conversations/{id}/messages",
 		auth.RequireAuth(s.auth, convSendMW(http.HandlerFunc(s.msg.HandleSend))),

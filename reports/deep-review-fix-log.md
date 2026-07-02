@@ -47,6 +47,16 @@
 
 No new code fixes; verified iteration 03 fixes. Documented wontfix for WS rate limit, CheckOrigin, notifications, client ACK.
 
+## Iteration 05
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| ISSUE-044 | Forward clones attachment via `CloneUnlinkedForForward` + S3 copy | `media/repository.go`, `media/client.go`, `message/service.go`, `server/options.go` |
+| ISSUE-045 | Thread reply `client_msg_id` + idempotent `SendReply` | `thread/handler.go`, `message/service.go`, `api.ts`, `ThreadPanel.tsx` |
+| ISSUE-047 | JWT secret min 32 chars | `config/config.go`, `config_test.go` |
+| ISSUE-048 | Register rate limit 10/min/IP | `server/options.go` |
+| ISSUE-049 | Loading/empty UI states | `ChatPage.tsx` |
+
 ## Wontfix (documented)
 
 - ISSUE-014: Presigned URL sharing within expiry — MVP accepted per `review-security.md`

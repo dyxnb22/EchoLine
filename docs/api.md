@@ -29,6 +29,8 @@ WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
 
 ### POST `/api/auth/register`
 
+Rate limit: 10 requests per minute per client IP.
+
 请求：
 
 ```json
@@ -355,12 +357,12 @@ WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
 
 ### Threads
 
-- `POST /api/conversations/{conv_id}/messages/{message_id}/replies`
+- `POST /api/conversations/{conv_id}/messages/{message_id}/replies` — body `{ "body": "...", "client_msg_id": "uuid" }` (required for idempotent retries)
 - `GET /api/conversations/{conv_id}/messages/{message_id}/replies`
 
 ### Forward / Presence / Export / Archive
 
-- `POST /api/messages/{message_id}/forward`
+- `POST /api/messages/{message_id}/forward` — copies attachment metadata (server-side object copy when forwarder ≠ original owner)
 - `GET /api/presence/online?user_ids=...`
 - `GET /api/conversations/{id}/export`
 - `POST /api/conversations/{id}/archive` / `unarchive`

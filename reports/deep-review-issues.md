@@ -283,5 +283,5 @@ Fix: `RequeueStaleProcessing` + `processing_at` column (`00018`)
 
 See `reports/deep-review-iteration-03.md` and `reports/deep-review-iteration-04.md` for complete list. Key fixes: cache invalidation, payment gate, archived API, WS payload fields, search lifecycle, GraphQL RBAC, download UI.
 
-Remaining open: ISSUE-044 (forward attachment), ISSUE-045 (thread idempotency), P3 config hardening, P4 UI polish.
+Remaining open: none (iteration 05 closed ISSUE-044/045/047/048/049). Wontfix P2 from iter 04: WS rate limit, CheckOrigin, notifications producer, client ACK.
 

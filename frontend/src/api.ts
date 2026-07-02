@@ -307,10 +307,16 @@ export async function listReplies(token: string, convId: string, messageId: stri
   return data.replies ?? [];
 }
 
-export async function sendReply(token: string, convId: string, messageId: string, body: string): Promise<void> {
+export async function sendReply(
+  token: string,
+  convId: string,
+  messageId: string,
+  body: string,
+  clientMsgId: string = crypto.randomUUID(),
+): Promise<void> {
   await authedVoid(token, `/api/conversations/${convId}/messages/${messageId}/replies`, {
     method: "POST",
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, client_msg_id: clientMsgId }),
   }, "send reply failed");
 }
 

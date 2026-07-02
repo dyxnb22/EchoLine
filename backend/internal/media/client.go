@@ -52,6 +52,16 @@ func (c *Client) PresignPutURL(ctx context.Context, ownerID uuid.UUID, mimeType 
 	return u.String(), objectKey, nil
 }
 
+// CopyObject duplicates an object within the configured bucket (server-side).
+func (c *Client) CopyObject(ctx context.Context, srcKey, destKey string) error {
+	src := minio.CopySrcOptions{Bucket: c.bucket, Object: srcKey}
+	dest := minio.CopyDestOptions{Bucket: c.bucket, Object: destKey}
+	if _, err := c.minio.CopyObject(ctx, dest, src); err != nil {
+		return fmt.Errorf("copy object: %w", err)
+	}
+	return nil
+}
+
 // PresignGetURL returns a short-lived download URL for an object key.
 func (c *Client) PresignGetURL(ctx context.Context, objectKey string) (string, error) {
 	u, err := c.minio.PresignedGetObject(ctx, c.bucket, objectKey, 15*time.Minute, nil)
