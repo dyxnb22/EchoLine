@@ -240,10 +240,10 @@ Instead of a worker polling the outbox, use Debezium to stream Postgres WAL chan
 
 ## Files Involved
 
-- `backend/internal/presence/redis.go` — presence TTL management
+- `backend/internal/presence/store.go` — presence TTL management
 - `backend/internal/search/handler.go` — tsvector search endpoint
-- `backend/internal/worker/outbox.go` — SKIP LOCKED outbox drainer
-- `backend/internal/worker/dlq.go` — DLQ skeleton
+- `backend/internal/outbox/publisher.go` — SKIP LOCKED outbox drainer
+- `backend/internal/outbox/dlq_handler.go` — DLQ skeleton
 - `backend/migrations/` — outbox table DDL
 - `docs/reliability.md` — outbox reliability design
 - `docs/dlq-replay.md` — DLQ replay runbook

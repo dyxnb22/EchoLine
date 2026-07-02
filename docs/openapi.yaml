@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: EchoLine API
-  version: 0.2.0
-  description: OpenAPI mirror of backend routes. Authoritative detail in docs/api.md and backend/internal/server/server.go.
+  version: 0.3.0
+  description: Route mirror of backend/internal/server. Request/response detail in docs/api.md.
 paths:
   /health:
     get:
@@ -22,29 +22,63 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
   /api/auth/login:
     post:
       summary: Login
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
   /api/auth/refresh:
     post:
       summary: Refresh tokens
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
   /api/me:
     get:
       summary: Current user
       responses:
         '200':
           description: OK
-        '401': &id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
           $ref: '#/components/responses/Unauthorized'
-        '422': &id002
+        '422':
           $ref: '#/components/responses/ValidationError'
-        '429': &id003
+        '429':
           $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
@@ -53,20 +87,40 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchMeRequest'
   /api/devices:
     get:
       summary: List devices
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations:
@@ -75,9 +129,16 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/direct:
@@ -86,52 +147,101 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DirectConversationRequest'
   /api/conversations/groups:
     post:
       summary: Create group
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupConversationRequest'
   /api/conversations/channels:
     post:
       summary: Create channel
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupConversationRequest'
   /api/conversations/{id}/subscribe:
     post:
       summary: Subscribe to channel
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationMember'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     delete:
-      summary: Unsubscribe from channel
+      summary: Unsubscribe
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/members:
@@ -140,20 +250,32 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberRequest'
   /api/conversations/{id}/members/{user_id}:
     delete:
-      summary: Remove member or leave
+      summary: Remove member
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/messages:
@@ -162,9 +284,16 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     post:
@@ -172,64 +301,126 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
   /api/conversations/{id}/messages/{message_id}:
     patch:
       summary: Edit message
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMessageRequest'
   /api/conversations/{id}/messages/{message_id}/recall:
     post:
       summary: Recall message
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/read:
     post:
-      summary: Mark conversation read
+      summary: Mark read
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkReadRequest'
   /api/sync:
     post:
       summary: Offline sync
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncRequest'
   /api/search/messages:
     get:
       summary: Search messages
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResults'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/messages/ack:
@@ -238,42 +429,80 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckRequest'
   /api/media/upload-url:
     post:
-      summary: Presign upload URL
+      summary: Presign upload
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadURLResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadURLRequest'
   /api/media/download-url:
     post:
-      summary: Presign download URL
+      summary: Presign download
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadURLResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadURLRequest'
   /ws:
     get:
       summary: WebSocket gateway
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/pins/{message_id}:
@@ -282,9 +511,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     delete:
@@ -292,9 +524,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/pins:
@@ -303,31 +538,40 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/mute:
     post:
-      summary: Mute conversation
+      summary: Mute
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/unmute:
     post:
-      summary: Unmute conversation
+      summary: Unmute
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/blocks/{user_id}:
@@ -336,9 +580,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     delete:
@@ -346,9 +593,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/blocks:
@@ -357,9 +607,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/messages/{message_id}/report:
@@ -368,9 +621,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/notifications:
@@ -379,9 +635,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/notifications/{id}/read:
@@ -390,20 +649,26 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/notifications/read-all:
     post:
-      summary: Mark all notifications read
+      summary: Mark all read
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/admin/health:
@@ -412,31 +677,40 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/admin/users:
     get:
-      summary: Admin list users
+      summary: Admin users
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/admin/reports:
     get:
-      summary: Admin list reports
+      summary: Admin reports
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/admin/audit-logs:
@@ -445,31 +719,40 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/admin/dlq:
     get:
-      summary: Admin DLQ list
+      summary: Admin DLQ
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/admin/dlq/{id}/replay:
     post:
-      summary: Replay DLQ event
+      summary: Replay DLQ
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/messages/{message_id}/reactions:
@@ -478,9 +761,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
@@ -488,9 +774,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/messages/{message_id}/reactions/{emoji}:
@@ -499,30 +788,39 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{conv_id}/messages/{message_id}/replies:
     post:
-      summary: Send thread reply
+      summary: Send reply
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
-      summary: List thread replies
+      summary: List replies
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/messages/{message_id}/forward:
@@ -531,9 +829,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/presence/online:
@@ -542,9 +843,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/presence/last-seen:
@@ -553,9 +857,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     post:
@@ -563,30 +870,39 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/encryption/keys:
     post:
-      summary: Register E2EE key bundle
+      summary: Register key bundle
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
-      summary: List E2EE key bundles
+      summary: List key bundles
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/export:
@@ -595,42 +911,54 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/archive:
     post:
-      summary: Archive conversation
+      summary: Archive
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/{id}/unarchive:
     post:
-      summary: Unarchive conversation
+      summary: Unarchive
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/conversations/archived:
     get:
-      summary: List archived conversations
+      summary: List archived
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/push/tokens:
@@ -639,9 +967,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
@@ -649,9 +980,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/payments/ledger:
@@ -660,51 +994,66 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
-      summary: List ledger entries
+      summary: List ledger
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/payments/ledger/settle:
     post:
-      summary: Settle ledger entry
+      summary: Settle ledger
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/channels/{channel_id}/campaigns:
     post:
-      summary: Create ad campaign
+      summary: Create campaign
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
-      summary: List ad campaigns
+      summary: List campaigns
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/channels/{channel_id}/campaigns/{campaign_id}/impressions:
@@ -713,30 +1062,39 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /graphql:
     post:
-      summary: GraphQL query/mutation
+      summary: GraphQL
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
     get:
-      summary: GraphiQL UI
+      summary: GraphiQL
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/recommendations/channels:
@@ -745,9 +1103,12 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/recommendations/friends:
@@ -756,31 +1117,40 @@ paths:
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/channels/{channel_id}/entitlements/grant:
     post:
-      summary: Grant entitlement (admin)
+      summary: Grant entitlement
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
   /api/channels/{channel_id}/entitlements/require:
     post:
-      summary: Require paid subscription (owner)
+      summary: Require entitlement
       responses:
         '200':
           description: OK
-        '401': *id001
-        '422': *id002
-        '429': *id003
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
       security:
       - bearerAuth: []
 components:
@@ -801,6 +1171,268 @@ components:
               type: string
             request_id:
               type: string
+    RegisterRequest:
+      type: object
+      required:
+      - username
+      - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        display_name:
+          type: string
+    LoginRequest:
+      type: object
+      required:
+      - username
+      - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required:
+      - refresh_token
+      properties:
+        refresh_token:
+          type: string
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+        expires_in:
+          type: integer
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    PatchMeRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+    DirectConversationRequest:
+      type: object
+      required:
+      - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+    GroupConversationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        member_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    SendMessageRequest:
+      type: object
+      required:
+      - client_msg_id
+      - type
+      - body
+      properties:
+        client_msg_id:
+          type: string
+        type:
+          type: string
+        body:
+          type: string
+        attachment:
+          type: object
+          properties:
+            object_key:
+              type: string
+    EditMessageRequest:
+      type: object
+      required:
+      - body
+      properties:
+        body:
+          type: string
+    MarkReadRequest:
+      type: object
+      required:
+      - last_read_seq
+      properties:
+        last_read_seq:
+          type: integer
+          format: int64
+    SyncRequest:
+      type: object
+      required:
+      - device_id
+      - cursors
+      properties:
+        device_id:
+          type: string
+        cursors:
+          type: array
+          items:
+            type: object
+            properties:
+              conversation_id:
+                type: string
+              last_seq:
+                type: integer
+                format: int64
+    SyncResponse:
+      type: object
+      properties:
+        device_id:
+          type: string
+        conversations:
+          type: array
+          items:
+            type: object
+            properties:
+              conversation_id:
+                type: string
+              messages:
+                type: array
+                items:
+                  type: object
+              latest_seq:
+                type: integer
+              unread:
+                type: integer
+    AckRequest:
+      type: object
+      required:
+      - message_id
+      - conversation_id
+      - seq
+      - status
+      properties:
+        message_id:
+          type: string
+        conversation_id:
+          type: string
+        seq:
+          type: integer
+        status:
+          type: string
+          enum:
+          - delivered
+          - read
+        device_id:
+          type: string
+    UploadURLRequest:
+      type: object
+      properties:
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+        checksum:
+          type: string
+    UploadURLResponse:
+      type: object
+      properties:
+        upload_url:
+          type: string
+        object_key:
+          type: string
+        bucket:
+          type: string
+        expires_in:
+          type: integer
+    DownloadURLRequest:
+      type: object
+      properties:
+        object_key:
+          type: string
+    DownloadURLResponse:
+      type: object
+      properties:
+        download_url:
+          type: string
+        expires_in:
+          type: integer
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        conversation_id:
+          type: string
+        seq:
+          type: integer
+        body:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+    MessageList:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        next_before:
+          type: integer
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+    ConversationList:
+      type: object
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Conversation'
+    ConversationMember:
+      type: object
+    DeviceList:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            type: object
+    SearchResults:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+    InviteMemberRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
   responses:
     Unauthorized:
       description: Unauthorized
@@ -808,30 +1440,15 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: unauthorized
-              message: invalid or expired token
-              request_id: req-1
     ValidationError:
       description: Validation error
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: validation_error
-              message: body too long
-              request_id: req-1
     RateLimited:
       description: Rate limited
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: rate_limited
-              message: too many requests
-              request_id: req-1

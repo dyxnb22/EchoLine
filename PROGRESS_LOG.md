@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Documentation alignment pass 3: manifests, schemas, validator
+
+任务：第三轮全量扫描 — manifest 路径/状态、sync API 契约、openapi schemas、自动化校验。
+
+Manifest：`BATCH_100`/`BATCH_120`/`BATCH_NEXT_120` Key Files 与 done 状态对齐。
+
+API 文档：interview 系列 `POST /api/sync` JSON；WS 事件名修正。
+
+OpenAPI：v0.3.0，61 paths + 27 schemas + core requestBody。
+
+工具：`scripts/validate-docs.py`，`make validate-docs`，接入 `make verify`。
+
+测试：`make validate-docs` 通过。
+
+阻塞：无新增。
+
+下一步：本地 smoke-full（可选）。
+
 ## 2026-07-02 Documentation alignment pass 2: full scan
 
 任务：全量扫描 116 个 markdown + openapi，纠正至与代码一致。

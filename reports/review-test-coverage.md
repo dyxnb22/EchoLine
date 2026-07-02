@@ -1,6 +1,6 @@
 # Code Review: Test Coverage (M007)
 
-> **Historical note (2026-07-02):** 报告中 `backend/internal/api/` 为设计期包名；测试覆盖按 `backend/internal/*` 各领域包统计。
+> **Historical note (2026-07-02):** 报告中 `backend/internal/*/ (per-domain handlers)` 为设计期包名；测试覆盖按 `backend/internal/*` 各领域包统计。
 
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
@@ -129,7 +129,7 @@ For integration tests that must commit: use a unique random conversation per tes
 ## Finding 6: No Snapshot Test for API Response Shape
 
 **Severity**: Low
-**Files**: `backend/internal/api/`
+**Files**: `backend/internal/*/ (per-domain handlers)`
 
 **Observation**: API handlers return JSON responses without asserting the exact shape in tests. A handler refactor could inadvertently change the field names without breaking any test.
 

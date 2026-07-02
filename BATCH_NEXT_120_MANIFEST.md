@@ -1,5 +1,7 @@
 # EchoLine Batch-Next-120 Manifest (T121–T240)
 
+> **Status (2026-07-02): closure snapshot updated.** Rows marked `planned` below were completed in Batch-Next-200 / final session unless noted.
+
 > **Note (2026-07-02):** T222–T228（微服务 ADR、gateway、分片、冷热分层、病毒扫描 mock、OTel）已在 Batch-Next-200 与 final completion 中完成；表中若仍显示 `planned`/`partial` 视为历史快照。
 
 Continuation after `BATCH_120_MANIFEST.md`. Focus: close batch-120 partials, ops maturity, tests, extensions.
@@ -67,7 +69,7 @@ Continuation after `BATCH_120_MANIFEST.md`. Focus: close batch-120 partials, ops
 | T165 | done | golangci-lint config | `.golangci.yml` |
 | T166 | done | `make loadtest-ws` target | `Makefile` |
 | T167 | done | `make lint` runs go vet/golangci | `Makefile` |
-| T168 | partial | Fluentd/Loki log shipping | planned |
+| T168 | partial | Fluentd/Loki log shipping | not implemented (future) |
 | T169 | partial | K8s secrets template | planned |
 | T170 | partial | Docker compose app services | infra-only compose |
 | T171 | done | Prometheus scrape config | `deploy/monitoring/prometheus.yml` |
@@ -88,13 +90,13 @@ Continuation after `BATCH_120_MANIFEST.md`. Focus: close batch-120 partials, ops
 | T181 | done | Update `docs/api.md` admin/graphql/payment/ads | `docs/api.md` |
 | T182 | done | Update `docs/data-model.md` migration 00014 | `docs/data-model.md` |
 | T183 | done | `reports/iteration-05.md` | `reports/iteration-05.md` |
-| T184 | partial | ADR 0023 admin RBAC | planned |
-| T185 | partial | ADR 0024 deploy topology | planned |
-| T186 | partial | ADR 0025 GraphQL facade scope | planned |
-| T187 | partial | Interview: admin panel story | planned |
-| T188 | partial | Interview: payment settlement | planned |
+| T184 | done | ADR 0023 admin RBAC | `docs/adr/0023-admin-rbac.md` |
+| T185 | done | ADR 0024 webhook retry | `docs/adr/0024-webhook-retry.md` |
+| T186 | done | ADR 0025 GraphQL facade scope | `docs/adr/0025-graphql-facade-scope.md` |
+| T187 | done | Admin panel docs | `docs/admin-panel.md` |
+| T188 | done | Payment prototype | `docs/payments-prototype.md` |
 | T189 | partial | Research: K8s vs VM deploy | planned |
-| T190 | partial | Security: admin endpoint audit | planned |
+| T190 | done | Admin RBAC middleware | `backend/internal/admin/middleware.go` |
 | T191–T200 | partial | Extension prototype doc updates | planned |
 
 ## Track 5: Tests / Quality / Extensions (T201–T240)
@@ -111,7 +113,7 @@ Continuation after `BATCH_120_MANIFEST.md`. Focus: close batch-120 partials, ops
 | T208 | done | Replay CLI flag tests | `cmd/replay/main_test.go` |
 | T209 | done | `go test ./...` passes | CI |
 | T210 | done | `npm run build` passes | CI |
-| T211 | partial | DB-backed reaction integration test | planned |
+| T211 | partial | DB-backed reaction integration test | needs Postgres |
 | T212 | partial | DB-backed thread integration test | planned |
 | T213 | partial | Payment settle integration test | planned |
 | T214 | partial | Ads frequency cap integration test | planned |

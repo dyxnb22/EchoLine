@@ -134,8 +134,8 @@ This checklist covers the security controls implemented or planned in EchoLine, 
 
 ## Files Involved
 
-- `backend/internal/middleware/auth.go` — JWT middleware
-- `backend/internal/middleware/ratelimit.go` — Redis rate limiting
+- `backend/internal/auth/service.go` — JWT middleware
+- `backend/internal/rate_limit/middleware.go` — Redis rate limiting
 - `backend/internal/audit/` — audit log service
 - `backend/internal/auth/service.go` — login/register with rate limit and audit
 - `docs/adr/0010-e2ee-threat-model.md` — E2EE threat model

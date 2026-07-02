@@ -1,10 +1,10 @@
 # Code Review: API Consistency (M001)
 
-> **Historical note (2026-07-02):** 本报告引用 `backend/internal/api/` 为 Phase 1 设计路径。当前 handler 位于 `backend/internal/*/handler.go` 与 `auth/service.go`。
+> **Historical note (2026-07-02):** 本报告引用 `backend/internal/*/ (per-domain handlers)` 为 Phase 1 设计路径。当前 handler 位于 `backend/internal/*/handler.go` 与 `auth/service.go`。
 
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
-**Scope**: All REST API endpoints (originally `backend/internal/api/`)
+**Scope**: All REST API endpoints (originally `backend/internal/*/ (per-domain handlers)`)
 
 ---
 
@@ -17,7 +17,7 @@ The EchoLine REST API is generally consistent in structure, authentication, and 
 ## Finding 1: Mixed Pagination Parameters
 
 **Severity**: Medium
-**Files**: `backend/internal/api/message.go`, `backend/internal/api/conversation.go`
+**Files**: `backend/internal/message/handler.go`, `backend/internal/conversation/handler.go`
 
 **Observation**: Message history pagination uses `before_id` (cursor-based), while conversation sync uses `after_seq`. These are both valid pagination strategies but use different parameter names and semantics.
 
@@ -30,7 +30,7 @@ The EchoLine REST API is generally consistent in structure, authentication, and 
 ## Finding 2: Inconsistent Response Envelope Fields
 
 **Severity**: Low
-**Files**: `backend/internal/api/errors.go`, `backend/internal/api/message.go`
+**Files**: `backend/internal/apierror/error.go`, `backend/internal/message/handler.go`
 
 **Observation**: Success responses sometimes return data directly (`{"id": "...", "body": "..."}`) and sometimes wrap in `{"data": {...}}`. Error responses consistently use `{"error": {"code": "...", "message": "..."}}`.
 
@@ -41,9 +41,9 @@ The EchoLine REST API is generally consistent in structure, authentication, and 
 ## Finding 3: Missing `Location` Header on 201 Created
 
 **Severity**: Low
-**Files**: `backend/internal/api/auth.go`, `backend/internal/api/conversation.go`
+**Files**: `backend/internal/auth/service.go`, `backend/internal/conversation/handler.go`
 
-**Observation**: `POST /api/auth/register` and `POST /api/conversations/group` return 201 Created but do not include a `Location` header pointing to the newly created resource.
+**Observation**: `POST /api/auth/register` and `POST /api/conversations/groups` return 201 Created but do not include a `Location` header pointing to the newly created resource.
 
 **Recommendation**: Add `Location: /api/users/{id}` and `Location: /api/conversations/{id}` headers on 201 responses. This follows REST convention and allows clients to discover the resource URI.
 
@@ -52,18 +52,18 @@ The EchoLine REST API is generally consistent in structure, authentication, and 
 ## Finding 4: No `X-Request-ID` in Error Responses
 
 **Severity**: Medium
-**Files**: `backend/internal/api/errors.go`
+**Files**: `backend/internal/apierror/error.go`
 
 **Observation**: Error responses include `error.code` and `error.message` but do not include the request ID. Users cannot correlate a client-side error message with a server log entry.
 
-**Recommendation**: Include `"request_id": "<trace_id>"` in all error response bodies. The `X-Trace-ID` value is already available in the request context (from `backend/internal/middleware/trace.go`).
+**Recommendation**: Include `"request_id": "<trace_id>"` in all error response bodies. The `X-Trace-ID` value is already available in the request context (from `backend/internal/apierror/trace.go`).
 
 ---
 
 ## Finding 5: Inconsistent HTTP Methods for State Transitions
 
 **Severity**: Medium
-**Files**: `backend/internal/api/message.go`, `backend/internal/api/ack.go`
+**Files**: `backend/internal/message/handler.go`, `backend/internal/delivery/handler.go`
 
 **Observation**:
 - Message recall uses `POST /api/messages/{id}/recall` (action endpoint).
@@ -78,7 +78,7 @@ The EchoLine REST API is generally consistent in structure, authentication, and 
 ## Finding 6: Missing Rate Limit Headers
 
 **Severity**: Low
-**Files**: `backend/internal/middleware/ratelimit.go`
+**Files**: `backend/internal/rate_limit/middleware.go`
 
 **Observation**: The rate limit middleware returns 429 Too Many Requests when the limit is hit, but does not include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, or `Retry-After` headers.
 
@@ -106,7 +106,7 @@ This allows clients to implement proactive backoff.
 ## Finding 8: Auth Token Not Refreshed on 401
 
 **Severity**: Low (DX)
-**Files**: `backend/internal/api/auth.go`
+**Files**: `backend/internal/auth/service.go`
 
 **Observation**: When a token expires, clients receive a 401 response with `error.code = "unauthorized"`. The response does not suggest refreshing the token or provide a `WWW-Authenticate` header.
 
@@ -120,8 +120,8 @@ This allows clients to implement proactive backoff.
 
 ## Files to Update
 
-- `backend/internal/api/errors.go` — add request_id, rate limit headers
-- `backend/internal/middleware/ratelimit.go` — add rate limit response headers
-- `backend/internal/api/auth.go` — WWW-Authenticate header, Location on 201
-- `backend/internal/api/conversation.go` — Location on 201
+- `backend/internal/apierror/error.go` — add request_id, rate limit headers
+- `backend/internal/rate_limit/middleware.go` — add rate limit response headers
+- `backend/internal/auth/service.go` — WWW-Authenticate header, Location on 201
+- `backend/internal/conversation/handler.go` — Location on 201
 - `docs/api.md` — document conventions, pagination, envelope format

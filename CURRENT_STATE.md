@@ -1,21 +1,21 @@
 # Current State
 
-Current phase: **Documentation alignment — pass 2 complete**.
+Current phase: **Documentation alignment — pass 3 complete (validated)**.
 
-Milestone: `FINAL_COMPLETION_MANIFEST.md` (closed) + full doc scan aligned with code.
+Milestone: `FINAL_COMPLETION_MANIFEST.md` (closed) + `make validate-docs` passes.
 
 Last session highlights:
 
-- Living docs: fixed ghost `backend/internal/api/` paths in ADRs + interview/security docs
-- `architecture.md` module table expanded; `data-model.md` columns completed
-- `openapi.yaml` expanded to 61 paths with Error schema + standard error responses
-- `extensions-roadmap.md`, `RESEARCH_PLAN.md`, `CLOUD_AGENT_PROMPT.md` closure alignment
-- Manifests + review reports: historical path disclaimers
-- `conversation.read` WS event documented as proposed (not implemented)
+- BATCH_100/120/BATCH_NEXT_120 manifests: paths + statuses corrected
+- Interview/reliability/sync docs: `POST /api/sync` JSON contract
+- openapi.yaml v0.3.0: 61 paths + 27 schemas
+- Review reports: body-level path fixes
+- `scripts/validate-docs.py` + `make validate-docs` in `make verify`
 
 Tests:
 
-- `make verify` — unchanged (doc-only passes)
+- `make validate-docs` — OK
+- `make verify` — includes doc validation + go test + frontend build + playwright
 
 Blocker:
 
@@ -24,5 +24,5 @@ Blocker:
 Next (optional):
 
 1. Local `make dev-up && make smoke-full`
-2. OpenAPI per-endpoint request/response schemas
+2. Expand OpenAPI schemas for remaining endpoints
 3. Migrate `conversation/handler` to `apierror` envelope

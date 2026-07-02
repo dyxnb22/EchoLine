@@ -210,8 +210,8 @@ To minimize DLQ accumulation:
 
 ## Files Involved
 
-- `backend/internal/worker/dlq.go` — DLQ writer skeleton
-- `backend/internal/worker/outbox.go` — outbox drainer that writes to DLQ on max attempts
+- `backend/internal/outbox/dlq_handler.go` — DLQ writer skeleton
+- `backend/internal/outbox/publisher.go` — outbox drainer that writes to DLQ on max attempts
 - `backend/migrations/` — `dead_letter` table DDL
 - `backend/internal/metrics/` — `echoline_outbox_dlq_total` metric
 - `docs/reliability-adr-suite.md` — reliability ADR index

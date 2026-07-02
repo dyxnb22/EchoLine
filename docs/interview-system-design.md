@@ -93,15 +93,15 @@ Key design choices:
 Connection lifecycle:
 1. Client `GET /ws?token=<jwt>` → server upgrades to WS, registers connection in hub.
 2. Server starts ping goroutine (30s interval); client responds with pong.
-3. On message receive: WS event `{ "type": "message.received", "payload": {...}, "server_seq": 123 }`.
-4. Client sends `{ "type": "ack", "message_id": "..." }` → server records delivery state.
-5. On disconnect: hub unregisters; presence TTL expires in 10s.
+3. On message receive: WS event `{ "type": "message.created", "payload": {...} }`.
+4. Client sends `{ "type": "message.ack", "payload": { "message_id": "...", "seq": 123, "status": "delivered" } }` → server records delivery state.
+5. On disconnect: hub unregisters; presence TTL expires.
 
 Reconnection:
 1. Client re-authenticates via REST to get fresh JWT (or uses refresh token).
 2. Client reconnects WS.
-3. Client sends `GET /api/sync?after_seq={last_known_seq}` per conversation to pull missed messages.
-4. Server returns delta; client merges into local state.
+3. Client sends `POST /api/sync` with `{ device_id, cursors: [{ conversation_id, last_seq }] }` to pull missed messages.
+4. Server returns delta per conversation; client merges into local state.
 
 **Why not rely on WS for delivery guarantees?** WS is a TCP stream; any node restart loses the connection. The sync endpoint is the safety net.
 

@@ -38,8 +38,8 @@ Presence tracking is stored in Redis as a `SET gateway:presence:{user_id}` with 
 
 - `backend/internal/realtime/server.go` — Hub, connection register/unregister
 - `backend/internal/realtime/gateway_router.go` _(planned)_ — Redis Pub/Sub publisher/subscriber
-- `backend/internal/presence/redis.go` — Presence TTL in Redis
-- `backend/internal/cache/redis.go` — Redis client shared by presence and routing
+- `backend/internal/presence/store.go` — Presence TTL in Redis
+- `backend/internal/redisx/client.go` — Redis client shared by presence and routing
 
 ## Consequences
 

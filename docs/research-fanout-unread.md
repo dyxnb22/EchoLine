@@ -166,6 +166,6 @@ EchoLine defers badge count to a future iteration.
 ## Files Involved
 
 - `backend/internal/conversation/unread.go` — unread count computation
-- `backend/internal/cache/convlist.go` — conversation list cache
+- `backend/internal/cache/conversation.go` — conversation list cache
 - `docs/adr/0003-large-group-fanout.md` — fanout strategy
 - `docs/adr/0005-cache-consistency.md` — cache consistency for unread counts

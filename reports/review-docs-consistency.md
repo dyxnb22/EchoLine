@@ -1,73 +1,56 @@
 # Code Review: Documentation Consistency (M008)
 
 **Reviewer**: Automated review via agent  
-**Date**: 2026-07-01 (initial), **2026-07-02 (pass 1 + pass 2)**  
-**Scope**: All docs in `docs/`, `reports/`, ADRs, OpenAPI spec, manifests, agent prompts
+**Date**: 2026-07-01 (initial), **2026-07-02 (passes 1–3)**  
+**Scope**: All docs, ADRs, OpenAPI, manifests, agent prompts
 
 ---
 
 ## Summary
 
-EchoLine documentation is aligned with the implemented codebase and T001–T440 closure state after two alignment passes.
+EchoLine documentation is aligned with the implemented codebase and T001–T440 closure state after three alignment passes. Automated guard: `make validate-docs` (also runs in `make verify`).
 
-**Documentation consistency score**: **10/10** for living docs (ADRs, api, data-model, websocket, architecture, state files, openapi route coverage). Historical manifests/review reports retain path snapshots with header disclaimers.
+**Documentation consistency score**: **Complete** — `scripts/validate-docs.py` exits 0.
 
 ---
 
-## Pass 1 (2026-07-02) — Completed
+## Pass 3 (2026-07-02) — Completed
 
 | Area | Fix |
 |------|-----|
-| ADR index | Full 0001–0031; duplicate 0003 → 0031; 0013 superseded by 0019 |
-| websocket-protocol | `message.edited`, typing events |
-| data-model | `outbox_events` |
-| State files | DONE, BACKLOG, ACCEPTANCE_MATRIX, TASKS closure banners |
-| Navigation | docs/README, README interview links |
+| BATCH_100_MANIFEST | All Key File paths corrected; statuses updated (pin/reactions/admin/export/etc.) |
+| BATCH_120 / BATCH_NEXT_120 | Paths + closure statuses; T184–T228 marked done where implemented |
+| Living docs | Global path fixes (`mq`→`eventbus`, `middleware`→actual packages, sync POST body) |
+| Interview docs | Correct `POST /api/sync` JSON body; WS `message.created` / `message.ack` |
+| Review reports M001–M007 | Body paths corrected (not just headers) |
+| openapi.yaml | v0.3.0 — 61 paths, 27 schemas, requestBody on core endpoints |
+| Automation | `scripts/validate-docs.py`, `make validate-docs`, wired into `make verify` |
 
 ---
 
-## Pass 2 (2026-07-02) — Completed
+## Pass 2 — Completed
 
-| Area | Fix |
-|------|-----|
-| ADR implementation paths | 0002 status; 0005/0006/0010–0014/0022 — remove ghost `backend/internal/api/` |
-| Living technical docs | security-checklist, research-presence, reliability-adr-suite, interview-* paths |
-| architecture.md | Expanded module table (30+ packages); removed phantom `channel` module |
-| data-model.md | `parent_message_id`, `archived_at`, extension table columns |
-| api.md | `GET /ws` entry; openapi now full route mirror |
-| openapi.yaml | **61 paths**, Error schema, 401/422/429 on protected routes |
-| extensions-roadmap.md | Prototype vs future per section |
-| RESEARCH_PLAN.md | Actual output paths (no `docs/research/` ghost dir) |
-| CLOUD_AGENT_PROMPT.md | Closure notice |
-| load-test-01.md | k6 scripts done |
-| scaling.md | `message.edited` event name |
-| interview-multi-device-sync | `conversation.read` marked proposed (not in code) |
-| BATCH_* manifests | Historical path disclaimers |
-| Review reports M001–M007 | Historical `internal/api/` disclaimers |
+See git history (`1e82ff6`). Highlights: architecture module table, openapi route mirror, extensions-roadmap closure.
 
 ---
 
-## Verification Checklist
+## Pass 1 — Completed
 
-| Check | Status |
-|-------|--------|
-| All ADR files indexed in `docs/adr/README.md` | ✅ |
-| No `backend/internal/api/` in `docs/` (living) | ✅ |
-| `docs/openapi.yaml` paths match `server.go` | ✅ |
-| WS event names match `realtime/protocol.go` | ✅ |
-| Closure consistent across CURRENT_STATE, TASKS, BACKLOG, CLOUD_AGENT_PROMPT | ✅ |
-| Broken markdown links to deleted files | ✅ none found |
+See git history (`102c8ca`). Highlights: ADR index, websocket-protocol, state file closure banners.
 
 ---
 
-## Remaining Optional (non-blocking)
+## Validation
 
-1. Line-by-line correction of `BATCH_100_MANIFEST.md` Key File column (100+ rows; header disclaimer sufficient).
-2. Local `make smoke-full` results recorded in PROGRESS_LOG.
-3. OpenAPI request/response body schemas per endpoint (currently summary + error refs only).
+```bash
+make validate-docs   # ghost paths, wrong API names, openapi route parity
+make verify          # includes validate-docs + tests + build + playwright
+```
 
 ---
 
-## Files Updated (pass 2)
+## Remaining optional (non-blocking)
 
-See git diff on branch `cursor/docs-alignment-27cb` — 35+ markdown files + `docs/openapi.yaml`.
+1. OpenAPI request/response schemas for all 61 endpoints (core auth/message/sync covered).
+2. Local `make smoke-full` results in PROGRESS_LOG.
+3. Fluentd/Loki shipping (BATCH_NEXT_120 T168) — explicitly future.

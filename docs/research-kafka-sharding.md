@@ -158,8 +158,8 @@ Use **Redpanda in development** (simpler single-node setup, no ZooKeeper), with 
 
 ## Files Involved
 
-- `backend/internal/mq/kafka.go` — Kafka/Redpanda client
-- `backend/internal/mq/producer.go` — message producer with partition key
+- `backend/internal/eventbus/kafka.go` — Kafka/Redpanda client
+- `backend/internal/outbox/publisher.go` — message producer with partition key
 - `backend/internal/worker/handlers.go` — consumer handler (idempotent)
 - `backend/internal/metrics/kafka.go` — consumer lag metrics
 - `docker-compose.yml` — Redpanda container

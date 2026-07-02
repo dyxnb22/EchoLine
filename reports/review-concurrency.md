@@ -100,7 +100,7 @@ This allows the worker to continue processing the next message after a panic on 
 ## Finding 5: Redis Rate Limiter — Race Between Check and Increment
 
 **Severity**: Low
-**Files**: `backend/internal/middleware/ratelimit.go`
+**Files**: `backend/internal/rate_limit/middleware.go`
 
 **Observation**: If the rate limiter uses `GET` followed by `INCR` as two separate Redis commands, there is a TOCTOU race: two concurrent requests could both read a count of 59 (under the limit), both increment to 60, and both proceed.
 
@@ -177,4 +177,4 @@ for {
 - `backend/internal/worker/outbox.go` — context shutdown (Finding 3), exponential backoff (Finding 7)
 - `backend/cmd/worker/main.go` — signal handling, context propagation
 - `backend/internal/worker/handlers.go` — panic recovery (Finding 4)
-- `backend/internal/middleware/ratelimit.go` — atomic Redis operations (Finding 5)
+- `backend/internal/rate_limit/middleware.go` — atomic Redis operations (Finding 5)

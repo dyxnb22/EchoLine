@@ -62,7 +62,7 @@ Sharding by `conversation_id` keeps all data for a single conversation on one sh
 
 - `backend/internal/db/shard_router.go` _(planned)_ — shard lookup and connection pool per shard
 - `backend/migrations/` — partition DDL (phase 1)
-- `backend/internal/cache/convlist.go` — scatter-gather mitigation via cache (already implemented)
+- `backend/internal/cache/conversation.go` — scatter-gather mitigation via cache (already implemented)
 - `docs/data-model.md` — sharding notes
 - `docs/scaling.md` — update with sharding phase plan
 

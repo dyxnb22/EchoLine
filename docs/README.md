@@ -76,7 +76,8 @@
 ## 验证命令
 
 ```bash
-make verify          # go test + build + playwright
+make verify          # go test + build + playwright + validate-docs
+make validate-docs   # doc path/API/openapi parity only
 make test            # 后端单元测试
 make frontend-build  # 前端构建
 make dev-up          # 本地依赖栈（需 Docker）

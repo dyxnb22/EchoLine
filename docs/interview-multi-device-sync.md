@@ -113,24 +113,39 @@ The "read" state is account-level, not device-level. This matches Telegram/Whats
 When a device reconnects after being offline:
 
 1. Device opens WS connection (re-authenticates with JWT).
-2. Device calls `GET /api/sync` for each conversation it cares about:
+2. Device calls `POST /api/sync` with per-conversation cursors (batch, not query params):
 
-```
-GET /api/sync?conversation_id=abc&after_seq=42&limit=100
+```http
+POST /api/sync
 Authorization: Bearer <jwt>
-```
+Content-Type: application/json
 
-Response:
-```json
 {
-  "messages": [...],
-  "has_more": false,
-  "latest_seq": 89
+  "device_id": "phone-1",
+  "cursors": [
+    { "conversation_id": "abc", "last_seq": 42 }
+  ]
 }
 ```
 
-3. Device updates its local `device_sync_cursors` to `latest_seq = 89`.
-4. If `has_more = true`, device paginates: `after_seq=89&limit=100`.
+Response:
+
+```json
+{
+  "device_id": "phone-1",
+  "conversations": [
+    {
+      "conversation_id": "abc",
+      "messages": [...],
+      "latest_seq": 89,
+      "unread": 3
+    }
+  ]
+}
+```
+
+3. Device updates its local `device_sync_cursors` to the returned `latest_seq`.
+4. Repeat with updated `last_seq` if more than 200 messages per conversation (server cap).
 
 **Why not a global sync endpoint?** Syncing all conversations at once is expensive (joins across many conversations). The per-conversation sync is O(delta) per conversation and can be parallelized.
 

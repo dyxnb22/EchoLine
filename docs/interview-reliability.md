@@ -123,13 +123,21 @@ Operations team receives an alert. Manual replay: update `dead_letter.status = '
 
 **Problem**: Client was offline for 2 hours. WebSocket reconnects. How does it get the 47 messages it missed?
 
-**Solution**: On reconnect, client sends per-conversation requests:
+**Solution**: On reconnect, client sends batched cursors:
 
-```
-GET /api/sync?after_seq=1042&limit=100
+```http
+POST /api/sync
+Content-Type: application/json
+
+{
+  "device_id": "web-1",
+  "cursors": [
+    { "conversation_id": "...", "last_seq": 1042 }
+  ]
+}
 ```
 
-Server returns messages with `seq > 1042` in the conversation. Client merges into local state. This is the catch-all recovery mechanism for any delivery failure.
+Server returns messages with `seq > last_seq` per conversation (up to 200 per conv). Client merges into local state. This is the catch-all recovery mechanism for any delivery failure.
 
 The sync endpoint is safe to call repeatedly (idempotent reads). Clients should call it on every reconnect, not just after long absences.
 
@@ -162,8 +170,8 @@ The sync endpoint is safe to call repeatedly (idempotent reads). Clients should 
 
 - `backend/internal/message/idempotency.go` — `client_msg_id` check
 - `backend/internal/outbox/` — outbox enqueue and worker
-- `backend/internal/worker/outbox.go` — SKIP LOCKED drainer
-- `backend/internal/worker/dlq.go` — DLQ skeleton
+- `backend/internal/outbox/publisher.go` — SKIP LOCKED drainer
+- `backend/internal/outbox/dlq_handler.go` — DLQ skeleton
 - `backend/internal/delivery/state.go` — delivery state machine
 - `backend/internal/sync/handler.go` — sync endpoint
 - `docs/reliability.md` — reliability design reference

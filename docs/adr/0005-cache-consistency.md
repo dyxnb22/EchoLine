@@ -52,9 +52,9 @@ After a user sends a message, the response includes the authoritative message fr
 
 ## Implementation Files
 
-- `backend/internal/cache/convlist.go` — conversation list cache read/write/invalidate
-- `backend/internal/cache/redis.go` — Redis client, `Get`/`Set`/`Del` wrappers
-- `backend/internal/presence/redis.go` — presence TTL set/refresh/delete
+- `backend/internal/cache/conversation.go` — conversation list cache read/write/invalidate
+- `backend/internal/redisx/client.go` — Redis client, `Get`/`Set`/`Del` wrappers
+- `backend/internal/presence/store.go` — presence TTL set/refresh/delete
 - `backend/internal/message/handler.go` — invalidates conv list on send/edit/recall
 - `backend/internal/conversation/handler.go` — invalidates conv list on member changes
 

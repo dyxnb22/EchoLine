@@ -1,6 +1,6 @@
 # Code Review: Performance (M005)
 
-> **Historical note (2026-07-02):** 报告中 `backend/internal/api/*` 路径为设计期命名；当前见 `conversation/handler.go`、`search/handler.go`、`sync/handler.go`。
+> **Historical note (2026-07-02):** 报告中 `backend/internal/*/ (per-domain handlers)*` 路径为设计期命名；当前见 `conversation/handler.go`、`search/handler.go`、`sync/handler.go`。
 
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
@@ -17,7 +17,7 @@ EchoLine's performance characteristics are suitable for a prototype with up to ~
 ## Finding 1: N+1 Query in Conversation List API
 
 **Severity**: High
-**Files**: `backend/internal/api/conversation.go`
+**Files**: `backend/internal/conversation/handler.go`
 
 **Observation**: The conversation list endpoint likely executes one query to get the list of conversations, then one query per conversation to fetch the latest message:
 ```go
@@ -49,7 +49,7 @@ LIMIT 50;
 ## Finding 2: Full Table Scan on Search Without Membership Join Optimization
 
 **Severity**: Medium
-**Files**: `backend/internal/api/search.go`
+**Files**: `backend/internal/search/handler.go`
 
 **Observation**: The search query filters messages by `conversation_id IN (SELECT conversation_id FROM conversation_members WHERE user_id = $1)`. PostgreSQL will execute this as a nested loop or hash join depending on the number of conversations.
 
@@ -108,7 +108,7 @@ For a 50-member group: reduces 50 Redis RTTs to 1 RTT + 1 pipeline execution.
 ## Finding 5: Sync Endpoint Could Scan Too Many Rows
 
 **Severity**: Medium
-**Files**: `backend/internal/api/sync.go`
+**Files**: `backend/internal/sync/handler.go`
 
 **Observation**: A client that was offline for a week and has a busy conversation could receive thousands of messages in a single sync response, causing a large response payload and high memory allocation.
 
@@ -147,7 +147,7 @@ For a 50-member group: reduces 50 Redis RTTs to 1 RTT + 1 pipeline execution.
 |----------|------------|------------|
 | `POST /api/conversations/:id/messages` | < 20ms | < 100ms |
 | `GET /api/conversations` | < 10ms | < 50ms |
-| `GET /api/sync` | < 15ms | < 80ms |
+| `POST /api/sync` | < 15ms | < 80ms |
 | `GET /api/search/messages` | < 50ms | < 200ms |
 | WS message delivery (hot path) | < 5ms | < 30ms |
 
@@ -169,8 +169,8 @@ These targets assume Postgres and Redis on the same datacenter. Validate with `l
 
 ## Files to Update
 
-- `backend/internal/api/conversation.go` — LATERAL JOIN for last message
+- `backend/internal/conversation/handler.go` — LATERAL JOIN for last message
 - `backend/internal/realtime/server.go` — per-conversation connection index
 - `backend/internal/presence/redis.go` — pipeline for batch presence lookup
 - `backend/internal/db/db.go` — connection pool configuration
-- `backend/internal/api/sync.go` — hard limit + has_more flag
+- `backend/internal/sync/handler.go` — hard limit + has_more flag

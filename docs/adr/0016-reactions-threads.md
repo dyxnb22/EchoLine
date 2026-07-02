@@ -94,7 +94,7 @@ Fan-out follows the same hub logic as `message.new`: deliver to all online conve
 - `backend/internal/reaction/handler.go` — POST/DELETE /messages/:id/reactions, GET list
 - `backend/internal/reaction/service.go` — add/remove logic, count query
 - `backend/internal/message/handler.go` — thread reply endpoint, thread fetch
-- `backend/internal/realtime/hub.go` — `reaction.added/removed`, `thread.reply` dispatch
+- `backend/internal/realtime/server.go` — `reaction.added/removed`, `thread.reply` dispatch
 - `docs/websocket-protocol.md` — new frame types
 - `docs/data-model.md` — reactions table, parent_msg_id
 

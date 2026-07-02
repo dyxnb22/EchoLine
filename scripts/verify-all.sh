@@ -3,6 +3,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+echo "==> Docs: validate references"
+python3 "$ROOT/scripts/validate-docs.py"
+
 echo "==> Backend: go test"
 (cd "$ROOT/backend" && go test ./...)
 

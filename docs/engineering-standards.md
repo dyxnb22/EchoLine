@@ -69,9 +69,16 @@
 | REST | `docs/api.md` |
 | Schema | `docs/data-model.md` |
 | WS | `docs/websocket-protocol.md` |
+| OpenAPI | `docs/openapi.yaml`（与 server 路由同步；`make validate-docs` 校验） |
 | 交付语义 | `docs/reliability.md` |
 | 业务流 | `docs/business-flows.md` |
 | 架构取舍 | `docs/adr/*.md` |
+
+文档变更后运行：
+
+```bash
+make validate-docs
+```
 
 ## 面试讲述
 

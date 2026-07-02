@@ -1,6 +1,6 @@
 # Code Review: Security (M006)
 
-> **Historical note (2026-07-02):** 报告中 `backend/internal/api/*` 路径为设计期命名；当前见 `auth/service.go`、`media/handler.go` 等。
+> **Historical note (2026-07-02):** 报告中 `backend/internal/*/ (per-domain handlers)*` 路径为设计期命名；当前见 `auth/service.go`、`media/handler.go` 等。
 
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
@@ -48,7 +48,7 @@ For production, use a 256-bit random secret: `openssl rand -base64 32`. Document
 ## Finding 3: Attachment Download URL — No Authorization Check
 
 **Severity**: High
-**Files**: `backend/internal/api/media.go`
+**Files**: `backend/internal/media/handler.go`
 
 **Observation**: MinIO presigned download URLs are time-limited but do not enforce conversation membership after generation. If Alice shares a download URL with Carol (who is not a member), Carol can download the file.
 
@@ -64,7 +64,7 @@ Option 3 is most secure but adds latency. Option 2 is a practical mitigation for
 ## Finding 4: Password Reset — Not Implemented
 
 **Severity**: Medium (completeness)
-**Files**: `backend/internal/api/auth.go`
+**Files**: `backend/internal/auth/service.go`
 
 **Observation**: There is no password reset flow. A user who forgets their password cannot recover their account. This is a significant UX gap, but also a security concern: without a verified email-based reset, account recovery is impossible if credentials are lost.
 
@@ -96,7 +96,7 @@ Option 3 is most secure but adds latency. Option 2 is a practical mitigation for
 ## Finding 6: No Content-Security-Policy Header
 
 **Severity**: Low (frontend)
-**Files**: `backend/internal/api/` (response middleware), `frontend/`
+**Files**: `backend/internal/*/ (per-domain handlers)` (response middleware), `frontend/`
 
 **Observation**: The API and frontend serve responses without a `Content-Security-Policy` header. This increases XSS risk if any user content is rendered without escaping.
 
@@ -111,7 +111,7 @@ Adjust `connect-src` to allow the WS endpoint origin.
 ## Finding 7: Refresh Token Not Invalidated on Password Change
 
 **Severity**: Medium
-**Files**: `backend/internal/api/auth.go`
+**Files**: `backend/internal/auth/service.go`
 
 **Observation**: If a user changes their password (after implementing Finding 4), their existing refresh tokens remain valid. An attacker who has stolen a refresh token can continue using it after the victim changes their password.
 
@@ -145,7 +145,7 @@ Adjust `connect-src` to allow the WS endpoint origin.
 ## Files to Update
 
 - `backend/internal/config/config.go` — JWT secret length check
-- `backend/internal/api/media.go` — download URL authorization
+- `backend/internal/media/handler.go` — download URL authorization
 - `backend/internal/audit/` — expand audit event coverage
-- `backend/internal/api/auth.go` — password reset, token revocation
+- `backend/internal/auth/service.go` — password reset, token revocation
 - `docs/security-checklist.md` — mark fixed items

@@ -134,8 +134,8 @@ EchoLine's reliability model is built on four principles:
 
 - `backend/internal/message/idempotency.go`
 - `backend/internal/outbox/`
-- `backend/internal/worker/outbox.go`
-- `backend/internal/worker/dlq.go`
+- `backend/internal/outbox/publisher.go`
+- `backend/internal/outbox/dlq_handler.go`
 - `backend/internal/delivery/state.go`
 - `backend/internal/sync/handler.go`
 - `backend/internal/device/sync.go`

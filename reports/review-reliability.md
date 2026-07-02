@@ -1,6 +1,6 @@
 # Code Review: Reliability (M004)
 
-> **Historical note (2026-07-02):** 报告中 `backend/internal/api/*` 路径为设计期命名；当前见 `sync/handler.go`、`delivery/handler.go`、`outbox/`。
+> **Historical note (2026-07-02):** 报告中 `backend/internal/*/ (per-domain handlers)*` 路径为设计期命名；当前见 `sync/handler.go`、`delivery/handler.go`、`outbox/`。
 
 **Reviewer**: Automated review via agent
 **Date**: 2026-07-01
@@ -86,7 +86,7 @@ WHERE message_id = $2 AND user_id = $3 AND (
 ## Finding 5: Sync Endpoint Does Not Include Recalled Messages
 
 **Severity**: Medium
-**Files**: `backend/internal/api/sync.go`
+**Files**: `backend/internal/sync/handler.go`
 
 **Observation**: The sync endpoint returns `messages WHERE seq > ? AND status = 'active'`. Clients that reconnect after a message was recalled will not see the recall event; the message may still appear in their local cache.
 
@@ -123,7 +123,7 @@ Can use `github.com/sony/gobreaker` or a simple custom implementation.
 ## Finding 7: WS ACK Processing Not Idempotent
 
 **Severity**: Low
-**Files**: `backend/internal/api/ack.go`
+**Files**: `backend/internal/delivery/handler.go`
 
 **Observation**: If a client sends the same ACK event twice (e.g., network retry), the delivery state update is idempotent (`status < $1` check prevents regression). However, if the ACK creates a new delivery record on first receipt and the second receipt tries to create it again, there could be a unique constraint violation.
 
@@ -147,5 +147,5 @@ Can use `github.com/sony/gobreaker` or a simple custom implementation.
 
 - `backend/internal/worker/outbox.go` — max attempts, cleanup job
 - `backend/internal/delivery/state.go` — ordering verification
-- `backend/internal/api/sync.go` — include recalled messages
-- `backend/internal/api/ack.go` — upsert delivery record
+- `backend/internal/sync/handler.go` — include recalled messages
+- `backend/internal/delivery/handler.go` — upsert delivery record

@@ -23,7 +23,7 @@ Adopt **OpenTelemetry (OTel)** as the tracing standard with a **Jaeger-compatibl
 
 ### Implementation Plan
 
-**Phase 1 (current):** Propagate `trace_id` via `X-Trace-ID` HTTP header through all log lines. Already implemented in `backend/internal/middleware/trace.go`.
+**Phase 1 (current):** Propagate `trace_id` via `X-Trace-ID` HTTP header through all log lines. Already implemented in `backend/internal/apierror/trace.go`.
 
 **Phase 2 (next):** Instrument Go backend with OTel SDK:
 - Add `go.opentelemetry.io/otel` and `go.opentelemetry.io/otel/sdk/trace`.
@@ -57,11 +57,11 @@ Adopt **OpenTelemetry (OTel)** as the tracing standard with a **Jaeger-compatibl
 
 ## Implementation Files
 
-- `backend/internal/middleware/trace.go` — X-Trace-ID middleware (Phase 1, implemented)
+- `backend/internal/apierror/trace.go` — X-Trace-ID middleware (Phase 1, implemented)
 - `backend/internal/telemetry/tracer.go` _(planned)_ — OTel SDK provider init
 - `backend/internal/db/db.go` — add `otelpgx` instrumentation
-- `backend/internal/cache/redis.go` — add `otelredis` instrumentation
-- `backend/internal/mq/producer.go` — inject trace headers into Kafka messages
+- `backend/internal/redisx/client.go` — add `otelredis` instrumentation
+- `backend/internal/outbox/publisher.go` — inject trace headers into Kafka messages
 - `backend/cmd/api/main.go` — initialize tracer on startup
 - `docker-compose.yml` _(planned)_ — add Jaeger all-in-one container
 - `grafana/echoline-dashboard.json` — trace exemplars linked to Prometheus metrics

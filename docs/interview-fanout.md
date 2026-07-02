@@ -130,7 +130,7 @@ When a recipient has no active WS connection:
 ## Files Involved
 
 - `backend/internal/realtime/server.go` — hub, in-process fanout
-- `backend/internal/worker/fanout.go` — async fanout worker
-- `backend/internal/presence/redis.go` — presence lookup for online/offline routing
+- `backend/internal/push/worker.go` — async fanout worker
+- `backend/internal/presence/store.go` — presence lookup for online/offline routing
 - `docs/adr/0003-large-group-fanout.md` — ADR for hybrid fanout
 - `docs/adr/0004-ws-gateway-routing.md` — ADR for cross-instance Redis Pub/Sub
