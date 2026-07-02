@@ -1,5 +1,38 @@
 import { test, expect } from "@playwright/test";
 
+const mockUser = {
+  id: "00000000-0000-4000-8000-000000000099",
+  username: "e2e-user",
+  display_name: "E2E User",
+};
+
+async function mockChatApi(page: import("@playwright/test").Page) {
+  await page.route("**/api/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockUser),
+    });
+  });
+  await page.route("**/api/auth/refresh", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ access_token: "test-token", refresh_token: "test-refresh" }),
+    });
+  });
+  await page.route("**/api/recommendations/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await page.route("**/api/presence/last-seen", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await page.route("**/api/notifications", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ notifications: [] }) });
+  });
+  await page.route("**/ws**", async (route) => route.abort());
+}
+
 test("login page renders", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "EchoLine" })).toBeVisible();
@@ -20,15 +53,7 @@ test("chat layout with mocked session", async ({ page }) => {
       body: JSON.stringify({ conversations: [] }),
     });
   });
-  await page.route("**/api/recommendations/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
-  await page.route("**/api/presence/last-seen", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
-  await page.route("**/api/notifications", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ notifications: [] }) });
-  });
+  await mockChatApi(page);
 
   await page.goto("/");
   await expect(page.getByText("Select a conversation")).toBeVisible();
@@ -65,16 +90,7 @@ test("composer visible when conversation selected (mocked)", async ({ page }) =>
       }),
     });
   });
-  await page.route("**/api/recommendations/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
-  await page.route("**/api/presence/last-seen", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
-  await page.route("**/api/notifications", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ notifications: [] }) });
-  });
-  await page.route("**/ws**", async (route) => route.abort());
+  await mockChatApi(page);
 
   await page.goto("/");
   await page.getByRole("button", { name: /E2E Group/ }).click();

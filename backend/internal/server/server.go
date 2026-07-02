@@ -135,9 +135,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/channels/{channel_id}/campaigns", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleList)))
 	mux.Handle("POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleRecordImpression)))
 
-	// GraphQL prototype
+	// GraphQL prototype (POST registered in applyRateLimits with rate limit)
 	if s.graph != nil {
-		mux.Handle("POST /graphql", auth.RequireAuth(s.auth, http.HandlerFunc(s.graph.HandleGraphQL)))
 		mux.Handle("GET /graphql", auth.RequireAuth(s.auth, http.HandlerFunc(s.graph.HandleGraphQL)))
 	}
 

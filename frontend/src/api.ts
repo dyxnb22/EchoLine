@@ -467,7 +467,7 @@ export function connectWS(
 
   async function connect() {
     if (closed) return;
-    if (refreshAccessToken) {
+    if (refreshAccessToken && attempt > 0) {
       await refreshAccessToken();
     }
     onStatus?.("connecting");
