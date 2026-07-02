@@ -24,7 +24,7 @@ import {
   presignUpload,
   Reaction,
   recallMessage,
-  refreshToken,
+  refreshTokenOnce,
   removeReaction,
   reportMessage,
   searchMessages,
@@ -132,7 +132,7 @@ export function ChatPage() {
     clearUnread(conversationId);
     markConversationRead(token, conversationId, seq)
       .then(() => refreshConversations())
-      .catch(() => undefined);
+      .catch(() => refreshConversations());
   }, [token, clearUnread, refreshConversations]);
 
   const activeConv = conversations.find((c) => c.id === activeId);
@@ -198,11 +198,18 @@ export function ChatPage() {
         seqCursorsRef.current[cursor.conversation_id] = lastSeq;
       }
       mergeSyncedMessages(allBlocks);
+      for (const block of allBlocks) {
+        if (block.conversation_id === activeIdRef.current && block.messages?.length) {
+          const maxSeq = Math.max(...block.messages.map((m) => m.seq));
+          markActiveRead(block.conversation_id, maxSeq);
+          break;
+        }
+      }
       refreshConversations();
     } catch {
       // sync is best-effort on reconnect
     }
-  }, [token, deviceId, refreshConversations, mergeSyncedMessages]);
+  }, [token, deviceId, refreshConversations, mergeSyncedMessages, markActiveRead]);
 
   const runSyncRef = useRef(runSync);
   useEffect(() => {
@@ -222,7 +229,7 @@ export function ChatPage() {
     const refresh = localStorage.getItem("echoline_refresh");
     if (!refresh) return null;
     try {
-      const pair = await refreshToken(refresh);
+      const pair = await refreshTokenOnce(refresh);
       localStorage.setItem("echoline_token", pair.access_token);
       localStorage.setItem("echoline_refresh", pair.refresh_token);
       setToken(pair.access_token);
@@ -272,9 +279,10 @@ export function ChatPage() {
       void prefetchReactions(ordered);
     }
     setNextBefore(page.next_before);
-    if (ordered.length > 0) {
+    if (beforeSeq == null && ordered.length > 0) {
       const maxSeq = Math.max(...ordered.map((m) => m.seq));
-      seqCursorsRef.current[conversationId] = maxSeq;
+      const prev = seqCursorsRef.current[conversationId] ?? 0;
+      seqCursorsRef.current[conversationId] = Math.max(prev, maxSeq);
     }
     return ordered;
   }, [token, prefetchReactions]);

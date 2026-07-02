@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { refreshToken } from "../api";
+import { refreshTokenOnce } from "../api";
 import { bindAuthFetch } from "../api/http";
 
 type AuthContextValue = {
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const refresh = localStorage.getItem("echoline_refresh");
       if (refresh) {
         try {
-          const pair = await refreshToken(refresh);
+          const pair = await refreshTokenOnce(refresh);
           localStorage.setItem("echoline_token", pair.access_token);
           localStorage.setItem("echoline_refresh", pair.refresh_token);
           setTokenState(pair.access_token);

@@ -57,7 +57,14 @@ func NewWithOptions(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, 
 func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts Options) *Server {
 	userRepo := user.NewRepository(pool)
 	authSvc := auth.NewService(userRepo, cfg.JWTSecret)
-	authSvc.SetRefreshStore(auth.NewMemoryRefreshStore())
+	if opts.Redis != nil {
+		authSvc.SetRefreshStore(auth.NewRedisRefreshStore(opts.Redis))
+	} else {
+		authSvc.SetRefreshStore(auth.NewMemoryRefreshStore())
+	}
+	if cfg.PaymentSelfServe {
+		logger.Warn("PAYMENT_SELF_SERVE is enabled — channel entitlements can be self-granted without payment verification")
+	}
 	auditRepo := audit.NewRepository(pool)
 	authSvc.SetLoginAuditor(auditRepo)
 
@@ -133,6 +140,14 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	rt.SetDeviceTracker(deviceRepo)
 
+	syncHandler := sync.NewHandler(convRepo, msgSvc, cursorRepo)
+	syncHandler.SetAttachments(attachmentRepo)
+
+	presenceHandler := presence.NewOnlineHandler(presenceChecker)
+	presenceHandler.SetContactGate(convRepo)
+	lastSeenHandler := presence.NewLastSeenHandler(lastSeenStore)
+	lastSeenHandler.SetContactGate(convRepo)
+
 	return &Server{
 		cfg:            cfg,
 		pool:           pool,
@@ -140,7 +155,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		auth:           authSvc,
 		conv:           convHandler,
 		msg:            msgHandler,
-		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo),
+		sync:           syncHandler,
 		search:         searchHandler,
 		delivery:       delivery.NewHandler(deliveryRepo, convRepo, msgRepo),
 		realtime:       rt,
@@ -162,8 +177,8 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		reaction:       reaction.NewHandler(reaction.NewRepository(pool), convRepo, msgRepo),
 		thread:         thread.NewHandler(msgSvc, convRepo, thread.NewRepository(pool)),
 		forward:        forward.NewHandler(msgSvc),
-		presenceH:      presence.NewOnlineHandler(presenceChecker),
-		lastSeenH:      presence.NewLastSeenHandler(lastSeenStore),
+		presenceH:      presenceHandler,
+		lastSeenH:      lastSeenHandler,
 		export:         export.NewHandler(export.NewRepository(pool), convRepo),
 		push:           push.NewHandler(push.NewRepository(pool)),
 		payment:        func() *payment.Handler {
@@ -269,4 +284,6 @@ func (s *Server) applyRateLimits(mux *http.ServeMux) {
 			auth.RequireAuth(s.auth, graphqlSendMW(http.HandlerFunc(s.graph.HandleGraphQL))),
 		)
 	}
+	wsMW := rate_limit.Middleware(s.limiter, "ws_upgrade", 30, time.Minute, rate_limit.IPKey)
+	mux.Handle("GET /ws", wsMW(http.HandlerFunc(s.realtime.HandleWS)))
 }

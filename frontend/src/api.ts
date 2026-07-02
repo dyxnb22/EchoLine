@@ -94,6 +94,18 @@ export async function refreshToken(refresh: string): Promise<TokenPair> {
   }, "refresh failed");
 }
 
+let refreshInflight: Promise<TokenPair> | null = null;
+
+/** refreshTokenOnce deduplicates concurrent refresh calls (rotation-safe). */
+export async function refreshTokenOnce(refresh: string): Promise<TokenPair> {
+  if (!refreshInflight) {
+    refreshInflight = refreshToken(refresh).finally(() => {
+      refreshInflight = null;
+    });
+  }
+  return refreshInflight;
+}
+
 export async function fetchMe(token: string): Promise<{ id: string; username: string; display_name: string }> {
   return authedJSON(token, "/api/me", {}, "fetch me failed");
 }
@@ -454,7 +466,7 @@ export function connectWS(
   onStatus?: (status: WSStatus) => void,
   onOpen?: () => void,
   refreshAccessToken?: () => Promise<string | null>,
-): { close: () => void; send: (payload: unknown) => void } {
+): { close: () => void; send: (payload: unknown) => boolean } {
   let ws: WebSocket | null = null;
   let closed = false;
   let attempt = 0;
@@ -511,10 +523,12 @@ export function connectWS(
       if (timer) window.clearTimeout(timer);
       ws?.close();
     },
-    send: (payload: unknown) => {
+    send: (payload: unknown): boolean => {
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
+        return true;
       }
+      return false;
     },
   };
 }

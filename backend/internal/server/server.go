@@ -28,7 +28,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
-	mux.Handle("GET /metrics", metrics.ProtectedHandler(s.cfg.MetricsToken))
+	mux.Handle("GET /metrics", metrics.ProtectedHandler(s.cfg.MetricsToken, s.cfg.AppEnv))
 	// register, refresh, login registered in applyRateLimits with rate limiting
 	mux.Handle("GET /api/me", auth.RequireAuth(s.auth, http.HandlerFunc(s.handleMe)))
 	mux.Handle("GET /api/conversations", auth.RequireAuth(s.auth, http.HandlerFunc(s.conv.HandleList)))
@@ -50,7 +50,7 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("POST /api/media/upload-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignUpload)))
 		mux.Handle("POST /api/media/download-url", auth.RequireAuth(s.auth, http.HandlerFunc(s.media.HandlePresignDownload)))
 	}
-	mux.HandleFunc("GET /ws", s.realtime.HandleWS)
+	// GET /ws registered in applyRateLimits with rate limiting
 
 	// Profile
 	mux.Handle("PATCH /api/me", auth.RequireAuth(s.auth, http.HandlerFunc(s.handlePatchMe)))

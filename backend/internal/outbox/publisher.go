@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/echoline/echoline/backend/internal/eventbus"
 )
 
@@ -59,17 +61,28 @@ func (p *Publisher) flush(ctx context.Context) {
 			p.logger.Error("publish outbox event", "id", evt.ID, "error", err)
 			if p.fallback != nil && pub != p.fallback {
 				if err2 := p.fallback.Publish(ctx, evt.Topic, evt.Payload); err2 == nil {
-					if err := p.outbox.MarkPublished(ctx, evt.ID); err != nil {
-						p.logger.Error("mark outbox published", "id", evt.ID, "error", err)
-					}
+					p.markPublishedWithRetry(ctx, evt.ID)
 					continue
 				}
 			}
 			_ = p.outbox.MarkFailed(ctx, evt.ID)
 			continue
 		}
-		if err := p.outbox.MarkPublished(ctx, evt.ID); err != nil {
-			p.logger.Error("mark outbox published", "id", evt.ID, "error", err)
+		p.markPublishedWithRetry(ctx, evt.ID)
+	}
+}
+
+func (p *Publisher) markPublishedWithRetry(ctx context.Context, id uuid.UUID) {
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if err := p.outbox.MarkPublished(ctx, id); err == nil {
+			return
+		} else {
+			lastErr = err
 		}
+		time.Sleep(time.Duration(attempt+1) * 50 * time.Millisecond)
+	}
+	if lastErr != nil {
+		p.logger.Error("mark outbox published", "id", id, "error", lastErr)
 	}
 }

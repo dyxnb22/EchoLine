@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -9,19 +10,30 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/media"
 	"github.com/echoline/echoline/backend/internal/message"
 )
+
+type attachmentLookup interface {
+	ListByMessageIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]media.Attachment, error)
+}
 
 // Handler exposes offline sync endpoints.
 type Handler struct {
 	conversations *conversation.Repository
 	messages      *message.Service
 	cursors       *CursorRepository
+	attachments   attachmentLookup
 }
 
 // NewHandler creates a sync handler.
 func NewHandler(conversations *conversation.Repository, messages *message.Service, cursors *CursorRepository) *Handler {
 	return &Handler{conversations: conversations, messages: messages, cursors: cursors}
+}
+
+// SetAttachments enables attachment metadata in sync payloads.
+func (h *Handler) SetAttachments(a attachmentLookup) {
+	h.attachments = a
 }
 
 type cursor struct {
@@ -97,8 +109,22 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 
 		items := make([]map[string]any, 0, len(msgs))
 		var maxSeq int64 = lastSeq
+		attachmentByMsg := map[uuid.UUID]media.Attachment{}
+		if h.attachments != nil && len(msgs) > 0 {
+			ids := make([]uuid.UUID, 0, len(msgs))
+			for i := range msgs {
+				ids = append(ids, msgs[i].ID)
+			}
+			if m, err := h.attachments.ListByMessageIDs(r.Context(), ids); err == nil {
+				attachmentByMsg = m
+			}
+		}
 		for i := range msgs {
-			items = append(items, message.ToCreatedPayload(&msgs[i]))
+			var att *media.Attachment
+			if a, ok := attachmentByMsg[msgs[i].ID]; ok {
+				att = &a
+			}
+			items = append(items, message.ToCreatedPayloadWithAttachment(&msgs[i], att))
 			if msgs[i].Seq > maxSeq {
 				maxSeq = msgs[i].Seq
 			}
