@@ -119,14 +119,31 @@ export async function syncConversations(
   deviceId: string,
   cursors: { conversation_id: string; last_seq: number }[],
 ): Promise<SyncConversation[]> {
-  const data = await authedJSON<{ conversations?: SyncConversation[] }>(token, "/api/sync", {
-    method: "POST",
-    body: JSON.stringify({ device_id: deviceId, cursors }),
-  }, "sync failed");
-  return (data.conversations ?? []).map((c) => ({
-    ...c,
-    messages: (c.messages ?? []) as Message[],
-  }));
+  const merged = new Map<string, SyncConversation>();
+  let nextCursors = cursors;
+  for (let round = 0; round < 20; round++) {
+    const data = await authedJSON<{ conversations?: SyncConversation[] }>(token, "/api/sync", {
+      method: "POST",
+      body: JSON.stringify({ device_id: deviceId, cursors: nextCursors }),
+    }, "sync failed");
+    const blocks = data.conversations ?? [];
+    if (blocks.length === 0) break;
+    for (const block of blocks) {
+      const prev = merged.get(block.conversation_id);
+      const messages = [...(prev?.messages ?? []), ...((block.messages ?? []) as Message[])];
+      merged.set(block.conversation_id, {
+        ...block,
+        messages,
+      });
+    }
+    const needsMore = blocks.some((b) => b.has_more);
+    if (!needsMore) break;
+    nextCursors = blocks.map((b) => ({
+      conversation_id: b.conversation_id,
+      last_seq: b.latest_seq,
+    }));
+  }
+  return [...merged.values()];
 }
 
 export async function createPaymentLedger(
@@ -371,11 +388,86 @@ export async function listPins(token: string, convId: string): Promise<{ message
   return data.pins ?? [];
 }
 
-export async function listArchived(token: string): Promise<Conversation[]> {
-  const data = await authedJSONOr<{ conversations?: Conversation[] }>(
-    token, "/api/conversations/archived", {}, { conversations: [] },
+export async function presignDownload(
+  token: string,
+  objectKey: string,
+): Promise<{ download_url: string; mime_type?: string }> {
+  return authedJSON<{ download_url: string; mime_type?: string }>(
+    token,
+    "/api/media/download-url",
+    {
+      method: "POST",
+      body: JSON.stringify({ object_key: objectKey }),
+    },
+    "presign download failed",
   );
-  return data.conversations ?? [];
+}
+
+export async function ackMessage(
+  token: string,
+  conversationId: string,
+  messageId: string,
+  seq: number,
+  deviceId: string,
+  status: "delivered" | "read" = "delivered",
+): Promise<void> {
+  await authedVoid(token, "/api/messages/ack", {
+    method: "POST",
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      message_id: messageId,
+      seq,
+      device_id: deviceId,
+      status,
+    }),
+  }, "ack failed");
+}
+
+export async function unsubscribeChannel(token: string, channelId: string): Promise<void> {
+  await authedVoid(token, `/api/conversations/${channelId}/subscribe`, { method: "DELETE" }, "unsubscribe failed");
+}
+
+export async function unpinMessage(token: string, conversationId: string, messageId: string): Promise<void> {
+  await authedVoid(token, `/api/conversations/${conversationId}/pins/${messageId}`, { method: "DELETE" }, "unpin failed");
+}
+
+export async function muteConversation(token: string, conversationId: string): Promise<void> {
+  await authedVoid(token, `/api/conversations/${conversationId}/mute`, { method: "POST" }, "mute failed");
+}
+
+export async function unmuteConversation(token: string, conversationId: string): Promise<void> {
+  await authedVoid(token, `/api/conversations/${conversationId}/unmute`, { method: "POST" }, "unmute failed");
+}
+
+export async function unblockUser(token: string, userId: string): Promise<void> {
+  await authedVoid(token, `/api/blocks/${userId}`, { method: "DELETE" }, "unblock failed");
+}
+
+export async function listBlocks(token: string): Promise<{ blocked_id: string }[]> {
+  const data = await authedJSONOr<{ blocks?: { blocked_id: string }[] }>(
+    token, "/api/blocks", {}, { blocks: [] },
+  );
+  return data.blocks ?? [];
+}
+
+export async function requireChannelEntitlement(token: string, channelId: string, required: boolean): Promise<void> {
+  await authedVoid(token, `/api/channels/${channelId}/entitlements/require`, {
+    method: "POST",
+    body: JSON.stringify({ required }),
+  }, "set paid channel failed");
+}
+
+export async function listArchived(token: string): Promise<Conversation[]> {
+  const data = await authedJSONOr<{ archived?: { conversation_id: string; type: string; title: string }[] }>(
+    token, "/api/conversations/archived", {}, { archived: [] },
+  );
+  return (data.archived ?? []).map((a) => ({
+    id: a.conversation_id,
+    type: a.type,
+    title: a.title,
+    unread: 0,
+    latest_seq: 0,
+  }));
 }
 
 export async function unarchiveConversation(token: string, convId: string): Promise<void> {
@@ -422,32 +514,43 @@ export async function grantChannelEntitlement(
 }
 
 export function connectWS(
-  token: string,
+  getToken: () => string,
   deviceId: string,
   onMessage: (data: unknown) => void,
   onStatus?: (status: WSStatus) => void,
   onOpen?: () => void,
+  refreshAccessToken?: () => Promise<string | null>,
 ): { close: () => void; send: (payload: unknown) => void } {
   let ws: WebSocket | null = null;
   let closed = false;
   let attempt = 0;
   let timer: number | undefined;
+  let currentToken = getToken();
 
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const host = window.location.host;
-  const url = `${proto}://${host}/ws?token=${encodeURIComponent(token)}&device_id=${encodeURIComponent(deviceId)}`;
+  function buildUrl(token: string) {
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    const host = window.location.host;
+    return `${proto}://${host}/ws?token=${encodeURIComponent(token)}&device_id=${encodeURIComponent(deviceId)}`;
+  }
 
   function scheduleReconnect() {
     if (closed) return;
     attempt += 1;
     const delay = Math.min(30_000, 500 * 2 ** Math.min(attempt, 6));
-    timer = window.setTimeout(connect, delay);
+    timer = window.setTimeout(() => { void connect(); }, delay);
   }
 
-  function connect() {
+  async function connect() {
     if (closed) return;
+    if (attempt > 0 && refreshAccessToken) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) currentToken = refreshed;
+      else return;
+    } else {
+      currentToken = getToken();
+    }
     onStatus?.("connecting");
-    ws = new WebSocket(url);
+    ws = new WebSocket(buildUrl(currentToken));
     ws.onopen = () => {
       attempt = 0;
       onStatus?.("open");
@@ -469,7 +572,7 @@ export function connectWS(
     };
   }
 
-  connect();
+  void connect();
 
   return {
     close: () => {

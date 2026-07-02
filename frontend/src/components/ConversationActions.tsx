@@ -3,8 +3,13 @@ import {
   archiveConversation,
   exportConversation,
   forwardMessage,
+  muteConversation,
   pinMessage,
+  requireChannelEntitlement,
   subscribeChannel,
+  unmuteConversation,
+  unpinMessage,
+  unsubscribeChannel,
 } from "../api";
 
 type Props = {
@@ -12,10 +17,20 @@ type Props = {
   conversationId: string;
   conversationType: string;
   messageId?: string;
+  pinMessageId?: string;
+  isOwner?: boolean;
   onAction?: () => void;
 };
 
-export function ConversationActions({ token, conversationId, conversationType, messageId, onAction }: Props) {
+export function ConversationActions({
+  token,
+  conversationId,
+  conversationType,
+  messageId,
+  pinMessageId,
+  isOwner,
+  onAction,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [forwardTarget, setForwardTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +51,33 @@ export function ConversationActions({ token, conversationId, conversationType, m
   return (
     <div className="conv-actions">
       {conversationType === "channel" && (
-        <button type="button" disabled={busy} onClick={() => run(() => subscribeChannel(token, conversationId))}>
-          Subscribe
-        </button>
+        <>
+          <button type="button" disabled={busy} onClick={() => run(() => subscribeChannel(token, conversationId))}>
+            Subscribe
+          </button>
+          <button type="button" disabled={busy} onClick={() => run(() => unsubscribeChannel(token, conversationId))}>
+            Unsubscribe
+          </button>
+          {isOwner && (
+            <>
+              <button type="button" disabled={busy} onClick={() => run(() => requireChannelEntitlement(token, conversationId, true))}>
+                Set paid
+              </button>
+              <button type="button" disabled={busy} onClick={() => run(() => requireChannelEntitlement(token, conversationId, false))}>
+                Set free
+              </button>
+            </>
+          )}
+        </>
       )}
       <button type="button" disabled={busy} onClick={() => run(() => archiveConversation(token, conversationId))}>
         Archive
+      </button>
+      <button type="button" disabled={busy} onClick={() => run(() => muteConversation(token, conversationId))}>
+        Mute
+      </button>
+      <button type="button" disabled={busy} onClick={() => run(() => unmuteConversation(token, conversationId))}>
+        Unmute
       </button>
       <button type="button" disabled={busy} onClick={() => run(async () => {
         const blob = await exportConversation(token, conversationId);
@@ -59,6 +95,11 @@ export function ConversationActions({ token, conversationId, conversationType, m
           <button type="button" disabled={busy} onClick={() => run(() => pinMessage(token, conversationId, messageId))}>
             Pin
           </button>
+          {pinMessageId && (
+            <button type="button" disabled={busy} onClick={() => run(() => unpinMessage(token, conversationId, pinMessageId))}>
+              Unpin
+            </button>
+          )}
           <input
             value={forwardTarget}
             onChange={(e) => setForwardTarget(e.target.value)}

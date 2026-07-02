@@ -25,7 +25,7 @@ func NewHandler(pool *pgxpool.Pool, authSvc *auth.Service) *Handler {
 
 // HandleHealth is a deep health check with DB ping.
 // GET /api/admin/health
-// Auth stub: requires valid JWT (any user). Production would enforce admin role.
+// Requires admin role (same as other /api/admin/* routes).
 func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	_, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {

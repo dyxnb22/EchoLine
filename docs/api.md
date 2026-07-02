@@ -260,13 +260,24 @@ WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
 
 ### POST `/api/media/download-url`
 
-获取已上传附件的预签名 GET URL。需要 Bearer token，且用户拥有该 `object_key`。
+获取已上传附件的预签名 GET URL（5 分钟有效）。需要 Bearer token；用户须为附件 owner，或已链接消息的会话成员。
 
 请求：
 
 ```json
 {
   "object_key": "uploads/<user-id>/<uuid>"
+}
+```
+
+响应：
+
+```json
+{
+  "download_url": "https://...",
+  "object_key": "uploads/...",
+  "mime_type": "image/png",
+  "expires_in": 300
 }
 ```
 
@@ -365,6 +376,21 @@ WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
 - `GET /api/conversations/{id}/export`
 - `POST /api/conversations/{id}/archive` / `unarchive`
 - `GET /api/conversations/archived`
+
+`GET /api/conversations/archived` 响应：
+
+```json
+{
+  "archived": [
+    {
+      "conversation_id": "uuid",
+      "type": "group",
+      "title": "My group",
+      "archived_at": "2026-07-01T12:00:00Z"
+    }
+  ]
+}
+```
 
 ### Push / Payments / Ads / Recommendations
 

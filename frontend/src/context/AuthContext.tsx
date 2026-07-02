@@ -7,6 +7,7 @@ type AuthContextValue = {
   setToken: (t: string | null) => void;
   logout: () => void;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  refreshAccessToken: () => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -26,30 +27,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => setToken(null), [setToken]);
 
+  const refreshAccessToken = useCallback(async (): Promise<string | null> => {
+    const refresh = localStorage.getItem("echoline_refresh");
+    if (!refresh) return null;
+    try {
+      const pair = await refreshToken(refresh);
+      localStorage.setItem("echoline_token", pair.access_token);
+      localStorage.setItem("echoline_refresh", pair.refresh_token);
+      setTokenState(pair.access_token);
+      return pair.access_token;
+    } catch {
+      logout();
+      return null;
+    }
+  }, [logout]);
+
   const authFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     let access = token ?? localStorage.getItem("echoline_token");
     const headers = new Headers(init?.headers);
     if (access) headers.set("Authorization", `Bearer ${access}`);
     let res = await fetch(input, { ...init, headers });
     if (res.status === 401) {
-      const refresh = localStorage.getItem("echoline_refresh");
-      if (refresh) {
-        try {
-          const pair = await refreshToken(refresh);
-          localStorage.setItem("echoline_token", pair.access_token);
-          localStorage.setItem("echoline_refresh", pair.refresh_token);
-          setTokenState(pair.access_token);
-          headers.set("Authorization", `Bearer ${pair.access_token}`);
-          res = await fetch(input, { ...init, headers });
-        } catch {
-          logout();
-        }
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        headers.set("Authorization", `Bearer ${refreshed}`);
+        res = await fetch(input, { ...init, headers });
       }
     }
     return res;
-  }, [token, logout]);
+  }, [token, refreshAccessToken]);
 
-  const value = useMemo(() => ({ token, setToken, logout, authFetch }), [token, setToken, logout, authFetch]);
+  const value = useMemo(
+    () => ({ token, setToken, logout, authFetch, refreshAccessToken }),
+    [token, setToken, logout, authFetch, refreshAccessToken],
+  );
 
   useEffect(() => {
     bindAuthFetch(authFetch);

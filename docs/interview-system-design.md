@@ -164,7 +164,7 @@ Multi-device ACK aggregation: `conversation.read_at` is updated when any device 
 PostgreSQL `tsvector` full-text index on `messages.body`. Scoped to conversations the user is a member of. For larger scale, export to OpenSearch/Elasticsearch via the `message.created` Kafka event and a search indexing worker.
 
 **Q: How do you prevent spam?**
-Redis rate limiting per user per endpoint (login: 5/min, send: 60/min, register: 3/min). Account-level bans stored in Postgres. Content moderation via Kafka consumer with ML model (deferred).
+Redis rate limiting per user per endpoint (login: 5/min, register: 3/min, send: 60/min). Account-level bans stored in Postgres. Content moderation via Kafka consumer with ML model (deferred).
 
 **Q: What's the delivery guarantee?**
 At-least-once. The outbox worker retries on failure. The client deduplicates by `message_id`. The sync endpoint provides eventual delivery for offline clients.

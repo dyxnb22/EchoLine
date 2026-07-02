@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   addReaction,
+  ackMessage,
   adminListUsers,
   blockUser,
   connectWS,
@@ -19,6 +20,7 @@ import {
   markConversationRead,
   Message,
   Notification,
+  presignDownload,
   presignUpload,
   Reaction,
   recallMessage,
@@ -43,7 +45,7 @@ import { ThreadPanel } from "../components/ThreadPanel";
 import { useAuth } from "../context/AuthContext";
 
 export function ChatPage() {
-  const { token, logout } = useAuth();
+  const { token, logout, refreshAccessToken } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -203,7 +205,10 @@ export function ChatPage() {
 
   useEffect(() => {
     if (!token) return;
-    const conn = connectWS(token, deviceId, (payload) => {
+    const conn = connectWS(
+      () => localStorage.getItem("echoline_token") ?? token,
+      deviceId,
+      (payload) => {
       const env = payload as {
         type?: string;
         payload?: {
@@ -211,6 +216,7 @@ export function ChatPage() {
           seq?: number;
           body?: string;
           id?: string;
+          message_id?: string;
           sender_id?: string;
           user_id?: string;
         };
@@ -228,7 +234,31 @@ export function ChatPage() {
         if (uid) setTypingUsers((prev) => prev.filter((u) => u !== uid));
         return;
       }
+      if (env.type === "message.edited" && env.payload?.conversation_id === activeIdRef.current) {
+        const msgId = env.payload.message_id ?? env.payload.id;
+        if (msgId) {
+          setMessages((prev) => prev.map((m) => (
+            m.id === msgId ? { ...m, body: env.payload!.body ?? m.body } : m
+          )));
+        }
+        return;
+      }
+      if (env.type === "message.recalled" && env.payload?.conversation_id === activeIdRef.current) {
+        const msgId = env.payload.message_id ?? env.payload.id;
+        if (msgId) setMessages((prev) => prev.filter((m) => m.id !== msgId));
+        return;
+      }
       if (env.type !== "message.created") return;
+      const accessToken = localStorage.getItem("echoline_token");
+      if (accessToken && env.payload?.conversation_id && env.payload?.id && env.payload?.seq) {
+        ackMessage(
+          accessToken,
+          env.payload.conversation_id,
+          env.payload.id,
+          env.payload.seq,
+          deviceId,
+        ).catch(() => undefined);
+      }
       refreshConversations();
       if (env.payload?.conversation_id !== activeIdRef.current) return;
       setMessages((prev) => {
@@ -242,10 +272,10 @@ export function ChatPage() {
           sender_id: env.payload!.sender_id ?? "",
         }];
       });
-    }, setWsStatus, () => { void runSync(); });
+    }, setWsStatus, () => { void runSync(); }, refreshAccessToken);
     wsRef.current = conn;
     return () => conn.close();
-  }, [token, deviceId, runSync]);
+  }, [token, deviceId, runSync, refreshConversations, refreshAccessToken]);
 
   function emitTyping() {
     if (!activeId || !wsRef.current) return;
@@ -467,7 +497,8 @@ export function ChatPage() {
             ))}
           </div>
         )}
-        {showArchived && archived.length > 0 && (
+        {showArchived && (
+          archived.length > 0 ? (
           <ul className="archived-list">
             {archived.map((c) => (
               <li key={c.id}>
@@ -489,6 +520,7 @@ export function ChatPage() {
               </li>
             ))}
           </ul>
+          ) : <p className="hint">No archived conversations</p>
         )}
         <ul>
           {filtered.map((c) => (
@@ -510,6 +542,8 @@ export function ChatPage() {
               conversationId={activeId}
               conversationType={active.type}
               messageId={messages[messages.length - 1]?.id}
+              pinMessageId={pins[0]?.message_id}
+              isOwner={active.role === "owner"}
               onAction={refreshConversations}
             />
           )}
@@ -531,6 +565,17 @@ export function ChatPage() {
           {messages.map((m) => (
             <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""}`}>
               <strong>#{m.seq}</strong> {m.body}
+              {m.attachment && token && (
+                <button
+                  type="button"
+                  className="download-btn"
+                  onClick={() => presignDownload(token, m.attachment!.object_key)
+                    .then((d) => window.open(d.download_url, "_blank"))
+                    .catch((e) => setError(String(e)))}
+                >
+                  Download
+                </button>
+              )}
               {m.pending && <em> sending...</em>}
               {m.failed && <em> failed</em>}
               {(reactions[m.id] ?? []).length > 0 && (

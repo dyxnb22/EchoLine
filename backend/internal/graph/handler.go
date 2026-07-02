@@ -112,8 +112,9 @@ func (h *Handler) handleSendMessage(w http.ResponseWriter, r *http.Request, user
 		return
 	}
 	msg, err := h.messages.Send(r.Context(), convID, userID, message.SendInput{
-		Type: message.TypeText,
-		Body: body,
+		ClientMsgID: uuid.New().String(),
+		Type:        message.TypeText,
+		Body:        body,
 	})
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())

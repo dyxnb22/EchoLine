@@ -104,6 +104,29 @@ func (r *Repository) GetByObjectKey(ctx context.Context, ownerID uuid.UUID, obje
 	return att, nil
 }
 
+// GetAccessibleByObjectKey returns an attachment when the user owns it or is a member
+// of the conversation that contains the linked message.
+func (r *Repository) GetAccessibleByObjectKey(ctx context.Context, userID uuid.UUID, objectKey string) (*Attachment, error) {
+	const q = `
+		SELECT a.id, a.message_id, a.owner_id, a.object_key, a.mime_type, a.size_bytes, a.checksum, a.created_at
+		FROM attachments a
+		LEFT JOIN messages m ON m.id = a.message_id
+		LEFT JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = $1
+		WHERE a.object_key = $2
+		  AND (a.owner_id = $1 OR cm.user_id IS NOT NULL)
+		LIMIT 1
+	`
+	row := r.pool.QueryRow(ctx, q, userID, objectKey)
+	att, err := scanAttachment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAttachmentNotFound
+		}
+		return nil, err
+	}
+	return att, nil
+}
+
 // LinkToMessageInTx associates a pending attachment with a message.
 func (r *Repository) LinkToMessageInTx(ctx context.Context, tx execer, attachmentID, messageID uuid.UUID) error {
 	const q = `

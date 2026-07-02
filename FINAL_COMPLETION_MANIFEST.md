@@ -61,6 +61,9 @@ make dev-up && make dev-app && make smoke-full
 2. Search index async via worker — integration test does not assert search hits
 3. E2EE is demo XOR only — not production crypto
 4. Microservices remain design prototypes — monolith is source of truth
+5. Full-stack Playwright requires local compose — see `frontend/e2e/integration.spec.ts`
+6. OpenAPI body schemas remain stubs for most endpoints — see `docs/api.md` for canonical shapes
+7. Payment ledger is prototype self-settle — production needs PSP webhook
 
 ## Interview narrative
 

@@ -52,7 +52,7 @@ For production, use a 256-bit random secret: `openssl rand -base64 32`. Document
 
 **Observation**: MinIO presigned download URLs are time-limited but do not enforce conversation membership after generation. If Alice shares a download URL with Carol (who is not a member), Carol can download the file.
 
-**Recommendation**: Two options:
+**Status (2026-07-02):** Partially addressed — `GetAccessibleByObjectKey` checks conversation membership; presign expiry reduced to 5 minutes; frontend download UI added. URL sharing outside membership window remains a residual risk (Option 2 mitigation).
 1. **URL signing**: Sign the download URL with `user_id` and validate on each access (requires a proxy layer in front of MinIO).
 2. **Short expiry**: Use a 5-minute presign expiry, so URLs are useless after the user's session ends. Currently implemented with 1-hour expiry — consider reducing.
 3. **Membership re-check in download endpoint**: Create a proxy endpoint `GET /api/media/{attachment_id}/download` that checks membership and redirects to a freshly generated presigned URL.

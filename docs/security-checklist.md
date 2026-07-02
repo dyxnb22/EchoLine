@@ -7,12 +7,12 @@ This checklist covers the security controls implemented or planned in EchoLine, 
 ## Authentication and Authorization
 
 - [x] **Password hashing**: bcrypt with cost 12. Never store or log plaintext passwords.
-- [x] **JWT access tokens**: HS256, 15-minute expiry. Secret via `JWT_SECRET` env var (not hardcoded).
+- [x] **JWT access tokens**: HS256, 15-minute expiry. Secret via `JWT_SECRET` env var (min 32 chars enforced at startup).
 - [x] **Refresh tokens**: Stored in DB with expiry; revocable.
 - [x] **JWT middleware**: All protected routes require `Authorization: Bearer <token>`.
 - [x] **Membership check**: Every message send, read, and search verifies the requesting user is a member of the target conversation.
 - [x] **Group role checks**: Group kick/invite/promote requires owner or admin role.
-- [x] **Channel entitlement RBAC**: owner sets paid flag; admin grants; payment settle auto-grants (ADR 0030).
+- [x] **Channel entitlement RBAC**: owner sets paid flag; admin grants; payment settle auto-grants only when channel `requires_entitlement=true` (ADR 0030).
 - [ ] **JWT rotation**: Implement JWKS endpoint for key rotation without service restart.
 - [ ] **Token binding**: Bind refresh token to device fingerprint to prevent refresh token theft.
 
@@ -21,7 +21,7 @@ This checklist covers the security controls implemented or planned in EchoLine, 
 ## Rate Limiting
 
 - [x] **Login rate limit**: 5 attempts per IP per minute (Redis sliding window).
-- [x] **Register rate limit**: 3 attempts per IP per 10 minutes.
+- [x] **Register rate limit**: 3 attempts per IP per minute (Redis sliding window).
 - [x] **Message send rate limit**: 60 messages per user per minute.
 - [ ] **WS connection rate limit**: Limit new WS connections per IP per second to prevent connection floods.
 - [ ] **API global rate limit**: Per-IP rate limit on all endpoints to prevent DDoS amplification.

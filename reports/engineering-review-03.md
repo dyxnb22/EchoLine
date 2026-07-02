@@ -48,9 +48,9 @@ Third-pass review building on #02: complete frontend HTTP migration, deepen mess
 
 ## Remaining gaps (documented)
 
-- `conversation/handler` still uses legacy `writeError` (auth package pattern) — low risk, separate refactor
 - GraphQL prototype without schema codegen
 - Full stack smoke requires Docker
+- OpenAPI per-endpoint body schemas (partial — key endpoints in `docs/api.md`)
 
 ## Verification
 

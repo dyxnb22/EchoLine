@@ -23,7 +23,7 @@ Access: user clicks **Admin** in chat header; backend returns `403` if not in `A
 | `GET` | `/api/admin/reports` | List abuse reports |
 | `GET` | `/api/admin/dlq` | List dead letter events (`dead_letters` key) |
 | `POST` | `/api/admin/dlq/{id}/replay` | Re-queue event into outbox |
-| `GET` | `/api/admin/health` | Health skeleton (any authenticated user) |
+| `GET` | `/api/admin/health` | Health check (admin only) |
 | `GET` | `/api/admin/audit-logs` | Audit log list (admin only) |
 
 ## Planned (not yet in UI)

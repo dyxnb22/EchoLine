@@ -2,6 +2,24 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Audit issue remediation (31 items)
+
+任务：10 轮审计发现的 P0–P3 问题全部修复。
+
+P0：archived 列表契约（frontend `listArchived` + e2e）。
+
+P1：media download 成员校验 + 5min presign；WS reconnect JWT refresh；message.edited/recalled/ack；sync has_more 循环；GraphQL client_msg_id；owner 付费频道 UI；payment settle 需 requires_entitlement。
+
+P2：unsubscribe/unpin/mute/unblock UI；admin health RBAC；ads list 成员校验；JWT min 32；register 3/min；文档同步。
+
+P3：integration.spec.ts placeholder；manifest/CURRENT_STATE 更新。
+
+测试：go test ./... + npm run build 通过。
+
+阻塞：云 VM Playwright 浏览器需 `npx playwright install`。
+
+下一步：本地 make smoke-full + 全栈 integration.spec 实现。
+
 ## 2026-07-02 Full audit fix Phases 0–4
 
 任务：全量审计修复计划 Phase 0–4 实施。

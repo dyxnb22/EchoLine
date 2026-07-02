@@ -1,14 +1,13 @@
 # Current State
 
-Current phase: **Full audit fix — Phases 0–4 complete**.
+Current phase: **Audit issue remediation complete (31 items)**.
 
 Last session highlights:
 
-- **P0:** thread/forward via `message.Service`; RBAC on export/reaction/thread/forward/ads; frontend typing/sync/composer fixes
-- **P1:** paid channel UI flow; DLQ replay requeue; reaction idempotent; apierror envelope; device WS touch; composite admin RBAC; fanout pagination; create-conversation modal
-- **P2:** WS buffer 256 + drop metric; outbox publisher fix; sync `has_more`; client_msg_id UUID required; Kafka consumer in worker; outbox cleanup job; edit/recall outbox
-- **P3:** integration RBAC tests; CI worker job; dual-client WS unit test; Playwright extended smoke
-- **P4:** admin-panel.md, business-flows, websocket-protocol alignment
+- P0: archived list API contract fixed (frontend + e2e)
+- P1: media download membership check + UI; WS JWT refresh; edit/recall/ack handlers; sync has_more loop; GraphQL client_msg_id; owner paid channel UI; payment settle validation
+- P2: unsubscribe/unpin/mute/unblock UI; admin health RBAC; ads list membership; JWT min length; register rate limit; doc sync
+- P3: integration.spec.ts placeholder; manifest residual notes updated
 
 Tests:
 

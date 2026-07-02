@@ -14,9 +14,19 @@ func TestLoadMissingRequired(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsShortJWTSecret(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db?sslmode=disable")
+	t.Setenv("JWT_SECRET", "short")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for short JWT_SECRET")
+	}
+}
+
 func TestLoadSuccess(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db?sslmode=disable")
-	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("JWT_SECRET", "test-secret-with-at-least-32-characters-long")
 	t.Setenv("HTTP_ADDR", ":9090")
 
 	cfg, err := Load()

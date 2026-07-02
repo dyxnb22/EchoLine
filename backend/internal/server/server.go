@@ -85,7 +85,7 @@ func (s *Server) Handler() http.Handler {
 	adminMW := func(h http.Handler) http.Handler {
 		return admin.RequireAdmin(s.auth, s.adminChecker, h)
 	}
-	mux.Handle("GET /api/admin/health", auth.RequireAuth(s.auth, http.HandlerFunc(s.adminHandler.HandleHealth)))
+	mux.Handle("GET /api/admin/health", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleHealth))))
 	mux.Handle("GET /api/admin/users", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleListUsers))))
 	mux.Handle("GET /api/admin/reports", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleListReports))))
 	mux.Handle("GET /api/admin/audit-logs", auth.RequireAuth(s.auth, adminMW(http.HandlerFunc(s.adminHandler.HandleListAuditLogs))))

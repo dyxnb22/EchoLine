@@ -126,11 +126,12 @@ func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uu
 type Handler struct {
 	repo    *Repository
 	owners  *conversation.OwnerChecker
+	members *conversation.Repository
 }
 
 // NewHandler creates an ads handler.
-func NewHandler(repo *Repository, owners *conversation.OwnerChecker) *Handler {
-	return &Handler{repo: repo, owners: owners}
+func NewHandler(repo *Repository, owners *conversation.OwnerChecker, members *conversation.Repository) *Handler {
+	return &Handler{repo: repo, owners: owners, members: members}
 }
 
 // HandleCreate creates a campaign.
@@ -174,7 +175,7 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 // HandleList lists campaigns for a channel.
 // GET /api/channels/{channel_id}/campaigns
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.ClaimsFromContext(r.Context())
+	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
@@ -184,6 +185,14 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid channel_id")
 		return
+	}
+
+	if h.members != nil {
+		member, err := h.members.IsMember(r.Context(), channelID, claims.UserID)
+		if err != nil || !member {
+			apierror.Write(w, r, http.StatusForbidden, "forbidden", "channel membership required")
+			return
+		}
 	}
 
 	campaigns, err := h.repo.List(r.Context(), channelID)

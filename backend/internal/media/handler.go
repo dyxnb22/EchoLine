@@ -88,7 +88,7 @@ func (h *Handler) HandlePresignDownload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	att, err := h.attachments.GetByObjectKey(r.Context(), claims.UserID, req.ObjectKey)
+	att, err := h.attachments.GetAccessibleByObjectKey(r.Context(), claims.UserID, req.ObjectKey)
 	if err != nil {
 		apierror.Write(w, r, http.StatusForbidden, "forbidden", "attachment not accessible")
 		return
@@ -104,6 +104,6 @@ func (h *Handler) HandlePresignDownload(w http.ResponseWriter, r *http.Request) 
 		"download_url": downloadURL,
 		"object_key":   att.ObjectKey,
 		"mime_type":    att.MimeType,
-		"expires_in":   900,
+		"expires_in":   300,
 	})
 }

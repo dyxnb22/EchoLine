@@ -165,9 +165,10 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		payment:        func() *payment.Handler {
 			ph := payment.NewHandler(payment.NewRepository(pool))
 			ph.SetEntitlementGranter(entitlementRepo)
+			ph.SetPaidChannelChecker(entitlementRepo)
 			return ph
 		}(),
-		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo)),
+		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo), convRepo),
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
 		encryption:     encryption.NewHandler(encryption.NewRepository(pool)),
@@ -245,10 +246,12 @@ func (s *Server) MemoryBus() *eventbus.MemoryPublisher {
 
 // applyRateLimits wraps handlers with Redis rate limiting when configured.
 func (s *Server) applyRateLimits(mux *http.ServeMux) {
-	loginMW := rate_limit.Middleware(s.limiter, "login", 20, time.Minute, rate_limit.IPKey)
+	loginMW := rate_limit.Middleware(s.limiter, "login", 5, time.Minute, rate_limit.IPKey)
+	registerMW := rate_limit.Middleware(s.limiter, "register", 3, time.Minute, rate_limit.IPKey)
 	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
 
 	mux.Handle("POST /api/auth/login", loginMW(http.HandlerFunc(s.auth.HandleLogin)))
+	mux.Handle("POST /api/auth/register", registerMW(http.HandlerFunc(s.auth.HandleRegister)))
 	mux.Handle(
 		"POST /api/conversations/{id}/messages",
 		auth.RequireAuth(s.auth, convSendMW(http.HandlerFunc(s.msg.HandleSend))),

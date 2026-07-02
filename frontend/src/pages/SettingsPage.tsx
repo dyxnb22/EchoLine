@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { registerPushToken } from "../api";
+import { listBlocks, registerPushToken, unblockUser } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { registerDeviceKey } from "../lib/e2ee";
 
@@ -8,7 +8,13 @@ export function SettingsPage() {
   const { token } = useAuth();
   const [pushToken, setPushToken] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [blocks, setBlocks] = useState<{ blocked_id: string }[]>([]);
   const deviceId = localStorage.getItem("echoline_device") ?? "web";
+
+  useEffect(() => {
+    if (!token) return;
+    listBlocks(token).then(setBlocks).catch(() => setBlocks([]));
+  }, [token]);
 
   if (!token) return null;
 
@@ -34,6 +40,25 @@ export function SettingsPage() {
         >
           Register device public key
         </button>
+      </section>
+      <section>
+        <h3>Blocked users</h3>
+        {blocks.length === 0 && <p className="hint">No blocked users</p>}
+        <ul>
+          {blocks.map((b) => (
+            <li key={b.blocked_id}>
+              {b.blocked_id.slice(0, 8)}…
+              <button
+                type="button"
+                onClick={() => unblockUser(token, b.blocked_id)
+                  .then(() => listBlocks(token).then(setBlocks))
+                  .catch((e) => setMsg(String(e)))}
+              >
+                Unblock
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
       {msg && <p className="hint">{msg}</p>}
     </main>

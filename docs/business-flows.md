@@ -68,6 +68,7 @@ sequenceDiagram
   Ent-->>API: payment_required (402)
 
   User->>Pay: POST /payments/ledger (reference channel:{id})
+  Note over Pay: channel must have requires_entitlement=true
   User->>Pay: POST /payments/ledger/settle
   Pay->>Ent: Grant(user, channel)
 

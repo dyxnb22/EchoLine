@@ -109,10 +109,16 @@ type EntitlementGranter interface {
 	Grant(ctx context.Context, userID, channelID uuid.UUID, reference string) error
 }
 
+// PaidChannelChecker validates paid-channel payment references.
+type PaidChannelChecker interface {
+	RequiresEntitlement(ctx context.Context, channelID uuid.UUID) (bool, error)
+}
+
 // Handler exposes payment ledger REST endpoints.
 type Handler struct {
 	repo         *Repository
 	entitlements EntitlementGranter
+	paidChannels PaidChannelChecker
 }
 
 // NewHandler creates a payment handler.
@@ -123,6 +129,32 @@ func NewHandler(repo *Repository) *Handler {
 // SetEntitlementGranter enables auto-grant on settle for channel references.
 func (h *Handler) SetEntitlementGranter(g EntitlementGranter) {
 	h.entitlements = g
+}
+
+// SetPaidChannelChecker validates channel payment references.
+func (h *Handler) SetPaidChannelChecker(c PaidChannelChecker) {
+	h.paidChannels = c
+}
+
+func (h *Handler) validateChannelPaymentRef(ctx context.Context, reference string) (uuid.UUID, error) {
+	if !strings.HasPrefix(reference, "channel:") {
+		return uuid.Nil, nil
+	}
+	channelID, err := uuid.Parse(strings.TrimPrefix(reference, "channel:"))
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid channel reference")
+	}
+	if h.paidChannels == nil {
+		return channelID, nil
+	}
+	required, err := h.paidChannels.RequiresEntitlement(ctx, channelID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !required {
+		return uuid.Nil, fmt.Errorf("channel does not require payment")
+	}
+	return channelID, nil
 }
 
 // HandleCreate creates a ledger entry (skeleton).
@@ -145,6 +177,11 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Currency == "" {
 		req.Currency = "USD"
+	}
+
+	if _, err := h.validateChannelPaymentRef(r.Context(), req.Reference); err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+		return
 	}
 
 	entry, err := h.repo.Create(r.Context(), claims.UserID, req.AmountCents, req.Currency, "pending", req.Reference)
@@ -196,16 +233,20 @@ func (h *Handler) HandleSettle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	channelID, err := h.validateChannelPaymentRef(r.Context(), req.Reference)
+	if err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+
 	entry, err := h.repo.Settle(r.Context(), claims.UserID, req.Reference)
 	if err != nil {
 		apierror.Write(w, r, http.StatusNotFound, "not_found", "pending entry not found")
 		return
 	}
 
-	if h.entitlements != nil && strings.HasPrefix(req.Reference, "channel:") {
-		if channelID, err := uuid.Parse(strings.TrimPrefix(req.Reference, "channel:")); err == nil {
-			_ = h.entitlements.Grant(r.Context(), claims.UserID, channelID, req.Reference)
-		}
+	if h.entitlements != nil && channelID != uuid.Nil {
+		_ = h.entitlements.Grant(r.Context(), claims.UserID, channelID, req.Reference)
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, ledgerPayload(entry))
