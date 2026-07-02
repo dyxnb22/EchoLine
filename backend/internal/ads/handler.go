@@ -89,11 +89,30 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status stri
 	return &c, nil
 }
 
+// EnsureCampaignChannel verifies a campaign belongs to the given channel.
+func (r *Repository) EnsureCampaignChannel(ctx context.Context, campaignID, channelID uuid.UUID) error {
+	const q = `SELECT channel_id FROM ad_campaigns WHERE id = $1`
+	var got uuid.UUID
+	if err := r.pool.QueryRow(ctx, q, campaignID).Scan(&got); err != nil {
+		return fmt.Errorf("campaign not found: %w", err)
+	}
+	if got != channelID {
+		return fmt.Errorf("campaign channel mismatch")
+	}
+	return nil
+}
+
 // RecordImpression records an ad impression with frequency cap enforcement.
 func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uuid.UUID) (bool, error) {
-	const capQ = `SELECT frequency_cap FROM ad_campaigns WHERE id = $1`
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	const capQ = `SELECT frequency_cap FROM ad_campaigns WHERE id = $1 FOR UPDATE`
 	var cap int
-	if err := r.pool.QueryRow(ctx, capQ, campaignID).Scan(&cap); err != nil {
+	if err := tx.QueryRow(ctx, capQ, campaignID).Scan(&cap); err != nil {
 		return false, fmt.Errorf("get frequency cap: %w", err)
 	}
 	if cap <= 0 {
@@ -105,7 +124,7 @@ func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uu
 		WHERE campaign_id = $1 AND user_id = $2 AND impression_day = CURRENT_DATE
 	`
 	var count int
-	if err := r.pool.QueryRow(ctx, countQ, campaignID, userID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, countQ, campaignID, userID).Scan(&count); err != nil {
 		return false, fmt.Errorf("count impressions: %w", err)
 	}
 	if count >= cap {
@@ -116,21 +135,25 @@ func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uu
 		INSERT INTO ad_impressions (id, campaign_id, user_id, created_at, impression_day)
 		VALUES (gen_random_uuid(), $1, $2, NOW(), CURRENT_DATE)
 	`
-	if _, err := r.pool.Exec(ctx, insQ, campaignID, userID); err != nil {
+	if _, err := tx.Exec(ctx, insQ, campaignID, userID); err != nil {
 		return false, fmt.Errorf("record impression: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("commit impression: %w", err)
 	}
 	return true, nil
 }
 
 // Handler exposes ad campaign REST endpoints.
 type Handler struct {
-	repo    *Repository
-	owners  *conversation.OwnerChecker
+	repo          *Repository
+	owners        *conversation.OwnerChecker
+	conversations *conversation.Repository
 }
 
 // NewHandler creates an ads handler.
-func NewHandler(repo *Repository, owners *conversation.OwnerChecker) *Handler {
-	return &Handler{repo: repo, owners: owners}
+func NewHandler(repo *Repository, owners *conversation.OwnerChecker, conversations *conversation.Repository) *Handler {
+	return &Handler{repo: repo, owners: owners, conversations: conversations}
 }
 
 // HandleCreate creates a campaign.
@@ -171,10 +194,19 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	apierror.WriteJSON(w, http.StatusCreated, campaignPayload(campaign))
 }
 
+func (h *Handler) requireChannelMember(w http.ResponseWriter, r *http.Request, channelID, userID uuid.UUID) bool {
+	member, err := h.conversations.IsMember(r.Context(), channelID, userID)
+	if err != nil || !member {
+		apierror.Write(w, r, http.StatusForbidden, "forbidden", "channel membership required")
+		return false
+	}
+	return true
+}
+
 // HandleList lists campaigns for a channel.
 // GET /api/channels/{channel_id}/campaigns
 func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.ClaimsFromContext(r.Context())
+	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
@@ -183,6 +215,9 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	channelID, err := parseChannelID(r.URL.Path)
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid channel_id")
+		return
+	}
+	if !h.requireChannelMember(w, r, channelID, claims.UserID) {
 		return
 	}
 
@@ -209,9 +244,22 @@ func (h *Handler) HandleRecordImpression(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	channelID, err := parseChannelID(r.URL.Path)
+	if err != nil {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid channel_id")
+		return
+	}
+	if !h.requireChannelMember(w, r, channelID, claims.UserID) {
+		return
+	}
+
 	campaignID, err := parseCampaignID(r.URL.Path)
 	if err != nil {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid campaign_id")
+		return
+	}
+	if err := h.repo.EnsureCampaignChannel(r.Context(), campaignID, channelID); err != nil {
+		apierror.Write(w, r, http.StatusNotFound, "not_found", "campaign not found for channel")
 		return
 	}
 

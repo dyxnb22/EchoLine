@@ -3,7 +3,9 @@ package rate_limit
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -60,16 +62,15 @@ func Middleware(limiter Limiter, keyPrefix string, limit int64, window time.Dura
 
 // IPKey returns client IP for rate limiting.
 func IPKey(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return xff
-	}
-	host := r.RemoteAddr
-	if i := len(host) - 1; i >= 0 {
-		for j := len(host) - 1; j >= 0; j-- {
-			if host[j] == ':' {
-				return host[:j]
-			}
+	if strings.EqualFold(os.Getenv("TRUSTED_PROXY"), "true") {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			return strings.TrimSpace(parts[0])
 		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
 	}
 	return host
 }

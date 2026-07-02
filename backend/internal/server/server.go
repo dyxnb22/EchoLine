@@ -28,7 +28,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
-	mux.Handle("GET /metrics", metrics.Handler())
+	mux.Handle("GET /metrics", metrics.ProtectedHandler(s.cfg.MetricsToken))
 	mux.HandleFunc("POST /api/auth/register", s.auth.HandleRegister)
 	mux.HandleFunc("POST /api/auth/refresh", s.auth.HandleRefresh)
 	mux.Handle("GET /api/me", auth.RequireAuth(s.auth, http.HandlerFunc(s.handleMe)))
@@ -135,9 +135,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/channels/{channel_id}/campaigns", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleList)))
 	mux.Handle("POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions", auth.RequireAuth(s.auth, http.HandlerFunc(s.ads.HandleRecordImpression)))
 
-	// GraphQL prototype
+	// GraphQL prototype (POST registered in applyRateLimits with rate limit)
 	if s.graph != nil {
-		mux.Handle("POST /graphql", auth.RequireAuth(s.auth, http.HandlerFunc(s.graph.HandleGraphQL)))
 		mux.Handle("GET /graphql", auth.RequireAuth(s.auth, http.HandlerFunc(s.graph.HandleGraphQL)))
 	}
 

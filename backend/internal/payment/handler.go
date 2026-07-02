@@ -156,6 +156,10 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		apierror.Write(w, r, http.StatusForbidden, "payment_self_serve_disabled", "payment ledger create is disabled; use a trusted payment webhook")
 		return
 	}
+	if req.AmountCents <= 0 {
+		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "amount_cents must be positive")
+		return
+	}
 
 	entry, err := h.repo.Create(r.Context(), claims.UserID, req.AmountCents, req.Currency, "pending", req.Reference)
 	if err != nil {

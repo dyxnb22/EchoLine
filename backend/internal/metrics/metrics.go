@@ -59,6 +59,22 @@ func Handler() http.Handler {
 	return promhttp.Handler()
 }
 
+// ProtectedHandler returns a Prometheus handler optionally gated by bearer token.
+func ProtectedHandler(token string) http.Handler {
+	base := promhttp.Handler()
+	if token == "" {
+		return base
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer "+token {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		base.ServeHTTP(w, r)
+	})
+}
+
 // ObserveMessageSend records send latency.
 func ObserveMessageSend(start time.Time) {
 	MessageSendLatency.Observe(time.Since(start).Seconds())

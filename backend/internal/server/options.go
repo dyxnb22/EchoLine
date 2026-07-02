@@ -77,7 +77,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	memBus := eventbus.NewMemoryPublisher(256)
 
 	var presenceTracker realtime.PresenceTracker
-	var limiter rate_limit.Limiter
+	var limiter rate_limit.Limiter = rate_limit.NewMemoryLimiter()
 	var listCache *cache.ConversationListCache
 	var presenceChecker *presence.RedisOnlineChecker
 	var lastSeenStore *presence.LastSeenStore
@@ -125,7 +125,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	deviceRepo := device.NewRepository(pool)
 	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
 	graphHandler.SetMessageSender(msgSvc)
-	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool)))
+	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool), convRepo, msgRepo))
 
 	rt.SetDeviceTracker(deviceRepo)
 
@@ -168,7 +168,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 			ph.SetSelfServe(cfg.PaymentSelfServe)
 			return ph
 		}(),
-		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo)),
+		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo), convRepo),
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
 		encryption:     encryption.NewHandler(encryption.NewRepository(pool)),
@@ -244,14 +244,21 @@ func (s *Server) MemoryBus() *eventbus.MemoryPublisher {
 	return s.memBus
 }
 
-// applyRateLimits wraps handlers with Redis rate limiting when configured.
+// applyRateLimits wraps handlers with rate limiting (Redis when configured, in-memory fallback).
 func (s *Server) applyRateLimits(mux *http.ServeMux) {
 	loginMW := rate_limit.Middleware(s.limiter, "login", 20, time.Minute, rate_limit.IPKey)
 	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
+	graphqlSendMW := rate_limit.Middleware(s.limiter, "graphql_send", 60, time.Minute, rate_limit.AuthUserKey)
 
 	mux.Handle("POST /api/auth/login", loginMW(http.HandlerFunc(s.auth.HandleLogin)))
 	mux.Handle(
 		"POST /api/conversations/{id}/messages",
 		auth.RequireAuth(s.auth, convSendMW(http.HandlerFunc(s.msg.HandleSend))),
 	)
+	if s.graph != nil {
+		mux.Handle(
+			"POST /graphql",
+			auth.RequireAuth(s.auth, graphqlSendMW(http.HandlerFunc(s.graph.HandleGraphQL))),
+		)
+	}
 }
