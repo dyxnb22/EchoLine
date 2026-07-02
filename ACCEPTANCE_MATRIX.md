@@ -21,6 +21,7 @@
 | Phase 4 | partial | 群聊、频道、presence、多端 | role/presence tests | architecture、data-model |
 | Phase 5 | partial | 幂等、ACK、重试、去重、顺序性 | reliability tests | reliability ADR |
 | Phase 6 | partial | Redis、MQ、worker、异步化 | eventbus tests | cache/MQ ADR |
+| Phase 7 | partial | 附件、搜索、通知 | media/search tests | api、scaling |
 | Phase 8 | partial | 限流、审计、监控、风控 | limiter/audit/metrics tests | observability notes |
 | Phase 9 | todo | 测试、压测、报告、面试讲稿 | CI + k6 | load test reports |
 | Phase 10 | todo | 增强项和探索项 | prototype tests | scaling/research reports |
@@ -45,13 +46,13 @@
 | MQ worker | partial | outbox drainer + Kafka/memory publish |
 | 附件 | partial | 预签名上传、元数据入库、附件消息发送 |
 | 搜索 | partial | PostgreSQL tsvector + 成员权限过滤 |
-| 通知 | todo | 异步通知事件不阻塞主链路 |
+| 通知 | partial | in-app notifications + push skeleton |
 | 限流 | partial | 登录、全局发消息、会话级 conv_send 限流（需 REDIS_ADDR） |
-| 风控 | todo | 高频、重复内容基础规则 |
+| 风控 | partial | 重复内容 spam checker |
 | 审计 | partial | audit_logs + 登录/撤回审计 |
 | 可观测性 | partial | trace_id、Prometheus /metrics、WS/发送延迟指标 |
-| 压测 | todo | k6 脚本和报告 |
-| chaos | todo | Redis/MQ 故障演练 |
+| 压测 | partial | k6 脚本（CI dry-run） |
+| chaos | partial | Redis/MQ 故障演练脚本 |
 | 前端 | partial | 登录、聊天、分页、WS、乐观发送、附件、搜索 |
 | 移动/桌面原型 | todo | PWA 或原型 ADR |
 
@@ -64,4 +65,3 @@
 3. 相关文档更新。
 4. `PROGRESS_LOG.md` 有记录。
 5. 如涉及架构取舍，已有 ADR 或 `DECISIONS.md` 记录。
-
