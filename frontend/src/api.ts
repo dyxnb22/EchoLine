@@ -27,6 +27,7 @@ export type Message = {
   seq: number;
   sender_id: string;
   type?: string;
+  status?: string;
   pending?: boolean;
   failed?: boolean;
   client_msg_id?: string;
@@ -190,7 +191,7 @@ export async function sendMessage(
   body: string,
   attachmentObjectKey?: string,
   clientMsgId?: string,
-): Promise<void> {
+): Promise<Message> {
   const msgId = clientMsgId ?? crypto.randomUUID();
   const payload: Record<string, unknown> = {
     type: attachmentObjectKey ? "file" : "text",
@@ -200,7 +201,7 @@ export async function sendMessage(
   if (attachmentObjectKey) {
     payload.attachment = { object_key: attachmentObjectKey };
   }
-  await authedVoid(token, `/api/conversations/${conversationId}/messages`, {
+  return authedJSON<Message>(token, `/api/conversations/${conversationId}/messages`, {
     method: "POST",
     body: JSON.stringify(payload),
   }, "send failed");
@@ -422,7 +423,7 @@ export async function grantChannelEntitlement(
 }
 
 export function connectWS(
-  token: string,
+  getToken: () => string,
   deviceId: string,
   onMessage: (data: unknown) => void,
   onStatus?: (status: WSStatus) => void,
@@ -435,7 +436,11 @@ export function connectWS(
 
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
   const host = window.location.host;
-  const url = `${proto}://${host}/ws?token=${encodeURIComponent(token)}&device_id=${encodeURIComponent(deviceId)}`;
+
+  function wsURL() {
+    const token = getToken();
+    return `${proto}://${host}/ws?token=${encodeURIComponent(token)}&device_id=${encodeURIComponent(deviceId)}`;
+  }
 
   function scheduleReconnect() {
     if (closed) return;
@@ -447,7 +452,7 @@ export function connectWS(
   function connect() {
     if (closed) return;
     onStatus?.("connecting");
-    ws = new WebSocket(url);
+    ws = new WebSocket(wsURL());
     ws.onopen = () => {
       attempt = 0;
       onStatus?.("open");

@@ -44,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch {
           logout();
         }
+      } else {
+        logout();
       }
     }
     return res;

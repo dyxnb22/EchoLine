@@ -100,7 +100,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	var mediaHandler *media.Handler
 	if cfg.S3Endpoint != "" {
 		if mediaClient, err := media.NewClient(cfg); err == nil {
-			mediaHandler = media.NewHandler(mediaClient, attachmentRepo)
+			mediaHandler = media.NewHandler(mediaClient, attachmentRepo, convRepo)
 		} else {
 			logger.Warn("media client unavailable", "error", err)
 		}
@@ -138,7 +138,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		msg:            msgHandler,
 		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo),
 		search:         searchHandler,
-		delivery:       delivery.NewHandler(deliveryRepo, convRepo),
+		delivery:       delivery.NewHandler(deliveryRepo, convRepo, msgRepo),
 		realtime:       rt,
 		limiter:        limiter,
 		memBus:         memBus,

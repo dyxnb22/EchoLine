@@ -72,23 +72,21 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Client-provided last_seq is authoritative. Server-side device cursors are
+		// only written after a full catch-up page (!has_more) to avoid skipping
+		// messages when the client retries mid-pagination.
 		lastSeq := c.LastSeq
-		if h.cursors != nil && req.DeviceID != "" {
-			stored, err := h.cursors.ListForDevice(r.Context(), claims.UserID, req.DeviceID)
-			if err == nil {
-				if seq, ok := stored[convID]; ok && seq > lastSeq {
-					lastSeq = seq
-				}
-			}
-		}
 
-		msgs, err := h.messages.ListSince(r.Context(), convID, lastSeq, pageSize)
+		msgs, err := h.messages.ListSince(r.Context(), convID, lastSeq, pageSize+1)
 		if err != nil {
 			apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to sync messages")
 			return
 		}
 
-		hasMore := len(msgs) >= pageSize
+		hasMore, _ := paginationMeta(len(msgs), pageSize)
+		if hasMore {
+			msgs = msgs[:pageSize]
+		}
 
 		state, err := h.conversations.GetMemberState(r.Context(), convID, claims.UserID)
 		if err != nil {
@@ -105,7 +103,7 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if h.cursors != nil && req.DeviceID != "" && maxSeq > lastSeq {
+		if h.cursors != nil && req.DeviceID != "" && maxSeq > lastSeq && !hasMore {
 			_ = h.cursors.Upsert(r.Context(), claims.UserID, req.DeviceID, convID, maxSeq)
 		}
 

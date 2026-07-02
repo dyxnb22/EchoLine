@@ -2,6 +2,18 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Deep review quality iteration (2 rounds)
+
+任务：深度代码审查 + 修复直至 P3 以下。
+
+修复：sync 游标/has_more、幂等发送、附件成员下载、outbox processing claim、ACK 校验、前端 sync 分页/402/WS 刷新/去重/已读、缓存 can_publish、admin health RBAC。
+
+测试：go test ./... + npm run build 通过。
+
+阻塞：make smoke-full（无 Docker）。
+
+下一步：本地 smoke-full；可选 outbox processing reaper。
+
 ## 2026-07-02 Full audit fix Phases 0–4
 
 任务：全量审计修复计划 Phase 0–4 实施。

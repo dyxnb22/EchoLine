@@ -13,11 +13,13 @@ const convListTTL = 30 * time.Second
 
 // ConversationSummary is a cached conversation list item.
 type ConversationSummary struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	Title     string `json:"title"`
-	Unread    int64  `json:"unread"`
-	LatestSeq int64  `json:"latest_seq"`
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Title       string `json:"title"`
+	Unread      int64  `json:"unread"`
+	LatestSeq   int64  `json:"latest_seq"`
+	Role        string `json:"role,omitempty"`
+	CanPublish  bool   `json:"can_publish"`
 }
 
 // ConversationListCache caches per-user conversation summaries in Redis.

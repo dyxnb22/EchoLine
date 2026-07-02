@@ -1,11 +1,14 @@
 import { useState } from "react";
 import {
   archiveConversation,
+  createPaymentLedger,
   exportConversation,
   forwardMessage,
   pinMessage,
+  settlePaymentLedger,
   subscribeChannel,
 } from "../api";
+import { isPaymentRequired } from "../api/http";
 
 type Props = {
   token: string;
@@ -36,7 +39,20 @@ export function ConversationActions({ token, conversationId, conversationType, m
   return (
     <div className="conv-actions">
       {conversationType === "channel" && (
-        <button type="button" disabled={busy} onClick={() => run(() => subscribeChannel(token, conversationId))}>
+        <button type="button" disabled={busy} onClick={() => run(async () => {
+          try {
+            await subscribeChannel(token, conversationId);
+          } catch (err) {
+            if (isPaymentRequired(err)) {
+              const reference = `channel:${conversationId}`;
+              await createPaymentLedger(token, 999, reference);
+              await settlePaymentLedger(token, reference);
+              await subscribeChannel(token, conversationId);
+              return;
+            }
+            throw err;
+          }
+        })}>
           Subscribe
         </button>
       )}

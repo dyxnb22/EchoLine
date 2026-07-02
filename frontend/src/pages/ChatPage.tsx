@@ -40,6 +40,7 @@ import { ConversationActions } from "../components/ConversationActions";
 import { GroupSettings } from "../components/GroupSettings";
 import { NotificationPanel } from "../components/NotificationPanel";
 import { ThreadPanel } from "../components/ThreadPanel";
+import { isPaymentRequired } from "../api/http";
 import { useAuth } from "../context/AuthContext";
 
 export function ChatPage() {
@@ -73,6 +74,7 @@ export function ChatPage() {
   const wsRef = useRef<{ close: () => void; send: (p: unknown) => void } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const seqCursorsRef = useRef<Record<string, number>>({});
+  const pendingSearchSeqRef = useRef<{ conversationId: string; seq: number } | null>(null);
   const typingTimer = useRef<number | undefined>(undefined);
 
   const deviceId = useMemo(() => localStorage.getItem("echoline_device") ?? crypto.randomUUID(), []);
@@ -96,7 +98,33 @@ export function ChatPage() {
   }, [token]);
 
   const activeConv = conversations.find((c) => c.id === activeId);
-  const canPublish = activeConv?.can_publish !== false;
+  const canPublish = activeConv
+    ? (activeConv.can_publish ?? activeConv.type !== "channel")
+    : false;
+
+  const mergeSyncedMessages = useCallback((blocks: { conversation_id: string; messages?: Message[] }[]) => {
+    for (const block of blocks) {
+      if (!block.messages?.length) continue;
+      const maxSeq = Math.max(...block.messages.map((m) => m.seq));
+      seqCursorsRef.current[block.conversation_id] = maxSeq;
+      if (block.conversation_id === activeIdRef.current) {
+        setMessages((prev) => {
+          const merged = [...prev];
+          for (const m of block.messages!) {
+            const dupIdx = merged.findIndex(
+              (x) => x.seq === m.seq || (m.client_msg_id && x.client_msg_id === m.client_msg_id),
+            );
+            if (dupIdx >= 0) {
+              merged[dupIdx] = { ...merged[dupIdx], ...m, pending: false, failed: false };
+            } else {
+              merged.push(m);
+            }
+          }
+          return merged.sort((a, b) => a.seq - b.seq);
+        });
+      }
+    }
+  }, []);
 
   const runSync = useCallback(async () => {
     if (!token) return;
@@ -111,26 +139,32 @@ export function ChatPage() {
     }
     if (cursors.length === 0) return;
     try {
-      const synced = await syncConversations(token, deviceId, cursors);
-      for (const block of synced) {
-        if (block.messages?.length) {
-          seqCursorsRef.current[block.conversation_id] = block.latest_seq;
-          if (block.conversation_id === activeIdRef.current) {
-            setMessages((prev) => {
-              const merged = [...prev];
-              for (const m of block.messages) {
-                if (!merged.some((x) => x.seq === m.seq)) merged.push(m);
-              }
-              return merged.sort((a, b) => a.seq - b.seq);
-            });
+      const allBlocks: { conversation_id: string; messages?: Message[] }[] = [];
+      for (const cursor of cursors) {
+        let lastSeq = cursor.last_seq;
+        let hasMore = true;
+        while (hasMore) {
+          const synced = await syncConversations(token, deviceId, [{
+            conversation_id: cursor.conversation_id,
+            last_seq: lastSeq,
+          }]);
+          const block = synced[0];
+          if (!block) break;
+          if (block.messages?.length) {
+            allBlocks.push(block);
+            lastSeq = Math.max(...block.messages.map((m) => m.seq));
           }
+          hasMore = block.has_more ?? false;
+          if (!block.messages?.length && !hasMore) break;
         }
+        seqCursorsRef.current[cursor.conversation_id] = lastSeq;
       }
+      mergeSyncedMessages(allBlocks);
       refreshConversations();
     } catch {
       // sync is best-effort on reconnect
     }
-  }, [token, deviceId, conversations, refreshConversations]);
+  }, [token, deviceId, conversations, refreshConversations, mergeSyncedMessages]);
 
   useEffect(() => {
     if (!token) return;
@@ -179,7 +213,31 @@ export function ChatPage() {
   }, [token, prefetchReactions]);
 
   useEffect(() => {
-    if (!token || !activeId) return;
+    if (!token || !activeId) {
+      if (!activeId) setMessages([]);
+      return;
+    }
+    const pending = pendingSearchSeqRef.current;
+    if (pending?.conversationId === activeId) {
+      pendingSearchSeqRef.current = null;
+      setNextBefore(null);
+      setTypingUsers([]);
+      void loadMessages(activeId, pending.seq + 1).then((ordered) => {
+        const target = ordered.find((m) => m.seq === pending.seq);
+        if (target) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.seq === pending.seq)) return prev;
+            return [...prev, target].sort((a, b) => a.seq - b.seq);
+          });
+        }
+        const last = ordered[ordered.length - 1];
+        if (last?.seq) {
+          markConversationRead(token, activeId, last.seq).catch(() => undefined);
+        }
+      }).catch((e) => setError(String(e)));
+      listPins(token, activeId).then(setPins).catch(() => setPins([]));
+      return;
+    }
     setNextBefore(null);
     setTypingUsers([]);
     loadMessages(activeId).then((ordered) => {
@@ -203,7 +261,10 @@ export function ChatPage() {
 
   useEffect(() => {
     if (!token) return;
-    const conn = connectWS(token, deviceId, (payload) => {
+    const conn = connectWS(
+      () => token ?? localStorage.getItem("echoline_token") ?? "",
+      deviceId,
+      (payload) => {
       const env = payload as {
         type?: string;
         payload?: {
@@ -213,6 +274,8 @@ export function ChatPage() {
           id?: string;
           sender_id?: string;
           user_id?: string;
+          client_msg_id?: string;
+          status?: string;
         };
       };
       if (env.type === "typing.indicator" && env.payload?.conversation_id === activeIdRef.current) {
@@ -228,18 +291,59 @@ export function ChatPage() {
         if (uid) setTypingUsers((prev) => prev.filter((u) => u !== uid));
         return;
       }
+      if (env.type === "message.edited" && env.payload?.conversation_id === activeIdRef.current) {
+        const id = env.payload.id;
+        if (!id) return;
+        setMessages((prev) => prev.map((m) => (
+          m.id === id ? { ...m, body: env.payload!.body ?? m.body } : m
+        )));
+        return;
+      }
+      if (env.type === "message.recalled" && env.payload?.conversation_id === activeIdRef.current) {
+        const id = env.payload.id;
+        if (!id) return;
+        setMessages((prev) => prev.map((m) => (
+          m.id === id ? { ...m, body: "", status: "recalled" } : m
+        )));
+        return;
+      }
       if (env.type !== "message.created") return;
       refreshConversations();
-      if (env.payload?.conversation_id !== activeIdRef.current) return;
+      const convId = env.payload?.conversation_id;
+      if (convId === activeIdRef.current && env.payload?.seq) {
+        markConversationRead(token, convId, env.payload.seq).catch(() => undefined);
+      }
+      if (convId !== activeIdRef.current) return;
       setMessages((prev) => {
         const seq = env.payload!.seq ?? 0;
-        const withoutPending = prev.filter((m) => !(m.pending && m.body === (env.payload!.body ?? "")));
-        if (withoutPending.some((m) => m.seq === seq)) return withoutPending;
+        const clientMsgId = env.payload!.client_msg_id;
+        const withoutPending = prev.filter((m) => !(
+          m.pending && (
+            (clientMsgId && m.client_msg_id === clientMsgId)
+            || (!clientMsgId && m.body === (env.payload!.body ?? ""))
+          )
+        ));
+        const dupIdx = withoutPending.findIndex(
+          (m) => m.seq === seq || (clientMsgId && m.client_msg_id === clientMsgId),
+        );
+        if (dupIdx >= 0) {
+          const updated = [...withoutPending];
+          updated[dupIdx] = {
+            ...updated[dupIdx],
+            id: env.payload!.id ?? updated[dupIdx].id,
+            seq,
+            body: env.payload!.body ?? "",
+            sender_id: env.payload!.sender_id ?? "",
+            pending: false,
+          };
+          return updated;
+        }
         return [...withoutPending, {
           id: env.payload!.id ?? crypto.randomUUID(),
           seq,
           body: env.payload!.body ?? "",
           sender_id: env.payload!.sender_id ?? "",
+          client_msg_id: clientMsgId,
         }];
       });
     }, setWsStatus, () => { void runSync(); });
@@ -275,8 +379,7 @@ export function ChatPage() {
       refreshConversations();
       setActiveId(channelId);
     } catch (err) {
-      const msg = String(err);
-      if (msg.includes("402") || msg.includes("payment_required")) {
+      if (isPaymentRequired(err)) {
         try {
           const reference = `channel:${channelId}`;
           await createPaymentLedger(token, 999, reference);
@@ -290,7 +393,7 @@ export function ChatPage() {
           return;
         }
       }
-      setError(msg);
+      setError(String(err));
     }
   }
 
@@ -324,8 +427,12 @@ export function ChatPage() {
     setMessages((prev) => [...prev, optimistic]);
     setDraft("");
     try {
-      await sendMessage(token, activeId, body, undefined, clientMsgId);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false } : m)));
+      const created = await sendMessage(token, activeId, body, undefined, clientMsgId);
+      setMessages((prev) => prev.map((m) => (
+        m.id === tempId
+          ? { ...m, ...created, pending: false, failed: false, sender_id: created.sender_id }
+          : m
+      )));
     } catch (err) {
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m)));
       setError(String(err));
@@ -336,19 +443,27 @@ export function ChatPage() {
     if (!token || !activeId) return;
     setUploading(true);
     setError(null);
+    const tempId = crypto.randomUUID();
+    const clientMsgId = crypto.randomUUID();
     try {
       const { object_key } = await presignUpload(token, file);
-      const tempId = crypto.randomUUID();
       setMessages((prev) => [...prev, {
         id: tempId,
         seq: Date.now(),
         body: file.name,
         sender_id: "me",
         pending: true,
+        client_msg_id: clientMsgId,
         attachment: { object_key, mime_type: file.type },
       }]);
-      await sendMessage(token, activeId, file.name, object_key);
+      const created = await sendMessage(token, activeId, file.name, object_key, clientMsgId);
+      setMessages((prev) => prev.map((m) => (
+        m.id === tempId
+          ? { ...m, ...created, pending: false, failed: false, sender_id: created.sender_id }
+          : m
+      )));
     } catch (err) {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m)));
       setError(String(err));
     } finally {
       setUploading(false);
@@ -395,7 +510,9 @@ export function ChatPage() {
     if (!window.confirm("Recall this message?")) return;
     try {
       await recallMessage(token, activeId, m.id);
-      setMessages((prev) => prev.filter((x) => x.id !== m.id));
+      setMessages((prev) => prev.map((x) => (
+        x.id === m.id ? { ...x, body: "", status: "recalled" } : x
+      )));
     } catch (err) {
       setError(String(err));
     }
@@ -414,7 +531,9 @@ export function ChatPage() {
           <button type="button" className="theme-toggle" onClick={() => setDark((d) => !d)}>{dark ? "☀" : "☾"}</button>
           <span className={`ws-status ws-${wsStatus}`}>{wsStatus}</span>
           <button type="button" className="notif-btn" onClick={() => setShowNotifs((v) => !v)}>
-            🔔{notifications.length > 0 ? ` (${notifications.length})` : ""}
+            🔔{notifications.filter((n) => !n.read_at).length > 0
+              ? ` (${notifications.filter((n) => !n.read_at).length})`
+              : ""}
           </button>
           <Link to="/settings">Settings</Link>
           <button type="button" onClick={logout}>Logout</button>
@@ -436,16 +555,8 @@ export function ChatPage() {
             {searchHits.map((h) => (
               <li key={h.message_id}>
                 <button type="button" onClick={() => {
+                  pendingSearchSeqRef.current = { conversationId: h.conversation_id, seq: h.seq };
                   setActiveId(h.conversation_id);
-                  void loadMessages(h.conversation_id, h.seq + 1).then((ordered) => {
-                    const target = ordered.find((m) => m.seq === h.seq);
-                    if (target) {
-                      setMessages((prev) => {
-                        if (prev.some((m) => m.seq === h.seq)) return prev;
-                        return [...prev, target].sort((a, b) => a.seq - b.seq);
-                      });
-                    }
-                  });
                 }}>#{h.seq} {h.body}</button>
               </li>
             ))}
@@ -529,8 +640,8 @@ export function ChatPage() {
         )}
         <div className="messages">
           {messages.map((m) => (
-            <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""}`}>
-              <strong>#{m.seq}</strong> {m.body}
+            <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""} ${m.status === "recalled" ? "recalled" : ""}`}>
+              <strong>#{m.seq}</strong> {m.status === "recalled" ? <em>(recalled)</em> : m.body}
               {m.pending && <em> sending...</em>}
               {m.failed && <em> failed</em>}
               {(reactions[m.id] ?? []).length > 0 && (

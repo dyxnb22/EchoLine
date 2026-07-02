@@ -46,7 +46,7 @@ func (r *Repository) EnqueueInTx(ctx context.Context, tx execer, topic string, p
 	return nil
 }
 
-// FetchPending returns pending events with row locking inside a short transaction.
+// FetchPending claims pending events by moving them to processing in one transaction.
 func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -59,16 +59,21 @@ func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, erro
 	defer tx.Rollback(ctx)
 
 	const q = `
-		SELECT id, topic, payload::text, attempts, created_at
-		FROM outbox_events
-		WHERE status = 'pending'
-		ORDER BY created_at ASC
-		LIMIT $1
-		FOR UPDATE SKIP LOCKED
+		UPDATE outbox_events
+		SET status = 'processing'
+		WHERE id IN (
+			SELECT id
+			FROM outbox_events
+			WHERE status = 'pending'
+			ORDER BY created_at ASC
+			LIMIT $1
+			FOR UPDATE SKIP LOCKED
+		)
+		RETURNING id, topic, payload::text, attempts, created_at
 	`
 	rows, err := tx.Query(ctx, q, limit)
 	if err != nil {
-		return nil, fmt.Errorf("fetch pending outbox: %w", err)
+		return nil, fmt.Errorf("claim pending outbox: %w", err)
 	}
 	defer rows.Close()
 
@@ -117,7 +122,7 @@ func (r *Repository) MarkPublished(ctx context.Context, id uuid.UUID) error {
 	const q = `
 		UPDATE outbox_events
 		SET status = 'published', published_at = $2
-		WHERE id = $1
+		WHERE id = $1 AND status IN ('pending', 'processing')
 	`
 	_, err := r.pool.Exec(ctx, q, id, time.Now().UTC())
 	return err
@@ -141,7 +146,7 @@ func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID) error {
 	const fetchQ = `
 		SELECT topic, payload::text, attempts
 		FROM outbox_events
-		WHERE id = $1
+		WHERE id = $1 AND status IN ('pending', 'processing')
 	`
 	var topic, payload string
 	var attempts int
@@ -164,7 +169,7 @@ func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	const q = `UPDATE outbox_events SET attempts = attempts + 1 WHERE id = $1`
+	const q = `UPDATE outbox_events SET attempts = attempts + 1, status = 'pending' WHERE id = $1 AND status IN ('pending', 'processing')`
 	_, err := r.pool.Exec(ctx, q, id)
 	return err
 }

@@ -86,6 +86,56 @@ func (r *Repository) GetUnlinkedByObjectKey(ctx context.Context, ownerID uuid.UU
 	return att, nil
 }
 
+// GetAccessible returns an attachment the user may download (owner or conversation member).
+func (r *Repository) GetAccessible(ctx context.Context, userID uuid.UUID, objectKey string, isMember func(convID, userID uuid.UUID) (bool, error)) (*Attachment, error) {
+	objectKey = strings.TrimSpace(objectKey)
+	if objectKey == "" {
+		return nil, ErrAttachmentNotFound
+	}
+
+	const q = `
+		SELECT a.id, a.message_id, a.owner_id, a.object_key, a.mime_type, a.size_bytes, a.checksum, a.created_at,
+		       m.conversation_id
+		FROM attachments a
+		LEFT JOIN messages m ON m.id = a.message_id
+		WHERE a.object_key = $1
+	`
+	var att Attachment
+	var convID *uuid.UUID
+	row := r.pool.QueryRow(ctx, q, objectKey)
+	if err := row.Scan(
+		&att.ID,
+		&att.MessageID,
+		&att.OwnerID,
+		&att.ObjectKey,
+		&att.MimeType,
+		&att.SizeBytes,
+		&att.Checksum,
+		&att.CreatedAt,
+		&convID,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAttachmentNotFound
+		}
+		return nil, err
+	}
+
+	if att.OwnerID == userID {
+		return &att, nil
+	}
+	if att.MessageID == nil || convID == nil {
+		return nil, ErrAttachmentNotFound
+	}
+	member, err := isMember(*convID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !member {
+		return nil, ErrAttachmentNotFound
+	}
+	return &att, nil
+}
+
 // GetByObjectKey returns an attachment owned by the user (linked or pending).
 func (r *Repository) GetByObjectKey(ctx context.Context, ownerID uuid.UUID, objectKey string) (*Attachment, error) {
 	const q = `
