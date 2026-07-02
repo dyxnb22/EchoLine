@@ -374,7 +374,8 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 		return
 	}
 
-	if _, err := s.messages.GetByID(context.Background(), convID, msgID); err != nil {
+	msg, err := s.messages.GetByID(context.Background(), convID, msgID)
+	if err != nil {
 		c.sendError(env.RequestID, "invalid_request", "message not in conversation")
 		return
 	}
@@ -389,8 +390,8 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 		return
 	}
 
-	if status == delivery.StatusRead && payload.Seq > 0 {
-		_ = s.conversations.MarkRead(context.Background(), convID, c.UserID, payload.Seq)
+	if status == delivery.StatusRead && msg != nil {
+		_ = s.conversations.MarkRead(context.Background(), convID, c.UserID, msg.Seq)
 	}
 
 	resp, _ := marshalEnvelope("message.ack", env.RequestID, map[string]any{

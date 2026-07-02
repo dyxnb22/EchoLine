@@ -1,29 +1,15 @@
 # Current State
 
-Current phase: **Deep review complete — stop condition met (P3/P4 only remain)**.
+Current phase: **Deep review iteration 04 — full-scope; P0/P1 clear, 2 P2 open**.
 
 Last session highlights:
 
-- **P0:** sync cursor + frontend `has_more` pagination (message loss on reconnect)
-- **P1:** idempotent send side effects, media member download, outbox processing claim, payment 402 detection, WS token refresh, sender dedup, upload pending, unread while viewing
-- **P2:** ACK message binding, admin health RBAC, cache `can_publish`, WS edit/recall handlers
-- **P3/P4:** presigned URL sharing (wontfix MVP), outbox stale processing reaper, download UI, loading polish
+- **Policy:** Each iteration = full-project audit (not spot-check)
+- **Iter 03 P1:** cache invalidation, outbox reaper, payment settle gate, archived API, WS `message_id`
+- **Iter 03–04 P2:** sync attachments, MarkRead cap, pin/report, search lifecycle, GraphQL RBAC, download UI
+- **Open P2:** forward attachment metadata, thread `client_msg_id`
+- **Wontfix P2:** WS rate limit, CheckOrigin, notifications producer, client ACK (MVP)
 
-Tests:
+Tests: `go test ./...` + `npm run build` pass.
 
-- `go test ./...` — pass
-- `npm run build` — pass
-
-Blocker:
-
-- Docker/Postgres unavailable in cloud VM for `make smoke-full` — see `BLOCKERS.md`
-
-Reports:
-
-- `reports/deep-review-final.md`
-
-Next (optional):
-
-1. Local `make dev-up && make smoke-full`
-2. Outbox stale `processing` reaper
-3. Frontend attachment download UI
+Reports: `reports/deep-review-final.md`, `reports/deep-review-iteration-03.md`, `04.md`

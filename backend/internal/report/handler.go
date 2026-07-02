@@ -10,17 +10,19 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 // Handler exposes the report REST endpoint.
 type Handler struct {
 	repo     *Repository
 	convRepo *conversation.Repository
+	messages *message.Repository
 }
 
 // NewHandler creates a report handler.
-func NewHandler(repo *Repository, convRepo *conversation.Repository) *Handler {
-	return &Handler{repo: repo, convRepo: convRepo}
+func NewHandler(repo *Repository, convRepo *conversation.Repository, messages *message.Repository) *Handler {
+	return &Handler{repo: repo, convRepo: convRepo, messages: messages}
 }
 
 type createReportRequest struct {
@@ -58,6 +60,13 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !member {
 		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
 		return
+	}
+
+	if h.messages != nil {
+		if _, err := h.messages.GetByID(r.Context(), convID, msgID); err != nil {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "message not in conversation")
+			return
+		}
 	}
 
 	var req createReportRequest

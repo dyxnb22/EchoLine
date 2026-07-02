@@ -3,68 +3,71 @@
 Date: 2026-07-02  
 Branch: `cursor/deep-review-quality-iteration-c067`
 
+## Review policy
+
+**Each iteration is a full-project audit** — all backend domains (auth through observability), all frontend flows (login through protocol parity), plus architecture/docs/test gaps. Not a targeted re-check of prior fixes only.
+
 ## Summary
 
-Completed **2 full review iterations** on EchoLine after project closure. Focused on reliability, sync, idempotency, RBAC, frontend protocol alignment, and outbox correctness — without adding out-of-scope features.
+Completed **4 full-scope review iterations**. Fixed all P0/P1 and most P2 issues. Stop condition approached: iteration 04 found **no new P0/P1**; remaining work is 2 P2 feature gaps, P3 hardening, and P4 polish.
 
 ## Iteration counts
 
-| Round | P0 | P1 | P2 | P3 | P4 |
-|-------|----|----|----|----|-----|
-| 01 | 2 | 9 | 5 | 0 | 0 |
-| 02 | 0 | 0 | 1 | 2 | 1 |
+| Round | P0 | P1 | P2 | P3 | P4 | Notes |
+|-------|----|----|----|----|-----|-------|
+| 01 | 2 | 9 | 5 | 0 | 0 | Sync, idempotency, media, outbox |
+| 02 | 0 | 0 | 1 | 2 | 1 | WS ACK validation |
+| 03 | 0 | 5 | 8 | 0 | 0 | Full-scope: cache, payment gate, archived, WS fields |
+| 04 | 0 | 0 | 6 | 2 | 1 | Verification pass; 4 P2 wontfix MVP |
 
-All P0/P1/P2 from iteration 01 were fixed. Iteration 02 found one additional P2 (WS ACK validation), fixed immediately. Remaining items are P3/P4 only.
+## Major fixes (cumulative)
 
-## Major fixes
-
-1. **Offline sync (P0):** Backend no longer advances device cursor on partial pages; frontend paginates until `has_more=false`.
-2. **Idempotent send (P1):** Duplicate `client_msg_id` returns existing message without seq bump or re-broadcast; cross-conversation reuse rejected.
-3. **Attachment download (P1):** Group/channel recipients can presign download for linked attachments.
-4. **Outbox (P1):** Rows claimed as `processing` before publish (migration `00017`).
-5. **Frontend reliability (P1):** Payment detection via structured errors, WS token refresh on reconnect, sender dedup by `client_msg_id`, upload pending state, read cursor while viewing.
-6. **RBAC (P2):** Admin health admin-only; cached conversation list includes `can_publish`.
+1. **Offline sync:** Cursor + `has_more` pagination (backend + frontend)
+2. **Idempotent send:** No seq bump / re-broadcast on duplicate `client_msg_id`
+3. **Cache consistency:** Redis conversation list invalidation on writes (ADR 0005)
+4. **Outbox:** `processing` claim + stale reaper (`00017`, `00018`)
+5. **Payment:** Settle grants only when channel `requires_entitlement` + `amount_cents >= 1`
+6. **Frontend:** `ApiError`, archived list, WS `message_id`, search replace mode, logout remount, download UI
+7. **RBAC:** ACK seq binding, pin/report validation, GraphQL reaction membership
+8. **Search:** Worker indexes edit/recall lifecycle events
 
 ## Tests run
 
 | Command | Result |
 |---------|--------|
 | `go test ./...` | Pass |
-| `npm run build` (frontend) | Pass |
-| `make smoke-full` | Skipped — Docker/Postgres unavailable (`BLOCKERS.md`) |
+| `npm run build` | Pass |
+| `make smoke-full` | Skipped — no Docker (`BLOCKERS.md`) |
 
-New tests: `sync/handler_test.go`, `message/idempotency_test.go`.
+## Remaining issues
 
-## Remaining (non-blocking)
+| Issue | Priority | Status | Notes |
+|-------|----------|--------|-------|
+| Forward drops attachment | P2 | open | Non-critical path |
+| Thread reply idempotency | P2 | open | Server-generated `client_msg_id` |
+| WS send rate limit | P2 | wontfix | REST limited; MVP |
+| CheckOrigin allow-all | P2 | wontfix | Dev default |
+| Notifications producer | P2 | wontfix | Skeleton feature |
+| Client delivery ACK | P2 | wontfix | Web uses read cursor |
+| Presigned URL sharing | P2 | wontfix | ISSUE-014 |
+| JWT min length | P3 | open | Config hardening |
+| Register rate limit | P3 | open | |
+| Loading/empty UI | P4 | open | ISSUE-022 |
 
-| Issue | Priority | Notes |
-|-------|----------|-------|
-| ISSUE-014 | P2 wontfix | Presigned URL shareable within expiry — MVP documented risk |
-| ISSUE-020 | P3 | Stale `processing` outbox reaper not implemented |
-| ISSUE-021 | P3 | Frontend download-url UI not wired |
-| ISSUE-022 | P4 | Conversation list loading/empty polish |
+## Stop condition assessment
 
-## Architecture notes
-
-- No large refactors; changes are surgical and aligned with `docs/reliability.md`.
-- Outbox `processing` state enables safe multi-worker claim without holding DB locks during network publish.
-- Frontend `ApiError` enables protocol-aware error handling without string matching.
-
-## Stop condition
-
-**Satisfied:** Iteration 02 complete review found no P0/P1/P2 issues. Remaining P3/P4 documented as non-blocking or wontfix.
+**Partially met:** No P0/P1 in iterations 03–04. Two non-critical P2 remain (forward/thread). Four P2 marked **wontfix** with MVP rationale. Safe to stop for portfolio closure; continue locally for remaining P2/P3.
 
 ## Long-term suggestions (not implemented)
 
-1. Proxy download endpoint with membership re-check (replace bare presigned URLs).
-2. Outbox stale `processing` reaper cron.
-3. Real integration smoke when Postgres available (`make smoke-full`).
-4. Frontend attachment preview via `download-url`.
-5. Playwright tests against live compose stack (not mocked API).
+1. Proxy media download with membership re-check
+2. WS `message.send` rate limiting parity with REST
+3. `CORS_ORIGINS` / `CheckOrigin` allowlist in production config
+4. Notification producer on message events
+5. `make smoke-full` on local compose stack
 
 ## Artifacts
 
-- `reports/deep-review-iteration-01.md`
-- `reports/deep-review-iteration-02.md`
+- `reports/deep-review-iteration-01.md` … `04.md`
 - `reports/deep-review-issues.md`
 - `reports/deep-review-fix-log.md`

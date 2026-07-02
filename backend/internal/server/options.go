@@ -116,6 +116,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	webhookRepo := webhook.NewRepository(pool)
 	persistingWebhook := webhook.NewPersistingDispatcher(webhookDispatcher, webhookRepo)
 	msgHandler.SetWebhookNotifier(message.FuncWebhookNotifier(persistingWebhook.DispatchMessageCreated))
+	msgHandler.SetListCacheInvalidator(convHandler)
 
 	searchHandler := search.NewHandler(searchRepo)
 	osClient := search.NewOpenSearchClient(cfg.OpenSearchURL)
@@ -125,7 +126,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	deviceRepo := device.NewRepository(pool)
 	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
 	graphHandler.SetMessageSender(msgSvc)
-	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool)))
+	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool), convRepo, msgRepo))
 
 	rt.SetDeviceTracker(deviceRepo)
 
@@ -136,7 +137,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		auth:           authSvc,
 		conv:           convHandler,
 		msg:            msgHandler,
-		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo),
+		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo, attachmentRepo),
 		search:         searchHandler,
 		delivery:       delivery.NewHandler(deliveryRepo, convRepo, msgRepo),
 		realtime:       rt,
@@ -144,9 +145,9 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		memBus:         memBus,
 		outboxRepo:     outboxRepo,
 		media:          mediaHandler,
-		pin:            pin.NewHandler(pinRepo, convRepo),
+		pin:            pin.NewHandler(pinRepo, convRepo, msgRepo),
 		block:          block.NewHandler(blockRepo),
-		report:         report.NewHandler(reportRepo, convRepo),
+		report:         report.NewHandler(reportRepo, convRepo, msgRepo),
 		notification:   notification.NewHandler(notifRepo),
 		adminHandler:   admin.NewHandler(pool, authSvc),
 		dlqHandler:     outbox.NewDLQHandler(pool),
@@ -165,6 +166,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		payment:        func() *payment.Handler {
 			ph := payment.NewHandler(payment.NewRepository(pool))
 			ph.SetEntitlementGranter(entitlementRepo)
+			ph.SetChannelPaymentGate(entitlementRepo)
 			return ph
 		}(),
 		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo)),

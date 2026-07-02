@@ -2,6 +2,16 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Deep review iteration 03–04 (full-scope)
+
+任务：按用户要求每轮全量审查；第 3–4 轮覆盖 15 后端域 + 14 前端流 + 架构/docs。
+
+修复：Redis 会话列表缓存失效、outbox processing 回收、付费频道 settle 门控、sync 附件、MarkRead 上限、pin/report 校验、搜索 edit/recall 索引、GraphQL reaction RBAC、前端 archived/WS message_id/搜索跳转/logout/下载 UI。
+
+测试：go test ./... + npm run build 通过。
+
+剩余：forward 附件、thread 幂等 (P2)；JWT/注册限流 (P3)；loading polish (P4)。
+
 ## 2026-07-02 Deep review quality iteration (2 rounds)
 
 任务：深度代码审查 + 修复直至 P3 以下。

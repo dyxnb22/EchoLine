@@ -64,8 +64,11 @@ func (h *Handler) HandleACK(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var msg *message.Message
 	if h.messages != nil {
-		if _, err := h.messages.GetByID(r.Context(), convID, msgID); err != nil {
+		var err error
+		msg, err = h.messages.GetByID(r.Context(), convID, msgID)
+		if err != nil {
 			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "message not in conversation")
 			return
 		}
@@ -87,8 +90,8 @@ func (h *Handler) HandleACK(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if status == StatusRead && req.Seq > 0 {
-		_ = h.conversations.MarkRead(r.Context(), convID, claims.UserID, req.Seq)
+	if status == StatusRead && msg != nil {
+		_ = h.conversations.MarkRead(r.Context(), convID, claims.UserID, msg.Seq)
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]any{

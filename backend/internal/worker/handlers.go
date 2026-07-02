@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
@@ -169,4 +170,54 @@ func (w *FanoutWorker) Handle(ctx context.Context, payload []byte) error {
 // DecodeEvent exposes message.created parsing for worker main.
 func DecodeEvent(payload []byte) (eventbus.MessageCreatedEvent, error) {
 	return eventbus.DecodeMessageCreated(payload)
+}
+
+// MessageLifecycleHandler updates search index on edit/recall events.
+type MessageLifecycleHandler struct {
+	search *search.Repository
+	logger *slog.Logger
+}
+
+// NewMessageLifecycleHandler creates a lifecycle consumer.
+func NewMessageLifecycleHandler(searchRepo *search.Repository, logger *slog.Logger) *MessageLifecycleHandler {
+	return &MessageLifecycleHandler{search: searchRepo, logger: logger}
+}
+
+// HandleEdited updates search text for message.edited payloads.
+func (h *MessageLifecycleHandler) HandleEdited(ctx context.Context, payload []byte) error {
+	if h.search == nil {
+		return nil
+	}
+	var evt struct {
+		ID   string `json:"id"`
+		Body string `json:"body"`
+	}
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return err
+	}
+	msgID, err := uuid.Parse(evt.ID)
+	if err != nil {
+		return err
+	}
+	metrics.MQEventsConsumed.WithLabelValues(eventbus.TopicMessageEdited).Inc()
+	return h.search.UpdateMessageBody(ctx, msgID, evt.Body)
+}
+
+// HandleRecalled removes recalled messages from the search index.
+func (h *MessageLifecycleHandler) HandleRecalled(ctx context.Context, payload []byte) error {
+	if h.search == nil {
+		return nil
+	}
+	var evt struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(payload, &evt); err != nil {
+		return err
+	}
+	msgID, err := uuid.Parse(evt.ID)
+	if err != nil {
+		return err
+	}
+	metrics.MQEventsConsumed.WithLabelValues(eventbus.TopicMessageRecalled).Inc()
+	return h.search.DeleteMessage(ctx, msgID)
 }

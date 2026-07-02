@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -19,6 +20,11 @@ import (
 	"github.com/echoline/echoline/backend/internal/validate"
 )
 
+// ListCacheInvalidator drops stale conversation list cache for members.
+type ListCacheInvalidator interface {
+	InvalidateConversationListCache(ctx context.Context, convID uuid.UUID)
+}
+
 // Handler exposes message REST endpoints.
 type Handler struct {
 	service       *Service
@@ -26,6 +32,7 @@ type Handler struct {
 	attachments   *media.Repository
 	audit         *audit.Repository
 	webhook       WebhookNotifier
+	listCache     ListCacheInvalidator
 }
 
 // NewHandler creates a message handler.
@@ -36,6 +43,17 @@ func NewHandler(service *Service, conversations *conversation.Repository, attach
 		attachments:   attachments,
 		audit:         auditRepo,
 		webhook:       noopWebhook{},
+	}
+}
+
+// SetListCacheInvalidator enables sidebar cache invalidation after writes.
+func (h *Handler) SetListCacheInvalidator(inv ListCacheInvalidator) {
+	h.listCache = inv
+}
+
+func (h *Handler) invalidateListCache(ctx context.Context, convID uuid.UUID) {
+	if h.listCache != nil {
+		h.listCache.InvalidateConversationListCache(ctx, convID)
 	}
 }
 
@@ -108,6 +126,7 @@ func (h *Handler) HandleSend(w http.ResponseWriter, r *http.Request) {
 
 	apierror.WriteJSON(w, http.StatusCreated, ToCreatedPayload(msg))
 	h.notifyWebhook(r.Context(), msg)
+	h.invalidateListCache(r.Context(), convID)
 }
 
 // HandleList returns paginated conversation messages.
@@ -235,6 +254,7 @@ func (h *Handler) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
 		"last_read_seq":   req.LastReadSeq,
 		"unread":          unread,
 	})
+	h.invalidateListCache(r.Context(), convID)
 }
 
 // HandleEdit updates a message body.
@@ -274,6 +294,7 @@ func (h *Handler) HandleEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, ToCreatedPayload(msg))
+	h.invalidateListCache(r.Context(), convID)
 }
 
 // HandleRecall marks a message as recalled.
@@ -309,6 +330,7 @@ func (h *Handler) HandleRecall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, ToCreatedPayload(msg))
+	h.invalidateListCache(r.Context(), convID)
 }
 
 func parseMessagePath(path string) (uuid.UUID, uuid.UUID, error) {

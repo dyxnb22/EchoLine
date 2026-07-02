@@ -267,3 +267,21 @@ Expected: Reject ACK when message not in conversation
 Actual: Same gap as REST before fix  
 Fix plan: `messages.GetByID` before `UpsertACK`  
 Tests: `go test ./internal/realtime/...`
+
+---
+
+## ISSUE-020: Stale outbox `processing` rows
+
+Priority: P1 (iteration 03)  
+Status: fixed  
+Area: backend/worker  
+Fix: `RequeueStaleProcessing` + `processing_at` column (`00018`)
+
+---
+
+## ISSUE-023–049: Iteration 03–04 full-scope findings
+
+See `reports/deep-review-iteration-03.md` and `reports/deep-review-iteration-04.md` for complete list. Key fixes: cache invalidation, payment gate, archived API, WS payload fields, search lifecycle, GraphQL RBAC, download UI.
+
+Remaining open: ISSUE-044 (forward attachment), ISSUE-045 (thread idempotency), P3 config hardening, P4 UI polish.
+

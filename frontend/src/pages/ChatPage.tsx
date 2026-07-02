@@ -20,6 +20,7 @@ import {
   Message,
   Notification,
   presignUpload,
+  presignDownload,
   Reaction,
   recallMessage,
   removeReaction,
@@ -193,11 +194,11 @@ export function ChatPage() {
     });
   }, [token]);
 
-  const loadMessages = useCallback(async (conversationId: string, beforeSeq?: number) => {
+  const loadMessages = useCallback(async (conversationId: string, beforeSeq?: number, mode: "replace" | "prepend" = "replace") => {
     if (!token) return [];
     const page = await listMessages(token, conversationId, beforeSeq);
     const ordered = [...page.messages].reverse();
-    if (beforeSeq == null) {
+    if (beforeSeq == null || mode === "replace") {
       setMessages(ordered);
       void prefetchReactions(ordered);
     } else {
@@ -222,7 +223,7 @@ export function ChatPage() {
       pendingSearchSeqRef.current = null;
       setNextBefore(null);
       setTypingUsers([]);
-      void loadMessages(activeId, pending.seq + 1).then((ordered) => {
+      void loadMessages(activeId, pending.seq + 1, "replace").then((ordered) => {
         const target = ordered.find((m) => m.seq === pending.seq);
         if (target) {
           setMessages((prev) => {
@@ -240,6 +241,7 @@ export function ChatPage() {
     }
     setNextBefore(null);
     setTypingUsers([]);
+    setMessages([]);
     loadMessages(activeId).then((ordered) => {
       const last = ordered[ordered.length - 1];
       if (last?.seq) {
@@ -262,7 +264,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!token) return;
     const conn = connectWS(
-      () => token ?? localStorage.getItem("echoline_token") ?? "",
+      () => localStorage.getItem("echoline_token") ?? token ?? "",
       deviceId,
       (payload) => {
       const env = payload as {
@@ -275,6 +277,7 @@ export function ChatPage() {
           sender_id?: string;
           user_id?: string;
           client_msg_id?: string;
+          message_id?: string;
           status?: string;
         };
       };
@@ -292,7 +295,7 @@ export function ChatPage() {
         return;
       }
       if (env.type === "message.edited" && env.payload?.conversation_id === activeIdRef.current) {
-        const id = env.payload.id;
+        const id = env.payload.message_id ?? env.payload.id;
         if (!id) return;
         setMessages((prev) => prev.map((m) => (
           m.id === id ? { ...m, body: env.payload!.body ?? m.body } : m
@@ -300,7 +303,7 @@ export function ChatPage() {
         return;
       }
       if (env.type === "message.recalled" && env.payload?.conversation_id === activeIdRef.current) {
-        const id = env.payload.id;
+        const id = env.payload.message_id ?? env.payload.id;
         if (!id) return;
         setMessages((prev) => prev.map((m) => (
           m.id === id ? { ...m, body: "", status: "recalled" } : m
@@ -642,6 +645,19 @@ export function ChatPage() {
           {messages.map((m) => (
             <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""} ${m.status === "recalled" ? "recalled" : ""}`}>
               <strong>#{m.seq}</strong> {m.status === "recalled" ? <em>(recalled)</em> : m.body}
+              {token && m.attachment?.object_key && (
+                <button
+                  type="button"
+                  className="attach-dl"
+                  onClick={() => {
+                    void presignDownload(token, m.attachment!.object_key)
+                      .then((url) => { window.open(url, "_blank", "noopener"); })
+                      .catch((e) => setError(String(e)));
+                  }}
+                >
+                  Download
+                </button>
+              )}
               {m.pending && <em> sending...</em>}
               {m.failed && <em> failed</em>}
               {(reactions[m.id] ?? []).length > 0 && (

@@ -60,7 +60,7 @@ func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, erro
 
 	const q = `
 		UPDATE outbox_events
-		SET status = 'processing'
+		SET status = 'processing', processing_at = $2
 		WHERE id IN (
 			SELECT id
 			FROM outbox_events
@@ -71,7 +71,8 @@ func (r *Repository) FetchPending(ctx context.Context, limit int) ([]Event, erro
 		)
 		RETURNING id, topic, payload::text, attempts, created_at
 	`
-	rows, err := tx.Query(ctx, q, limit)
+	now := time.Now().UTC()
+	rows, err := tx.Query(ctx, q, limit, now)
 	if err != nil {
 		return nil, fmt.Errorf("claim pending outbox: %w", err)
 	}
@@ -141,6 +142,20 @@ func (r *Repository) CleanupPublished(ctx context.Context, olderThan time.Time) 
 	return tag.RowsAffected(), nil
 }
 
+// RequeueStaleProcessing resets stuck processing rows older than the cutoff.
+func (r *Repository) RequeueStaleProcessing(ctx context.Context, olderThan time.Time) (int64, error) {
+	const q = `
+		UPDATE outbox_events
+		SET status = 'pending', processing_at = NULL
+		WHERE status = 'processing' AND processing_at IS NOT NULL AND processing_at < $1
+	`
+	tag, err := r.pool.Exec(ctx, q, olderThan)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // MarkFailed increments attempts, moves to DLQ after threshold, or leaves pending.
 func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID) error {
 	const fetchQ = `
@@ -169,7 +184,7 @@ func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	const q = `UPDATE outbox_events SET attempts = attempts + 1, status = 'pending' WHERE id = $1 AND status IN ('pending', 'processing')`
+	const q = `UPDATE outbox_events SET attempts = attempts + 1, status = 'pending', processing_at = NULL WHERE id = $1 AND status IN ('pending', 'processing')`
 	_, err := r.pool.Exec(ctx, q, id)
 	return err
 }

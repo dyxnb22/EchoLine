@@ -79,3 +79,17 @@ func (r *Repository) Search(ctx context.Context, userID uuid.UUID, query string,
 	}
 	return hits, rows.Err()
 }
+
+// UpdateMessageBody updates indexed text for an edited message.
+func (r *Repository) UpdateMessageBody(ctx context.Context, messageID uuid.UUID, body string) error {
+	const q = `UPDATE message_search_index SET body = $2 WHERE message_id = $1`
+	_, err := r.pool.Exec(ctx, q, messageID, body)
+	return err
+}
+
+// DeleteMessage removes a message from the search index.
+func (r *Repository) DeleteMessage(ctx context.Context, messageID uuid.UUID) error {
+	const q = `DELETE FROM message_search_index WHERE message_id = $1`
+	_, err := r.pool.Exec(ctx, q, messageID)
+	return err
+}

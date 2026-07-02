@@ -16,7 +16,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="/" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+      <Route path="/" element={<ProtectedRoute><ChatPage key={token ?? "anon"} /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

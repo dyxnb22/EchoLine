@@ -290,12 +290,15 @@ func (r *Repository) GetMemberState(ctx context.Context, conversationID, userID 
 	return &state, nil
 }
 
-// MarkRead advances last_read_seq monotonically.
+// MarkRead advances last_read_seq monotonically, capped at conversation latest_seq.
 func (r *Repository) MarkRead(ctx context.Context, conversationID, userID uuid.UUID, seq int64) error {
 	const q = `
-		UPDATE conversation_members
-		SET last_read_seq = GREATEST(last_read_seq, $3)
-		WHERE conversation_id = $1 AND user_id = $2
+		UPDATE conversation_members cm
+		SET last_read_seq = LEAST(
+			GREATEST(cm.last_read_seq, $3),
+			(SELECT c.latest_seq FROM conversations c WHERE c.id = $1)
+		)
+		WHERE cm.conversation_id = $1 AND cm.user_id = $2
 	`
 	tag, err := r.pool.Exec(ctx, q, conversationID, userID, seq)
 	if err != nil {

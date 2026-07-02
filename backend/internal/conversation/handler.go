@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -37,6 +38,20 @@ func (h *Handler) SetEntitlementGate(g EntitlementGate) {
 // SetListCache enables Redis-backed conversation list caching.
 func (h *Handler) SetListCache(c *cache.ConversationListCache) {
 	h.cache = c
+}
+
+// InvalidateConversationListCache drops cached sidebar data for all conversation members.
+func (h *Handler) InvalidateConversationListCache(ctx context.Context, convID uuid.UUID) {
+	if h.cache == nil {
+		return
+	}
+	ids, err := h.repo.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		_ = h.cache.Invalidate(ctx, id.String())
+	}
 }
 
 type directRequest struct {
@@ -115,6 +130,7 @@ func (h *Handler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]string{"status": "subscribed"})
+	h.InvalidateConversationListCache(r.Context(), convID)
 }
 
 // HandleUnsubscribe removes channel subscription for current user.
@@ -137,6 +153,7 @@ func (h *Handler) HandleUnsubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]string{"status": "unsubscribed"})
+	h.InvalidateConversationListCache(r.Context(), convID)
 }
 
 // HandleInviteMember adds a user to a group.

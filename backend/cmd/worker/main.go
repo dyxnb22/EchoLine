@@ -62,6 +62,7 @@ func main() {
 	go drainer.Run(ctx)
 
 	msgHandler := workerpkg.NewMessageCreatedHandler(searchRepo, logger)
+	lifecycleHandler := workerpkg.NewMessageLifecycleHandler(searchRepo, logger)
 	pushRepo := push.NewRepository(pool)
 	pushWorker := push.NewWorker(pushRepo, push.NewMockProvider(logger), logger)
 	fanoutWorker := workerpkg.NewFanoutWorker(pool, pushWorker, logger)
@@ -107,14 +108,24 @@ func main() {
 
 	go func() {
 		for evt := range memBus.C() {
-			if evt.Type != eventbus.TopicMessageCreated {
+			switch evt.Type {
+			case eventbus.TopicMessageCreated:
+				if err := msgHandler.Handle(ctx, evt.Payload); err != nil {
+					logger.Error("message.created handler", "error", err)
+				}
+				if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
+					logger.Error("fanout worker", "error", err)
+				}
+			case eventbus.TopicMessageEdited:
+				if err := lifecycleHandler.HandleEdited(ctx, evt.Payload); err != nil {
+					logger.Error("message.edited handler", "error", err)
+				}
+			case eventbus.TopicMessageRecalled:
+				if err := lifecycleHandler.HandleRecalled(ctx, evt.Payload); err != nil {
+					logger.Error("message.recalled handler", "error", err)
+				}
+			default:
 				continue
-			}
-			if err := msgHandler.Handle(ctx, evt.Payload); err != nil {
-				logger.Error("message.created handler", "error", err)
-			}
-			if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
-				logger.Error("fanout worker", "error", err)
 			}
 			metrics.MQEventsConsumed.WithLabelValues(evt.Type).Inc()
 			logger.Info("notification worker processed", "topic", evt.Type)
@@ -147,6 +158,24 @@ func main() {
 			}
 		}()
 	}
+
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cutoff := time.Now().UTC().Add(-5 * time.Minute)
+				if n, err := outboxRepo.RequeueStaleProcessing(ctx, cutoff); err != nil {
+					logger.Warn("outbox requeue stale processing", "error", err)
+				} else if n > 0 {
+					logger.Info("outbox requeued stale processing", "count", n)
+				}
+			}
+		}
+	}()
 
 	go func() {
 		ticker := time.NewTicker(time.Hour)

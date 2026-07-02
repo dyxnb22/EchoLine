@@ -232,6 +232,14 @@ export async function presignUpload(
   return data;
 }
 
+export async function presignDownload(token: string, objectKey: string): Promise<string> {
+  const data = await authedJSON<{ download_url: string }>(token, "/api/media/download-url", {
+    method: "POST",
+    body: JSON.stringify({ object_key: objectKey }),
+  }, "presign download failed");
+  return data.download_url;
+}
+
 export async function searchMessages(token: string, query: string): Promise<SearchHit[]> {
   const params = new URLSearchParams({ q: query, limit: "20" });
   const data = await authedJSON<{ results?: SearchHit[] }>(
@@ -373,10 +381,16 @@ export async function listPins(token: string, convId: string): Promise<{ message
 }
 
 export async function listArchived(token: string): Promise<Conversation[]> {
-  const data = await authedJSONOr<{ conversations?: Conversation[] }>(
-    token, "/api/conversations/archived", {}, { conversations: [] },
+  const data = await authedJSONOr<{ archived?: { conversation_id: string; type: string; title: string }[] }>(
+    token, "/api/conversations/archived", {}, { archived: [] },
   );
-  return data.conversations ?? [];
+  return (data.archived ?? []).map((a) => ({
+    id: a.conversation_id,
+    type: a.type,
+    title: a.title,
+    unread: 0,
+    latest_seq: 0,
+  }));
 }
 
 export async function unarchiveConversation(token: string, convId: string): Promise<void> {

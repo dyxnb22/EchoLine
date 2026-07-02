@@ -219,6 +219,7 @@ Transactional outbox for reliable async publish (migration `00004`).
 - `topic` — e.g. `message.created`
 - `payload` — JSONB event body
 - `status`: `pending`, `processing`, `published`, `failed` (migration `00017` adds `processing` claim state)
+- `processing_at` — claim timestamp for stale reaper (migration `00018`)
 - `attempts`
 - `created_at`, `published_at`
 

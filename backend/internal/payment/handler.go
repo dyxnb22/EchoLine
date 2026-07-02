@@ -109,10 +109,16 @@ type EntitlementGranter interface {
 	Grant(ctx context.Context, userID, channelID uuid.UUID, reference string) error
 }
 
+// ChannelPaymentGate checks paid channel configuration before entitlement grant.
+type ChannelPaymentGate interface {
+	RequiresEntitlement(ctx context.Context, channelID uuid.UUID) (bool, error)
+}
+
 // Handler exposes payment ledger REST endpoints.
 type Handler struct {
 	repo         *Repository
 	entitlements EntitlementGranter
+	channels     ChannelPaymentGate
 }
 
 // NewHandler creates a payment handler.
@@ -123,6 +129,11 @@ func NewHandler(repo *Repository) *Handler {
 // SetEntitlementGranter enables auto-grant on settle for channel references.
 func (h *Handler) SetEntitlementGranter(g EntitlementGranter) {
 	h.entitlements = g
+}
+
+// SetChannelPaymentGate validates paid channel references before granting entitlements.
+func (h *Handler) SetChannelPaymentGate(g ChannelPaymentGate) {
+	h.channels = g
 }
 
 // HandleCreate creates a ledger entry (skeleton).
@@ -203,9 +214,27 @@ func (h *Handler) HandleSettle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.entitlements != nil && strings.HasPrefix(req.Reference, "channel:") {
-		if channelID, err := uuid.Parse(strings.TrimPrefix(req.Reference, "channel:")); err == nil {
-			_ = h.entitlements.Grant(r.Context(), claims.UserID, channelID, req.Reference)
+		channelID, err := uuid.Parse(strings.TrimPrefix(req.Reference, "channel:"))
+		if err != nil {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "invalid channel reference")
+			return
 		}
+		if entry.AmountCents < 1 {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "payment amount required for channel entitlement")
+			return
+		}
+		if h.channels != nil {
+			required, err := h.channels.RequiresEntitlement(r.Context(), channelID)
+			if err != nil {
+				apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to verify channel")
+				return
+			}
+			if !required {
+				apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "channel does not require paid entitlement")
+				return
+			}
+		}
+		_ = h.entitlements.Grant(r.Context(), claims.UserID, channelID, req.Reference)
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, ledgerPayload(entry))

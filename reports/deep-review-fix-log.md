@@ -22,8 +22,32 @@
 
 | Issue | Fix | Files |
 |-------|-----|-------|
-| WS ACK message validation | `GetByID` on service + WS handler check | `message/service.go`, `realtime/server.go` |
+| ISSUE-019 | WS ACK message validation | `message/service.go`, `realtime/server.go` |
+
+## Iteration 03 (full-scope)
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| ISSUE-023 | Payment settle requires `requires_entitlement` + amount | `payment/handler.go` |
+| ISSUE-024/020 | Outbox stale `processing` reaper | `migrations/00018`, `outbox/repository.go`, `cmd/worker/main.go` |
+| ISSUE-025 | Conversation list cache invalidation | `conversation/handler.go`, `message/handler.go` |
+| ISSUE-026 | Sync includes attachment metadata | `sync/handler.go` |
+| ISSUE-027/033 | MarkRead capped; ACK uses message seq | `conversation/repository.go`, `delivery/handler.go`, `realtime/server.go` |
+| ISSUE-028 | Pin/report message-in-conversation | `pin/handler.go`, `report/handler.go` |
+| ISSUE-031 | Search index on edit/recall | `worker/handlers.go`, `search/repository.go`, `cmd/worker/main.go` |
+| ISSUE-032 | GraphQL reaction RBAC | `graph/reaction.go` |
+| ISSUE-023 FE | WS edit/recall `message_id` field | `ChatPage.tsx` |
+| ISSUE-024 FE | Search navigation replace mode | `ChatPage.tsx` |
+| ISSUE-025 FE | Archived API response parse | `api.ts` |
+| ISSUE-026 FE | Logout remount clears state | `App.tsx` |
+| ISSUE-029 FE | Clear messages on conv switch | `ChatPage.tsx` |
+| ISSUE-021 | Attachment download UI | `api.ts`, `ChatPage.tsx` |
+
+## Iteration 04 (full-scope verification)
+
+No new code fixes; verified iteration 03 fixes. Documented wontfix for WS rate limit, CheckOrigin, notifications, client ACK.
 
 ## Wontfix (documented)
 
 - ISSUE-014: Presigned URL sharing within expiry — MVP accepted per `review-security.md`
+- ISSUE-041–043, ISSUE-046: WS rate limit, CheckOrigin, notifications producer, client ACK — MVP documented in `deep-review-iteration-04.md`
