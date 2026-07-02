@@ -220,9 +220,9 @@ Transactional outbox for reliable async publish (migration `00004`).
 - `payload` — JSONB event body
 - `status`: `pending`, `processing`, `published`, `failed` (migration `00017` adds `processing` claim state)
 - `attempts`
-- `created_at`, `published_at`
+- `created_at`, `published_at`, `processing_started_at` (migration `00018`; set on claim, cleared on publish/fail/reclaim)
 
-Worker claims `pending` rows into `processing` with `SKIP LOCKED` before publish (`internal/outbox`, `cmd/worker`).
+Worker claims `pending` rows into `processing` with `SKIP LOCKED` before publish (`internal/outbox`, `cmd/worker`). Stale `processing` rows (worker crash after claim) are reclaimed to `pending` via `ReclaimStaleProcessing` on a periodic loop (default 5 minute threshold).
 
 ### audit_logs
 

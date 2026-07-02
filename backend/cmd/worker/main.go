@@ -61,6 +61,9 @@ func main() {
 	drainer := outbox.NewPublisher(outboxRepo, kafkaPub, memPub, logger)
 	go drainer.Run(ctx)
 
+	outboxReclaim := workerpkg.NewOutboxReclaimWorker(outboxRepo, 5*time.Minute, logger)
+	go outboxReclaim.Run(ctx, time.Minute)
+
 	msgHandler := workerpkg.NewMessageCreatedHandler(searchRepo, logger)
 	pushRepo := push.NewRepository(pool)
 	pushWorker := push.NewWorker(pushRepo, push.NewMockProvider(logger), logger)

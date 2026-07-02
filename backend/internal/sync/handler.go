@@ -54,6 +54,7 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 		ConversationID string           `json:"conversation_id"`
 		Messages       []map[string]any `json:"messages"`
 		LatestSeq      int64            `json:"latest_seq"`
+		NextSeq        int64            `json:"next_seq,omitempty"`
 		Unread         int64            `json:"unread"`
 		HasMore        bool             `json:"has_more"`
 	}
@@ -116,6 +117,7 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 			ConversationID: convID.String(),
 			Messages:       items,
 			LatestSeq:      state.LatestSeq,
+			NextSeq:        maxSeq,
 			Unread:         unread,
 			HasMore:        hasMore,
 		})

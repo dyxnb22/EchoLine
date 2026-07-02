@@ -96,7 +96,7 @@ Client → server:
 
 ### `message.created`
 
-新消息持久化后推送，payload 含 `id`, `conversation_id`, `sender_id`, `client_msg_id`, `seq`, `type`, `body`, `created_at`。
+新消息持久化后推送，payload 含 `id`, `conversation_id`, `sender_id`, `client_msg_id`, `seq`, `type`, `body`, `created_at`。带附件时可选 `attachment`：`{ "object_key": "...", "mime_type": "..." }`。
 
 ### `message.edited`
 

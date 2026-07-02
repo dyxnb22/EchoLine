@@ -29,8 +29,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.Handle("GET /metrics", metrics.ProtectedHandler(s.cfg.MetricsToken))
-	mux.HandleFunc("POST /api/auth/register", s.auth.HandleRegister)
-	mux.HandleFunc("POST /api/auth/refresh", s.auth.HandleRefresh)
+	// register, refresh, login registered in applyRateLimits with rate limiting
 	mux.Handle("GET /api/me", auth.RequireAuth(s.auth, http.HandlerFunc(s.handleMe)))
 	mux.Handle("GET /api/conversations", auth.RequireAuth(s.auth, http.HandlerFunc(s.conv.HandleList)))
 	mux.Handle("POST /api/conversations/direct", auth.RequireAuth(s.auth, http.HandlerFunc(s.conv.HandleCreateDirect)))

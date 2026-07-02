@@ -64,17 +64,20 @@ func (h *Handler) HandleACK(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.messages != nil {
-		if _, err := h.messages.GetByID(r.Context(), convID, msgID); err != nil {
-			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "message not in conversation")
-			return
-		}
-	}
-
 	status := Status(req.Status)
 	if status != StatusDelivered && status != StatusRead {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "status must be delivered or read")
 		return
+	}
+
+	var readSeq int64
+	if h.messages != nil {
+		msg, err := h.messages.GetByID(r.Context(), convID, msgID)
+		if err != nil {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "message not in conversation")
+			return
+		}
+		readSeq = msg.Seq
 	}
 
 	rec, err := h.repo.UpsertACK(r.Context(), msgID, claims.UserID, req.DeviceID, status)
@@ -87,8 +90,8 @@ func (h *Handler) HandleACK(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if status == StatusRead && req.Seq > 0 {
-		_ = h.conversations.MarkRead(r.Context(), convID, claims.UserID, req.Seq)
+	if status == StatusRead && readSeq > 0 {
+		_ = h.conversations.MarkRead(r.Context(), convID, claims.UserID, readSeq)
 	}
 
 	apierror.WriteJSON(w, http.StatusOK, map[string]any{

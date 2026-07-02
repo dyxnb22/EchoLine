@@ -247,6 +247,16 @@ export async function presignUpload(
   return data;
 }
 
+export async function presignDownload(
+  token: string,
+  objectKey: string,
+): Promise<{ download_url: string; object_key: string; mime_type?: string }> {
+  return authedJSON(token, "/api/media/download-url", {
+    method: "POST",
+    body: JSON.stringify({ object_key: objectKey }),
+  }, "presign download failed");
+}
+
 export async function searchMessages(token: string, query: string): Promise<SearchHit[]> {
   const params = new URLSearchParams({ q: query, limit: "20" });
   const data = await authedJSON<{ results?: SearchHit[] }>(

@@ -20,6 +20,7 @@ import {
   markConversationRead,
   Message,
   Notification,
+  presignDownload,
   presignUpload,
   Reaction,
   recallMessage,
@@ -79,7 +80,14 @@ export function ChatPage() {
   const seqCursorsRef = useRef<Record<string, number>>({});
   const conversationsRef = useRef<Conversation[]>([]);
   const pendingSearchSeqRef = useRef<{ conversationId: string; seq: number } | null>(null);
+  const pendingSeqRef = useRef(Number.MAX_SAFE_INTEGER);
+  const conversationsLoadedRef = useRef(false);
   const typingTimer = useRef<number | undefined>(undefined);
+
+  const allocPendingSeq = useCallback(() => {
+    pendingSeqRef.current -= 1;
+    return pendingSeqRef.current;
+  }, []);
 
   const deviceId = useMemo(() => localStorage.getItem("echoline_device") ?? crypto.randomUUID(), []);
 
@@ -112,6 +120,20 @@ export function ChatPage() {
     if (!token) return;
     listConversations(token).then(setConversations).catch((e) => setError(String(e)));
   }, [token]);
+
+  const clearUnread = useCallback((conversationId: string) => {
+    setConversations((prev) => prev.map((c) => (
+      c.id === conversationId ? { ...c, unread: 0 } : c
+    )));
+  }, []);
+
+  const markActiveRead = useCallback((conversationId: string, seq: number) => {
+    if (!token) return;
+    clearUnread(conversationId);
+    markConversationRead(token, conversationId, seq)
+      .then(() => refreshConversations())
+      .catch(() => undefined);
+  }, [token, clearUnread, refreshConversations]);
 
   const activeConv = conversations.find((c) => c.id === activeId);
   const canPublish = activeConv
@@ -186,6 +208,15 @@ export function ChatPage() {
   useEffect(() => {
     runSyncRef.current = runSync;
   }, [runSync]);
+
+  useEffect(() => {
+    if (conversations.length === 0) return;
+    const justLoaded = !conversationsLoadedRef.current;
+    conversationsLoadedRef.current = true;
+    if (justLoaded && wsStatus === "open") {
+      void runSyncRef.current();
+    }
+  }, [conversations.length, wsStatus]);
 
   const refreshAccessToken = useCallback(async () => {
     const refresh = localStorage.getItem("echoline_refresh");
@@ -268,7 +299,7 @@ export function ChatPage() {
         }
         const last = ordered[ordered.length - 1];
         if (last?.seq) {
-          markConversationRead(token, activeId, last.seq).catch(() => undefined);
+          markActiveRead(activeId, last.seq);
         }
       }).catch((e) => setError(String(e)));
       listPins(token, activeId).then(setPins).catch(() => setPins([]));
@@ -279,11 +310,11 @@ export function ChatPage() {
     loadMessages(activeId).then((ordered) => {
       const last = ordered[ordered.length - 1];
       if (last?.seq) {
-        markConversationRead(token, activeId, last.seq).catch(() => undefined);
+        markActiveRead(activeId, last.seq);
       }
     }).catch((e) => setError(String(e)));
     listPins(token, activeId).then(setPins).catch(() => setPins([]));
-  }, [token, activeId, loadMessages]);
+  }, [token, activeId, loadMessages, markActiveRead]);
 
   useEffect(() => {
     if (!token) return;
@@ -313,6 +344,7 @@ export function ChatPage() {
           user_id?: string;
           client_msg_id?: string;
           status?: string;
+          attachment?: { object_key?: string; mime_type?: string };
         };
       };
       if (env.type === "typing.indicator" && env.payload?.conversation_id === activeIdRef.current) {
@@ -345,12 +377,14 @@ export function ChatPage() {
         return;
       }
       if (env.type !== "message.created") return;
-      refreshConversations();
       const convId = env.payload?.conversation_id;
-      if (convId === activeIdRef.current && env.payload?.seq) {
-        markConversationRead(token, convId, env.payload.seq).catch(() => undefined);
+      const isActive = convId === activeIdRef.current;
+      if (isActive && env.payload?.seq) {
+        markActiveRead(convId!, env.payload.seq);
+      } else {
+        refreshConversations();
       }
-      if (convId === activeIdRef.current && env.payload?.id && wsRef.current) {
+      if (isActive && env.payload?.id && wsRef.current) {
         wsRef.current.send({
           type: "message.ack",
           payload: {
@@ -362,6 +396,12 @@ export function ChatPage() {
         });
       }
       if (convId !== activeIdRef.current) return;
+      const wsAttachment = env.payload!.attachment?.object_key
+        ? {
+          object_key: env.payload!.attachment.object_key,
+          mime_type: env.payload!.attachment.mime_type,
+        }
+        : undefined;
       setMessages((prev) => {
         const seq = env.payload!.seq ?? 0;
         const clientMsgId = env.payload!.client_msg_id;
@@ -382,6 +422,7 @@ export function ChatPage() {
             seq,
             body: env.payload!.body ?? "",
             sender_id: env.payload!.sender_id ?? "",
+            attachment: wsAttachment ?? updated[dupIdx].attachment,
             pending: false,
           };
           return updated;
@@ -392,12 +433,13 @@ export function ChatPage() {
           body: env.payload!.body ?? "",
           sender_id: env.payload!.sender_id ?? "",
           client_msg_id: clientMsgId,
+          attachment: wsAttachment,
         }];
       });
     }, setWsStatus, () => { void runSyncRef.current(); }, refreshAccessToken);
     wsRef.current = conn;
     return () => conn.close();
-  }, [token, deviceId, refreshConversations, refreshAccessToken]);
+  }, [token, deviceId, refreshConversations, refreshAccessToken, markActiveRead]);
 
   function emitTyping() {
     if (!activeId || !wsRef.current) return;
@@ -466,7 +508,7 @@ export function ChatPage() {
     const clientMsgId = crypto.randomUUID();
     const optimistic: Message = {
       id: tempId,
-      seq: Date.now(),
+      seq: allocPendingSeq(),
       body,
       sender_id: "me",
       pending: true,
@@ -497,7 +539,7 @@ export function ChatPage() {
       const { object_key } = await presignUpload(token, file);
       setMessages((prev) => [...prev, {
         id: tempId,
-        seq: Date.now(),
+        seq: allocPendingSeq(),
         body: file.name,
         sender_id: "me",
         pending: true,
@@ -515,6 +557,16 @@ export function ChatPage() {
       setError(String(err));
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleAttachmentDownload(objectKey: string) {
+    if (!token) return;
+    try {
+      const { download_url } = await presignDownload(token, objectKey);
+      window.open(download_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(String(err));
     }
   }
 
@@ -689,7 +741,23 @@ export function ChatPage() {
         <div className="messages">
           {messages.map((m) => (
             <div key={`${m.id}-${m.seq}`} className={`message ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""} ${m.status === "recalled" ? "recalled" : ""}`}>
-              <strong>#{m.seq}</strong> {m.status === "recalled" ? <em>(recalled)</em> : m.body}
+              <strong>#{m.seq}</strong>{" "}
+              {m.status === "recalled" ? (
+                <em>(recalled)</em>
+              ) : m.attachment?.object_key ? (
+                <>
+                  {m.body && <span>{m.body} </span>}
+                  <button
+                    type="button"
+                    className="attachment-link"
+                    onClick={() => void handleAttachmentDownload(m.attachment!.object_key)}
+                  >
+                    📎 Download{m.attachment.mime_type ? ` (${m.attachment.mime_type})` : ""}
+                  </button>
+                </>
+              ) : (
+                m.body
+              )}
               {m.pending && <em> sending...</em>}
               {m.failed && <em> failed</em>}
               {(reactions[m.id] ?? []).length > 0 && (

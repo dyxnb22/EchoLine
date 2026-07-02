@@ -13,8 +13,24 @@ import (
 )
 
 func migrationsDir() string {
+	if dir := os.Getenv("MIGRATIONS_DIR"); dir != "" {
+		return filepath.Clean(dir)
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), "migrations")
+		if dirExists(candidate) {
+			return filepath.Clean(candidate)
+		}
+	}
+
 	_, filename, _, _ := runtime.Caller(0)
 	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "migrations"))
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // Up applies all pending database migrations.

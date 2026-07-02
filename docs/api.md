@@ -218,6 +218,8 @@ WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
 }
 ```
 
+响应中每个会话包含 `latest_seq`（会话 head）、`next_seq`（本页最大 seq，用于分页续拉）、`has_more`。
+
 ## Media
 
 ### POST `/api/media/upload-url`
