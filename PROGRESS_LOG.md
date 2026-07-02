@@ -2,6 +2,37 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Post-audit recheck
+
+任务：在 deep-review 与 strict-audit 后重新检查项目状态。
+
+范围：
+
+- 读取当前状态文档与最近审计报告。
+- 抽查 server route wiring、rate limit、GraphQL、ads、media、ACK/WS、outbox、frontend ChatPage/API/E2E。
+- 确认旧 P1/P2 修复没有只停留在报告层。
+
+结果：
+
+- 未发现新的 P0/P1/P2。
+- 已知剩余风险仍为 P3/P4：full smoke 环境阻塞、Go integration placeholder、outbox stale processing reaper、附件下载 UI、WS query token、Redis limiter Lua、edit/recall HTTP 语义、Playwright mock 噪声。
+- 新增报告：`reports/recheck-2026-07-02.md`。
+
+测试：
+
+- `cd backend && go test ./...` 通过。
+- `cd backend && go vet ./...` 通过。
+- `cd backend && go test -race ./internal/rate_limit ./internal/realtime ./internal/message ./internal/outbox ./internal/graph ./internal/payment` 通过。
+- `cd frontend && npm run lint` 通过。
+- `cd frontend && npm run build` 通过。
+- `cd frontend && npm audit --omit=dev` 通过，0 vulnerabilities。
+- `cd frontend && npm run test:e2e` 初次因本机缺 Playwright Chromium 失败；执行 `npx playwright install chromium` 后重跑通过，4 tests pass。
+
+下一步：
+
+- 优先本地执行 `make dev-up && make dev-app && make smoke-full`。
+- 或选择 P3：outbox stale processing reaper / attachment download UI / Go integration test 补真实 register-login-send flow。
+
 ## 2026-07-02 Deep review quality iteration (2 rounds)
 
 任务：深度代码审查 + 修复直至 P3 以下。
