@@ -1,4 +1,10 @@
-import { API_BASE, authHeaders, authedRequest, parseResponse } from "./api/http";
+import {
+  authedBlob,
+  authedJSON,
+  authedJSONOr,
+  authedVoid,
+  publicJSON,
+} from "./api/http";
 
 export type TokenPair = {
   access_token: string;
@@ -36,34 +42,6 @@ export type SearchHit = {
   seq: number;
 };
 
-export async function login(username: string, password: string): Promise<TokenPair> {
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-  return parseResponse<TokenPair>(res, "login failed");
-}
-
-export async function register(username: string, password: string, displayName: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, display_name: displayName }),
-  });
-  if (!res.ok) throw new Error("register failed");
-}
-
-export async function refreshToken(refresh: string): Promise<TokenPair> {
-  const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refresh }),
-  });
-  if (!res.ok) throw new Error("refresh failed");
-  return res.json();
-}
-
 export type Notification = {
   id: string;
   type: string;
@@ -72,25 +50,56 @@ export type Notification = {
   read_at?: string | null;
 };
 
+export type Reaction = { user_id: string; emoji: string; created_at?: string };
+
+export type AdminUser = { id: string; username: string; display_name: string; is_admin: boolean };
+export type AdminReport = { id: string; reason: string; message_id: string; conversation_id: string };
+export type DLQEvent = { id: string; event_type: string; status: string; attempts: number };
+
+export type WSStatus = "connecting" | "open" | "closed";
+
+export async function login(username: string, password: string): Promise<TokenPair> {
+  return publicJSON<TokenPair>("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  }, "login failed");
+}
+
+export async function register(username: string, password: string, displayName: string): Promise<void> {
+  await publicJSON("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, display_name: displayName }),
+  }, "register failed");
+}
+
+export async function refreshToken(refresh: string): Promise<TokenPair> {
+  return publicJSON<TokenPair>("/api/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refresh }),
+  }, "refresh failed");
+}
+
 export async function listNotifications(token: string): Promise<Notification[]> {
-  const res = await fetch(`${API_BASE}/api/notifications`, { headers: authHeaders(token) });
-  if (!res.ok) throw new Error("notifications failed");
-  const data = await res.json();
+  const data = await authedJSON<{ notifications?: Notification[] }>(
+    token, "/api/notifications", {}, "notifications failed",
+  );
   return data.notifications ?? [];
 }
 
 export async function markConversationRead(token: string, conversationId: string, lastReadSeq: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/read`, {
+  await authedVoid(token, `/api/conversations/${conversationId}/read`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ last_read_seq: lastReadSeq }),
-  });
-  if (!res.ok) throw new Error("mark read failed");
+  }, "mark read failed");
 }
 
 export async function listConversations(token: string): Promise<Conversation[]> {
-  const res = await authedRequest(token, "/api/conversations");
-  const data = await parseResponse<{ conversations?: Conversation[] }>(res, "list conversations failed");
+  const data = await authedJSON<{ conversations?: Conversation[] }>(
+    token, "/api/conversations", {}, "list conversations failed",
+  );
   return data.conversations ?? [];
 }
 
@@ -101,15 +110,13 @@ export async function listMessages(
 ): Promise<MessagePage> {
   const params = new URLSearchParams({ limit: "50" });
   if (beforeSeq != null) params.set("before_seq", String(beforeSeq));
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages?${params}`, {
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("list messages failed");
-  const data = await res.json();
-  return {
-    messages: data.messages ?? [],
-    next_before: data.next_before ?? null,
-  };
+  const data = await authedJSON<{ messages?: Message[]; next_before?: number | null }>(
+    token,
+    `/api/conversations/${conversationId}/messages?${params}`,
+    {},
+    "list messages failed",
+  );
+  return { messages: data.messages ?? [], next_before: data.next_before ?? null };
 }
 
 export async function sendMessage(
@@ -126,53 +133,50 @@ export async function sendMessage(
   if (attachmentObjectKey) {
     payload.attachment = { object_key: attachmentObjectKey };
   }
-  const res = await authedRequest(token, `/api/conversations/${conversationId}/messages`, {
+  await authedVoid(token, `/api/conversations/${conversationId}/messages`, {
     method: "POST",
     body: JSON.stringify(payload),
-  });
-  await parseResponse(res, "send failed");
+  }, "send failed");
 }
 
 export async function presignUpload(
   token: string,
   file: File,
 ): Promise<{ upload_url: string; object_key: string }> {
-  const res = await fetch(`${API_BASE}/api/media/upload-url`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: JSON.stringify({
-      mime_type: file.type || "application/octet-stream",
-      size_bytes: file.size,
-    }),
-  });
-  if (!res.ok) throw new Error("presign upload failed");
-  const data = await res.json();
+  const data = await authedJSON<{ upload_url: string; object_key: string }>(
+    token,
+    "/api/media/upload-url",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        mime_type: file.type || "application/octet-stream",
+        size_bytes: file.size,
+      }),
+    },
+    "presign upload failed",
+  );
   const put = await fetch(data.upload_url, {
     method: "PUT",
     body: file,
     headers: { "Content-Type": file.type || "application/octet-stream" },
   });
   if (!put.ok) throw new Error("upload failed");
-  return { upload_url: data.upload_url, object_key: data.object_key };
+  return data;
 }
 
 export async function searchMessages(token: string, query: string): Promise<SearchHit[]> {
   const params = new URLSearchParams({ q: query, limit: "20" });
-  const res = await fetch(`${API_BASE}/api/search/messages?${params}`, {
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("search failed");
-  const data = await res.json();
+  const data = await authedJSON<{ results?: SearchHit[] }>(
+    token, `/api/search/messages?${params}`, {}, "search failed",
+  );
   return data.results ?? [];
 }
 
 export async function addReaction(token: string, messageId: string, emoji: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/messages/${messageId}/reactions`, {
+  await authedVoid(token, `/api/messages/${messageId}/reactions`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ emoji }),
-  });
-  if (!res.ok) throw new Error("reaction failed");
+  }, "reaction failed");
 }
 
 export async function reportMessage(
@@ -181,224 +185,161 @@ export async function reportMessage(
   messageId: string,
   reason: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages/${messageId}/report`, {
+  await authedVoid(token, `/api/conversations/${conversationId}/messages/${messageId}/report`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ reason }),
-  });
-  if (!res.ok) throw new Error("report failed");
+  }, "report failed");
 }
 
 export async function blockUser(token: string, userId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/blocks/${userId}`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("block failed");
+  await authedVoid(token, `/api/blocks/${userId}`, { method: "POST" }, "block failed");
 }
 
 export async function listRecommendations(token: string): Promise<{ channel_id: string; title: string }[]> {
-  const res = await fetch(`${API_BASE}/api/recommendations/channels`, { headers: authHeaders(token) });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.channels ?? []).map((c: { id?: string; channel_id?: string; title: string }) => ({
+  const data = await authedJSONOr<{ channels?: { id?: string; channel_id?: string; title: string }[] }>(
+    token, "/api/recommendations/channels", {}, { channels: [] },
+  );
+  return (data.channels ?? []).map((c) => ({
     channel_id: c.id ?? c.channel_id ?? "",
     title: c.title,
   }));
 }
 
-export type Reaction = { user_id: string; emoji: string; created_at?: string };
-
 export async function listReactions(token: string, messageId: string): Promise<Reaction[]> {
-  const res = await fetch(`${API_BASE}/api/messages/${messageId}/reactions`, { headers: authHeaders(token) });
-  if (!res.ok) return [];
-  const data = await res.json();
+  const data = await authedJSONOr<{ reactions?: Reaction[] }>(
+    token, `/api/messages/${messageId}/reactions`, {}, { reactions: [] },
+  );
   return data.reactions ?? [];
 }
 
 export async function removeReaction(token: string, messageId: string, emoji: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
-    method: "DELETE",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("remove reaction failed");
+  await authedVoid(
+    token,
+    `/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    { method: "DELETE" },
+    "remove reaction failed",
+  );
 }
 
 export async function listReplies(token: string, convId: string, messageId: string): Promise<Message[]> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}/replies`, {
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("list replies failed");
-  const data = await res.json();
+  const data = await authedJSON<{ replies?: Message[] }>(
+    token,
+    `/api/conversations/${convId}/messages/${messageId}/replies`,
+    {},
+    "list replies failed",
+  );
   return data.replies ?? [];
 }
 
 export async function sendReply(token: string, convId: string, messageId: string, body: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}/replies`, {
+  await authedVoid(token, `/api/conversations/${convId}/messages/${messageId}/replies`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ body }),
-  });
-  if (!res.ok) throw new Error("send reply failed");
+  }, "send reply failed");
 }
 
-export type AdminUser = { id: string; username: string; display_name: string; is_admin: boolean };
-export type AdminReport = { id: string; reason: string; message_id: string; conversation_id: string };
-
 export async function adminListUsers(token: string): Promise<AdminUser[]> {
-  const res = await fetch(`${API_BASE}/api/admin/users`, { headers: authHeaders(token) });
-  if (!res.ok) throw new Error("admin users failed");
-  const data = await res.json();
+  const data = await authedJSON<{ users?: AdminUser[] }>(token, "/api/admin/users", {}, "admin users failed");
   return data.users ?? [];
 }
 
 export async function adminListReports(token: string): Promise<AdminReport[]> {
-  const res = await fetch(`${API_BASE}/api/admin/reports`, { headers: authHeaders(token) });
-  if (!res.ok) throw new Error("admin reports failed");
-  const data = await res.json();
+  const data = await authedJSON<{ reports?: AdminReport[] }>(token, "/api/admin/reports", {}, "admin reports failed");
   return data.reports ?? [];
 }
 
 export async function pinMessage(token: string, conversationId: string, messageId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/pins/${messageId}`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("pin failed");
+  await authedVoid(token, `/api/conversations/${conversationId}/pins/${messageId}`, { method: "POST" }, "pin failed");
 }
 
 export async function archiveConversation(token: string, conversationId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/archive`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("archive failed");
+  await authedVoid(token, `/api/conversations/${conversationId}/archive`, { method: "POST" }, "archive failed");
 }
 
 export async function exportConversation(token: string, conversationId: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/export`, {
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("export failed");
-  return res.blob();
+  return authedBlob(token, `/api/conversations/${conversationId}/export`, {}, "export failed");
 }
 
 export async function forwardMessage(token: string, messageId: string, targetConversationId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/messages/${messageId}/forward`, {
+  await authedVoid(token, `/api/messages/${messageId}/forward`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ target_conversation_id: targetConversationId }),
-  });
-  if (!res.ok) throw new Error("forward failed");
+  }, "forward failed");
 }
 
 export async function subscribeChannel(token: string, channelId: string): Promise<void> {
-  const res = await authedRequest(token, `/api/conversations/${channelId}/subscribe`, { method: "POST" });
-  await parseResponse(res, "subscribe failed");
+  await authedVoid(token, `/api/conversations/${channelId}/subscribe`, { method: "POST" }, "subscribe failed");
 }
 
 export async function listFriendRecommendations(token: string): Promise<{ id: string; username: string; display_name: string }[]> {
-  const res = await fetch(`${API_BASE}/api/recommendations/friends`, { headers: authHeaders(token) });
-  if (!res.ok) return [];
-  const data = await res.json();
+  const data = await authedJSONOr<{ friends?: { id: string; username: string; display_name: string }[] }>(
+    token, "/api/recommendations/friends", {}, { friends: [] },
+  );
   return data.friends ?? [];
 }
 
 export async function touchLastSeen(token: string): Promise<void> {
-  await fetch(`${API_BASE}/api/presence/last-seen`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
+  await authedVoid(token, "/api/presence/last-seen", { method: "POST" }, "last seen failed");
 }
 
 export async function markNotificationRead(token: string, id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/notifications/${id}/read`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("mark notification read failed");
+  await authedVoid(token, `/api/notifications/${id}/read`, { method: "POST" }, "mark notification read failed");
 }
 
 export async function editMessage(token: string, convId: string, messageId: string, body: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}`, {
+  await authedVoid(token, `/api/conversations/${convId}/messages/${messageId}`, {
     method: "PATCH",
-    headers: authHeaders(token),
     body: JSON.stringify({ body }),
-  });
-  if (!res.ok) throw new Error("edit failed");
+  }, "edit failed");
 }
 
 export async function recallMessage(token: string, convId: string, messageId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/messages/${messageId}/recall`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("recall failed");
+  await authedVoid(token, `/api/conversations/${convId}/messages/${messageId}/recall`, { method: "POST" }, "recall failed");
 }
 
 export async function listPins(token: string, convId: string): Promise<{ message_id: string }[]> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/pins`, { headers: authHeaders(token) });
-  if (!res.ok) return [];
-  const data = await res.json();
+  const data = await authedJSONOr<{ pins?: { message_id: string }[] }>(
+    token, `/api/conversations/${convId}/pins`, {}, { pins: [] },
+  );
   return data.pins ?? [];
 }
 
 export async function listArchived(token: string): Promise<Conversation[]> {
-  const res = await fetch(`${API_BASE}/api/conversations/archived`, { headers: authHeaders(token) });
-  if (!res.ok) return [];
-  const data = await res.json();
+  const data = await authedJSONOr<{ conversations?: Conversation[] }>(
+    token, "/api/conversations/archived", {}, { conversations: [] },
+  );
   return data.conversations ?? [];
 }
 
 export async function unarchiveConversation(token: string, convId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/unarchive`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("unarchive failed");
+  await authedVoid(token, `/api/conversations/${convId}/unarchive`, { method: "POST" }, "unarchive failed");
 }
 
 export async function inviteMember(token: string, convId: string, userId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/members`, {
+  await authedVoid(token, `/api/conversations/${convId}/members`, {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ user_id: userId, role: "member" }),
-  });
-  if (!res.ok) throw new Error("invite failed");
+  }, "invite failed");
 }
 
 export async function removeMember(token: string, convId: string, userId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/conversations/${convId}/members/${userId}`, {
-    method: "DELETE",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("remove failed");
+  await authedVoid(token, `/api/conversations/${convId}/members/${userId}`, { method: "DELETE" }, "remove failed");
 }
 
 export async function registerPushToken(token: string, deviceId: string, pushToken: string, platform: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/push/tokens`, {
+  await authedVoid(token, "/api/push/tokens", {
     method: "POST",
-    headers: authHeaders(token),
     body: JSON.stringify({ device_id: deviceId, token: pushToken, platform }),
-  });
-  if (!res.ok) throw new Error("push register failed");
+  }, "push register failed");
 }
 
-export type DLQEvent = { id: string; event_type: string; status: string; attempts: number };
-
 export async function adminListDLQ(token: string): Promise<DLQEvent[]> {
-  const res = await fetch(`${API_BASE}/api/admin/dlq`, { headers: authHeaders(token) });
-  if (!res.ok) throw new Error("dlq list failed");
-  const data = await res.json();
+  const data = await authedJSON<{ events?: DLQEvent[] }>(token, "/api/admin/dlq", {}, "dlq list failed");
   return data.events ?? [];
 }
 
 export async function adminReplayDLQ(token: string, id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/admin/dlq/${id}/replay`, {
-    method: "POST",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error("dlq replay failed");
+  await authedVoid(token, `/api/admin/dlq/${id}/replay`, { method: "POST" }, "dlq replay failed");
 }
 
 export async function grantChannelEntitlement(
@@ -407,14 +348,11 @@ export async function grantChannelEntitlement(
   userId: string,
   reference: string,
 ): Promise<void> {
-  const res = await authedRequest(token, `/api/channels/${channelId}/entitlements/grant`, {
+  await authedVoid(token, `/api/channels/${channelId}/entitlements/grant`, {
     method: "POST",
     body: JSON.stringify({ user_id: userId, reference }),
-  });
-  await parseResponse(res, "grant failed");
+  }, "grant failed");
 }
-
-export type WSStatus = "connecting" | "open" | "closed";
 
 export function connectWS(
   token: string,

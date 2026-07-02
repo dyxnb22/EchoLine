@@ -32,8 +32,10 @@
 - **pages/** — 路由级页面
 - **components/** — 可复用 UI
 - **context/** — 全局状态（Auth）
-- **api/http.ts** — 集中 HTTP、错误解析、`authedRequest`（绑定 refresh）
-- **api.ts** — 领域 API 函数（逐步迁移至 `authedRequest`）
+- **api/http.ts** — `publicJSON`、`authedJSON`、`authedVoid`、`authedBlob`、`bindAuthFetch`
+- **api.ts** — 领域 API（全部经 `http.ts`  helpers，禁止裸 `fetch` 调 EchoLine API）
+
+新 API 函数必须使用 `authedJSON` / `authedVoid` 等 helper，以便 401 自动 refresh 与统一错误解析。
 
 ## 安全基线
 
@@ -47,6 +49,7 @@
 
 | 层级 | 工具 | 何时跑 |
 |------|------|--------|
+| 本地聚合 | `make verify` | PR 前 / Agent checkpoint |
 | 单元 | `go test ./...` | 每次 PR |
 | 集成 | `RUN_INTEGRATION=1` + Postgres | CI + 本地 compose |
 | E2E | Playwright + vite preview | CI |

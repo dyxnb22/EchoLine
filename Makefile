@@ -1,7 +1,8 @@
-.PHONY: help test lint dev-up dev-down smoke api-run worker-run seed frontend-dev frontend-build smoke-full chaos-redis chaos-mq loadtest-api loadtest-ws
+.PHONY: help test lint dev-up dev-down smoke api-run worker-run seed frontend-dev frontend-build smoke-full chaos-redis chaos-mq loadtest-api loadtest-ws verify
 
 help:
 	@echo "EchoLine commands:"
+	@echo "  make verify         Run local CI-equivalent checks (test + build + e2e)"
 	@echo "  make test           Run backend unit tests"
 	@echo "  make smoke          Run unit + optional WS/API smoke"
 	@echo "  make smoke-full     Full API smoke (needs running server)"
@@ -16,6 +17,9 @@ help:
 
 test:
 	cd backend && go test ./...
+
+verify:
+	chmod +x scripts/verify-all.sh && ./scripts/verify-all.sh
 
 api-run:
 	cd backend && go run ./cmd/api

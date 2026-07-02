@@ -19,14 +19,12 @@ export function decryptPayload(ciphertext: string, deviceKey: string): string {
     .join("");
 }
 
+import { authedRequest, parseResponse } from "../api/http";
+
 export async function registerDeviceKey(token: string, deviceId: string, publicKey: string): Promise<void> {
-  const res = await fetch("/api/encryption/keys", {
+  const res = await authedRequest(token, "/api/encryption/keys", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ device_id: deviceId, public_key: publicKey }),
   });
-  if (!res.ok) throw new Error("key registration failed");
+  await parseResponse(res, "key registration failed");
 }

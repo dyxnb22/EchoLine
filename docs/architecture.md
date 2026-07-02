@@ -29,6 +29,44 @@ PostgreSQL     Redis       Event Bus       Object Storage       Search
 source of truth cache/presence async workers   media files       message index
 ```
 
+### 运行时视图（Mermaid）
+
+```mermaid
+flowchart LR
+  subgraph clients [Clients]
+    Web[React Web]
+  end
+  subgraph edge [Edge optional]
+    GW[Nginx Gateway]
+  end
+  subgraph api [API Monolith]
+    REST[REST Handlers]
+    WS[WebSocket]
+  end
+  subgraph data [Data]
+    PG[(PostgreSQL)]
+    RD[(Redis)]
+    S3[(MinIO)]
+  end
+  subgraph async [Async]
+    OB[Outbox]
+    WK[Worker]
+    BUS[Event Bus]
+  end
+
+  Web -->|REST/WS| GW
+  GW --> REST
+  GW --> WS
+  REST --> PG
+  REST --> RD
+  REST --> OB
+  OB --> BUS
+  BUS --> WK
+  WK --> PG
+  WK --> RD
+  REST --> S3
+```
+
 ## 核心链路
 
 ### 发送消息

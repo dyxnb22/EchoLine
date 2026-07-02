@@ -1,27 +1,26 @@
 # Current State
 
-Current phase: **Engineering standards alignment** (review #02).
+Current phase: **Engineering review #03** — API layer unification & validation depth.
 
-Milestone: `FINAL_COMPLETION_MANIFEST.md` + `reports/engineering-review-02.md`
+Milestone: `reports/engineering-review-03.md`
 
 Last session highlights:
 
-- Security: entitlement admin/owner RBAC (ADR 0030); `internal/validate` input limits
-- Tests: entitlement handler tests, integration entitlement flow, validate unit tests
-- Frontend: `api/http.ts` centralized client; AuthContext binds refresh-aware fetch
-- Docs: `business-flows.md`, `engineering-standards.md`, architecture/api/reliability/security alignment
+- Frontend: complete `api.ts` → `http.ts` migration (`authedJSON`, `authedVoid`, `authedBlob`)
+- Backend: message Edit sanitize + validate; integration validation test
+- Docs: `docs/README.md` index, architecture mermaid, `make verify`
+- E2EE client uses auth-aware HTTP layer
 
 Tests:
 
-- `go test ./...` — run after changes
-- `npm run build` + Playwright
+- `make verify` — go test + build + playwright
+- `RUN_INTEGRATION=1` — validation + entitlement + messaging flows
 
 Blocker:
 
-- Docker/Postgres unavailable in cloud VM for full `make smoke-full`
+- Docker/Postgres unavailable in cloud VM for `make smoke-full`
 
 Next (optional):
 
-1. Migrate all `api.ts` to `authedRequest`
-2. Local `make smoke-full`
-3. Message service unit tests for validation errors
+1. Migrate `conversation/handler` to `apierror` envelope (legacy `writeError`)
+2. Local `make dev-up && make smoke-full`

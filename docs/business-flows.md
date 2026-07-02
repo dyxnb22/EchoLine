@@ -23,6 +23,7 @@ sequenceDiagram
 **规则：**
 
 - `username` ≤ 64 字符，`display_name` ≤ 128 字符，密码 ≥ 8 字符（`internal/validate`）。
+- 消息 `body` ≤ 65535 字符；发送与编辑均经 sanitize + validate。
 - Access token 15 分钟；refresh token 可撤销。
 - 登录限流：IP 维度（Redis）。
 

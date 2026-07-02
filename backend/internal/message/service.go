@@ -152,6 +152,10 @@ func (s *Service) Edit(ctx context.Context, convID, messageID, senderID uuid.UUI
 	if err := s.conversations.CanPublish(ctx, convID, senderID); err != nil {
 		return nil, err
 	}
+	body = middleware.SanitizeBody(body)
+	if err := validate.MessageBody(body, false); err != nil {
+		return nil, err
+	}
 	msg, err := s.repo.Edit(ctx, convID, messageID, senderID, body)
 	if err != nil {
 		return nil, err

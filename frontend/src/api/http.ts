@@ -16,11 +16,13 @@ export type ApiErrorBody = {
 export async function parseResponse<T>(res: Response, fallback: string): Promise<T> {
   if (res.ok) {
     if (res.status === 204) return undefined as T;
-    return res.json() as Promise<T>;
+    const text = await res.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   }
   let message = fallback;
   try {
-    const body = (await res.json()) as ApiErrorBody;
+    const body = JSON.parse(await res.text()) as ApiErrorBody;
     message = body.error?.message ?? body.message ?? fallback;
   } catch {
     // non-JSON error body
@@ -56,4 +58,59 @@ export async function authedRequest(
     return globalAuthFetch(url, requestInit);
   }
   return fetch(url, requestInit);
+}
+
+export async function publicJSON<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
+  const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+  const res = await fetch(url, init);
+  return parseResponse<T>(res, fallback);
+}
+
+export async function authedJSON<T>(
+  token: string,
+  path: string,
+  init: RequestInit,
+  fallback: string,
+): Promise<T> {
+  const res = await authedRequest(token, path, init);
+  return parseResponse<T>(res, fallback);
+}
+
+export async function authedVoid(
+  token: string,
+  path: string,
+  init: RequestInit,
+  fallback: string,
+): Promise<void> {
+  const res = await authedRequest(token, path, init);
+  await parseResponse(res, fallback);
+}
+
+/** Returns defaultValue when the server responds with a non-OK status. */
+export async function authedJSONOr<T>(
+  token: string,
+  path: string,
+  init: RequestInit,
+  defaultValue: T,
+): Promise<T> {
+  const res = await authedRequest(token, path, init);
+  if (!res.ok) return defaultValue;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return defaultValue;
+  }
+}
+
+export async function authedBlob(
+  token: string,
+  path: string,
+  init: RequestInit,
+  fallback: string,
+): Promise<Blob> {
+  const res = await authedRequest(token, path, init);
+  if (!res.ok) {
+    await parseResponse(res, fallback);
+  }
+  return res.blob();
 }

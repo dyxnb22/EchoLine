@@ -2,6 +2,22 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-01 Engineering review #03: API unification, validation depth, docs index
+
+任务：第三轮文档对齐、架构审核、业务流程校准、深度 code review。
+
+前端：api.ts 全量迁移至 http.ts helpers；e2ee 使用 authedRequest。
+
+后端：Edit 路径 sanitize+validate；integration_validation_test。
+
+文档：docs/README.md 索引、architecture mermaid、make verify、engineering-review-03。
+
+测试：go test + npm build + playwright 通过。
+
+阻塞：云 VM 无 Docker 全量 smoke。
+
+下一步：conversation handler apierror 统一（可选）。
+
 ## 2026-07-01 Engineering review #02: docs, architecture, RBAC, validate
 
 任务：文档对齐、架构审核、业务流程校准、深度 code review。

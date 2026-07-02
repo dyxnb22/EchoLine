@@ -265,6 +265,10 @@ func (h *Handler) HandleEdit(w http.ResponseWriter, r *http.Request) {
 			apierror.Write(w, r, http.StatusNotFound, "not_found", "message not found")
 			return
 		}
+		if errors.Is(err, validate.ErrMessageBodyEmpty) || errors.Is(err, validate.ErrMessageBodyLong) {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
