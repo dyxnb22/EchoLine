@@ -62,6 +62,31 @@ GET /ws?token=<access_token>&device_id=<device_id>
 }
 ```
 
+### `typing.start`
+
+Ephemeral typing indicator (not persisted).
+
+```json
+{
+  "type": "typing.start",
+  "payload": {
+    "conversation_id": "c1"
+  }
+}
+```
+
+Server broadcasts to conversation members:
+
+```json
+{
+  "type": "typing.start",
+  "payload": {
+    "conversation_id": "c1",
+    "user_id": "u1"
+  }
+}
+```
+
 ## 服务端到客户端
 
 ### `pong`
@@ -93,4 +118,13 @@ GET /ws?token=<access_token>&device_id=<device_id>
 - WS 推送失败时，客户端通过 sync endpoint 补偿。
 - 客户端重试必须携带同一个 `client_msg_id`。
 - ACK 是 delivery/read state，不是消息是否存在的唯一依据。
+- 频道中只有 owner/admin 可发布；subscriber 仅接收。
+
+## 重连 fallback
+
+1. 客户端检测到 WS 断开后进入 `reconnecting` 状态。
+2. 使用最新 access token 和固定 `device_id` 重连 `/ws`。
+3. 重连成功后对每个会话调用 `POST /api/sync` 补齐断线期间消息。
+4. 若 token 过期，先 `POST /api/auth/refresh` 再重连。
+5. 推送与 sync 可能短暂重复；客户端以 `conversation_id + seq` 去重。
 

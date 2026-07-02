@@ -30,10 +30,11 @@ type PongPayload struct {
 
 // MessageSendPayload creates a message over WebSocket.
 type MessageSendPayload struct {
-	ConversationID string `json:"conversation_id"`
-	ClientMsgID    string `json:"client_msg_id"`
-	Type           string `json:"type"`
-	Body           string `json:"body"`
+	ConversationID      string `json:"conversation_id"`
+	ClientMsgID         string `json:"client_msg_id"`
+	Type                string `json:"type"`
+	Body                string `json:"body"`
+	AttachmentObjectKey string `json:"attachment_object_key,omitempty"`
 }
 
 // MessageCreatedPayload is pushed when a message is persisted.
@@ -54,6 +55,37 @@ type MessageAckPayload struct {
 	MessageID      string `json:"message_id"`
 	Seq            int64  `json:"seq"`
 	Status         string `json:"status"`
+}
+
+// TypingPayload is sent by a client to indicate typing activity.
+type TypingPayload struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// TypingIndicatorPayload is broadcast to conversation members.
+type TypingIndicatorPayload struct {
+	ConversationID string `json:"conversation_id"`
+	UserID         string `json:"user_id"`
+}
+
+// TypingStopPayload is sent by a client to signal end of typing.
+type TypingStopPayload struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// MessageEditedPayload is broadcast when a message body is updated.
+type MessageEditedPayload struct {
+	MessageID      string `json:"message_id"`
+	ConversationID string `json:"conversation_id"`
+	Body           string `json:"body"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
+// MessageRecalledPayload is broadcast when a message is recalled.
+type MessageRecalledPayload struct {
+	MessageID      string `json:"message_id"`
+	ConversationID string `json:"conversation_id"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 func marshalEnvelope(typ, requestID string, payload any) ([]byte, error) {

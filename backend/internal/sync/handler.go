@@ -16,11 +16,12 @@ import (
 type Handler struct {
 	conversations *conversation.Repository
 	messages      *message.Service
+	cursors       *CursorRepository
 }
 
 // NewHandler creates a sync handler.
-func NewHandler(conversations *conversation.Repository, messages *message.Service) *Handler {
-	return &Handler{conversations: conversations, messages: messages}
+func NewHandler(conversations *conversation.Repository, messages *message.Service, cursors *CursorRepository) *Handler {
+	return &Handler{conversations: conversations, messages: messages, cursors: cursors}
 }
 
 type cursor struct {
@@ -68,7 +69,17 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		msgs, err := h.messages.ListSince(r.Context(), convID, c.LastSeq, 200)
+		lastSeq := c.LastSeq
+		if h.cursors != nil && req.DeviceID != "" {
+			stored, err := h.cursors.ListForDevice(r.Context(), claims.UserID, req.DeviceID)
+			if err == nil {
+				if seq, ok := stored[convID]; ok && seq > lastSeq {
+					lastSeq = seq
+				}
+			}
+		}
+
+		msgs, err := h.messages.ListSince(r.Context(), convID, lastSeq, 200)
 		if err != nil {
 			apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to sync messages")
 			return
@@ -81,8 +92,16 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 		}
 
 		items := make([]map[string]any, 0, len(msgs))
+		var maxSeq int64 = lastSeq
 		for i := range msgs {
 			items = append(items, message.ToCreatedPayload(&msgs[i]))
+			if msgs[i].Seq > maxSeq {
+				maxSeq = msgs[i].Seq
+			}
+		}
+
+		if h.cursors != nil && req.DeviceID != "" && maxSeq > lastSeq {
+			_ = h.cursors.Upsert(r.Context(), claims.UserID, req.DeviceID, convID, maxSeq)
 		}
 
 		unread := state.LatestSeq - state.LastReadSeq

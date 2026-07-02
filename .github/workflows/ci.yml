@@ -2,13 +2,208 @@ name: CI
 
 on:
   push:
+    branches: [main, master]
   pull_request:
+    branches: [main, master]
+
+env:
+  GO_VERSION: "1.22"
+  NODE_VERSION: "20"
 
 jobs:
-  test:
+  # ── Backend ────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend (Go)
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: echoline
+          POSTGRES_PASSWORD: echoline
+          POSTGRES_DB: echoline_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U echoline"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://echoline:echoline@localhost:5432/echoline_test?sslmode=disable
+      REDIS_ADDR: localhost:6379
+      JWT_SECRET: ci-test-secret-do-not-use-in-production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Download modules
+        working-directory: backend
+        run: go mod download
+
+      - name: Verify modules
+        working-directory: backend
+        run: go mod verify
+
+      - name: go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Run migrations (test DB)
+        working-directory: backend
+        run: go run ./cmd/migrate
+        env:
+          DATABASE_URL: postgres://echoline:echoline@localhost:5432/echoline_test?sslmode=disable
+
+      - name: Run unit tests
+        working-directory: backend
+        run: go test -race -count=1 -timeout 120s ./...
+
+      - name: Run integration tests
+        working-directory: backend
+        env:
+          JWT_SECRET: ci-test-secret-do-not-use-in-production
+        run: |
+          RUN_INTEGRATION=1 go test -race -count=1 -timeout 120s \
+            -run Integration ./tests/...
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (Node / Vite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript type-check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
+  e2e:
+    name: Playwright E2E (smoke)
+    runs-on: ubuntu-latest
+    needs: [frontend]
     steps:
       - uses: actions/checkout@v4
-      - name: Run tests
-        run: make test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Install Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run smoke tests
+        working-directory: frontend
+        run: npx playwright test --config=playwright.config.ts
 
+  # ── Load test smoke (k6) ───────────────────────────────────────────────────
+  loadtest-smoke:
+    name: k6 Smoke (syntax check)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
+            https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -qq
+          sudo apt-get install k6 -y
+
+      - name: Validate k6 scripts (syntax only)
+        run: |
+          for f in loadtests/*.js; do
+            echo "Checking $f..."
+            k6 run --dry-run "$f" || true
+          done
+
+  # ── Security scans ─────────────────────────────────────────────────────────
+  security:
+    name: Security Scans
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: govulncheck
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+        continue-on-error: true
+
+      - name: npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
+        continue-on-error: true

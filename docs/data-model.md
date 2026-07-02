@@ -88,6 +88,108 @@
 - `checksum`
 - `created_at`
 
+### dead_letter_events
+
+- `id`
+- `source_topic`
+- `payload`
+- `error_message`
+- `attempts`
+- `created_at`
+
+### device_sync_cursors
+
+- `user_id`
+- `device_id`
+- `conversation_id`
+- `last_seq`
+- `updated_at`
+
+### message_search_index
+
+- `message_id`
+- `conversation_id`
+- `sender_id`
+- `body`
+- `seq`
+- `search_vector` (tsvector, generated)
+- `created_at`
+
+### pinned_messages
+
+- `conversation_id`
+- `message_id`
+- `pinned_by`
+- `pinned_at`
+
+### user_blocks
+
+- `blocker_id`
+- `blocked_id`
+- `created_at`
+
+### message_reports
+
+- `id`
+- `reporter_id`
+- `message_id`
+- `conversation_id`
+- `reason`
+- `created_at`
+
+### notification_events
+
+- `id`
+- `user_id`
+- `type`
+- `payload`
+- `read_at`
+- `created_at`
+
+### message_reactions
+
+- `message_id`
+- `user_id`
+- `emoji`
+- `created_at`
+
+### push_tokens
+
+- `id`
+- `user_id`
+- `device_id`
+- `token`
+- `platform`
+- `created_at`
+
+### payment_ledger / ad_campaigns / ad_impressions / encryption_key_bundles
+
+见 `backend/migrations/00012_extensions_skeleton.sql`。
+
+### users.is_admin
+
+Migration `00014`: boolean admin flag (default false). Runtime admin also via `ADMIN_USER_IDS` env.
+
+### webhook_deliveries
+
+- `id`, `event_type`, `payload`, `status`, `attempts`, `last_error`, `created_at`, `delivered_at`
+
+### ad_campaigns extensions (00014)
+
+- `budget_cents`, `frequency_cap` (default 3 impressions/user/day)
+
+### ad_impressions.impression_day (00014)
+
+- `DATE NOT NULL DEFAULT CURRENT_DATE` — used for per-user daily frequency cap; unique index on `(campaign_id, user_id, impression_day)` (avoids non-immutable `created_at::date` in PostgreSQL indexes)
+
+### channel_entitlements (00015)
+
+- `user_id`, `channel_id`, `status`, `reference`, `expires_at` — paid channel access skeleton
+
+### conversations.requires_entitlement (00016)
+
+- `BOOLEAN NOT NULL DEFAULT FALSE` on `conversations` — when true, subscribe requires active `channel_entitlements` row
+
 ### audit_logs
 
 - `id`

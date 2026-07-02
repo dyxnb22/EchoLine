@@ -40,21 +40,69 @@
 
 - [x] latest_seq / seq 分配（C001-C002，message repo 事务）。
 - [x] 会话列表 + unread（C003/C005 partial）。
-- [x] mark read + sync endpoint（C004/C006）。
-- [ ] 历史分页集成测试（A019 with DB）。
+- [x] 消息编辑/撤回 API（C008-C009 partial）。
+- [x] per-device sync cursor（C007）。
+
+## Phase 4
+
+- [x] 群成员角色 owner/admin/member 校验（E001）。
+- [x] 群邀请/踢人/退群 API（E002）。
+- [x] 频道模型与订阅 API（E003-E004）。
+- [x] 频道发布权限（E005）。
+- [x] 小群在线 fanout 测试（E006 unit test）。
+
+## Phase 6 (infra partial)
+
+- [x] Kafka client + message.created publish/consume（F005-F008 partial）。
+- [x] Redis rate limit middleware（H001-H002 via F002）。
+- [x] audit log + login audit（H004-H005）。
 
 ## Phase 5 (reliability partial)
 
 - [x] client_msg_id 幂等（D001-D002 partial）。
 - [x] ACK REST/WS + delivery 状态机（D003-D004）。
-- [ ] outbox / DLQ（D006-D008）。
+- [x] outbox enqueue + worker publisher + SKIP LOCKED（D007-F008）。
+- [x] DLQ skeleton（D008 partial）。
 
 ## Phase 6 (infra partial)
 
 - [x] Redis client + presence TTL skeleton（F001/F003）。
 - [x] in-memory event bus + worker skeleton（F005-F007 partial）。
-- [ ] Kafka consumer production path（F008）。
+- [ ] Kafka consumer production path（F008 partial — outbox drainer done）。
+
+## Phase 7 (media/search partial)
+
+- [x] MinIO presign upload/download URL（G001-G002, G005）。
+- [x] attachments 元数据 + 附件消息（G003-G004）。
+- [x] PostgreSQL 全文搜索 + search API（G005-G008 partial）。
+
+## Phase 8 (observability partial)
+
+- [x] trace_id + Prometheus metrics（I001-I005 partial）。
+- [x] 登录/会话/conv_send 限流（H001-H003）。
+
+## Phase 8 (frontend partial)
+
+- [x] Vite React 登录/会话/聊天/分页/WS 重连（J001-J006）。
+- [x] 乐观发送 + 附件上传 + 搜索 UI（J007-J009）。
+- [x] 注册页 + typing + 通知 badge + PWA manifest + Playwright skeleton（batch-100）。
+
+## Phase 9 (batch-120)
+
+- [x] Reactions/threads/forward/presence/export/archive APIs（T001-T030 partial）。
+- [x] Push/payment/ads/recommendation/extension migrations（00011-00013）。
+- [x] GitHub Actions CI + replay CLI + extended scripts（T051-T070）。
+- [x] ADRs 0016-0022 + prototype docs + iteration-04（T071-T090）。
+- [x] Frontend dark mode, reactions, channel filter, PWA sw（T031-T050 partial）。
 
 ## Phase 2+
 
-后续阶段完成后继续追加。
+## Final completion (T001–T440 + backlog + extensions)
+
+- [x] Paid channel entitlements + migration 00016 + payment settle grant
+- [x] GraphQL addReaction; fanout push fix; worker compose profile
+- [x] Frontend react-router, AuthContext, ChatPage, notifications, group settings, edit/recall
+- [x] Integration messaging test; Playwright E2E (mocked); CI goose migrations
+- [x] API gateway prototype; OTel stub; ADR 0027–0029; code review report
+- [ ] Full `make smoke-full` (blocked: Docker/Postgres in cloud VM)
+

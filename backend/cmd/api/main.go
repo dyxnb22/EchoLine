@@ -14,6 +14,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/migrate"
 	"github.com/echoline/echoline/backend/internal/redisx"
 	"github.com/echoline/echoline/backend/internal/server"
+	"github.com/echoline/echoline/backend/internal/telemetry"
 )
 
 func main() {
@@ -24,8 +25,11 @@ func main() {
 		logger.Error("load config", "error", err)
 		os.Exit(1)
 	}
+	telemetry.InitSentry(logger)
 
 	ctx := context.Background()
+	shutdownOTel := telemetry.InitOTel(ctx, logger)
+	defer func() { _ = shutdownOTel(ctx) }()
 
 	if err := migrate.Up(ctx, cfg.DatabaseURL); err != nil {
 		logger.Error("run migrations", "error", err)

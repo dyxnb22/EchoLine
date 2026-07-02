@@ -198,6 +198,27 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Conversation, 
 	return conv, nil
 }
 
+// GetDirectPeer returns the other user's ID in a direct conversation.
+// Returns (uuid.Nil, nil) if the conversation is not a direct type.
+func (r *Repository) GetDirectPeer(ctx context.Context, conversationID, userID uuid.UUID) (uuid.UUID, error) {
+	const q = `
+		SELECT user_id
+		FROM conversation_members
+		WHERE conversation_id = $1 AND user_id <> $2
+		  AND (SELECT type FROM conversations WHERE id = $1) = 'direct'
+		LIMIT 1
+	`
+	var peerID uuid.UUID
+	err := r.pool.QueryRow(ctx, q, conversationID, userID).Scan(&peerID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("get direct peer: %w", err)
+	}
+	return peerID, nil
+}
+
 // IsMember checks whether a user belongs to a conversation.
 func (r *Repository) IsMember(ctx context.Context, conversationID, userID uuid.UUID) (bool, error) {
 	const q = `

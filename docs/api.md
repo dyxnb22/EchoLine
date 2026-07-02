@@ -115,6 +115,26 @@
 }
 ```
 
+### POST `/api/conversations/channels`
+
+创建频道。创建者为 owner，可发布消息。
+
+### POST `/api/conversations/{conversation_id}/subscribe`
+
+订阅频道（subscriber 角色，只读）。
+
+### DELETE `/api/conversations/{conversation_id}/subscribe`
+
+退订频道。
+
+### POST `/api/conversations/{conversation_id}/members`
+
+邀请用户加入群聊（需要 owner/admin）。
+
+### DELETE `/api/conversations/{conversation_id}/members/{user_id}`
+
+踢出成员或自己退群（owner 不可被踢）。
+
 ## Messages
 
 ### POST `/api/conversations/{conversation_id}/messages`
@@ -189,6 +209,209 @@
   ]
 }
 ```
+
+## Media
+
+### POST `/api/media/upload-url`
+
+获取直传对象存储的预签名 PUT URL。需要 Bearer token，且服务端已配置 `S3_ENDPOINT`。
+
+请求：
+
+```json
+{
+  "mime_type": "image/png",
+  "size_bytes": 1024,
+  "checksum": "sha256:..."
+}
+```
+
+响应：
+
+```json
+{
+  "upload_url": "https://...",
+  "object_key": "uploads/<user-id>/<uuid>",
+  "bucket": "echoline",
+  "expires_in": 900
+}
+```
+
+上传完成后，发送消息时引用 `attachment.object_key`：
+
+```json
+{
+  "client_msg_id": "uuid",
+  "type": "image",
+  "body": "optional caption",
+  "attachment": {
+    "object_key": "uploads/<user-id>/<uuid>"
+  }
+}
+```
+
+### POST `/api/media/download-url`
+
+获取已上传附件的预签名 GET URL。需要 Bearer token，且用户拥有该 `object_key`。
+
+请求：
+
+```json
+{
+  "object_key": "uploads/<user-id>/<uuid>"
+}
+```
+
+## Search
+
+### GET `/api/search/messages`
+
+关键词搜索当前用户有权限的会话消息。需要 Bearer token。
+
+查询参数：
+
+- `q`：搜索关键词（必填）
+- `limit`：结果数量（默认 20）
+
+## Message lifecycle
+
+### PATCH `/api/conversations/{conversation_id}/messages/{message_id}`
+
+编辑消息正文（仅发送者，且 `status=normal`）。
+
+请求：
+
+```json
+{
+  "body": "updated text"
+}
+```
+
+### POST `/api/conversations/{conversation_id}/messages/{message_id}/recall`
+
+撤回消息（发送者或群 admin/owner）。
+
+## Social & Notifications
+
+### POST/DELETE `/api/conversations/{id}/pins/{message_id}`
+
+置顶/取消置顶消息。
+
+### GET `/api/conversations/{id}/pins`
+
+列出会话置顶消息。
+
+### POST `/api/conversations/{id}/mute` / `/unmute`
+
+静音/取消静音会话（`muted_until`）。
+
+### POST/DELETE `/api/blocks/{user_id}`
+
+拉黑/取消拉黑用户。
+
+### GET `/api/blocks`
+
+列出拉黑用户。
+
+### POST `/api/conversations/{id}/messages/{message_id}/report`
+
+举报消息。
+
+### GET `/api/notifications`
+
+通知列表。
+
+### POST `/api/notifications/{id}/read` / `POST /api/notifications/read-all`
+
+标记通知已读。
+
+### PATCH `/api/me`
+
+更新 `display_name`。
+
+### GET `/api/devices`
+
+当前用户设备列表。
+
+### GET `/api/admin/health` / GET `/api/admin/dlq`
+
+管理接口骨架（需 Bearer token）。
+
+## Batch-120 APIs
+
+### Reactions
+
+- `POST /api/messages/{message_id}/reactions` body `{ "emoji": "👍" }`
+- `DELETE /api/messages/{message_id}/reactions/{emoji}`
+- `GET /api/messages/{message_id}/reactions`
+
+### Threads
+
+- `POST /api/conversations/{conv_id}/messages/{message_id}/replies`
+- `GET /api/conversations/{conv_id}/messages/{message_id}/replies`
+
+### Forward / Presence / Export / Archive
+
+- `POST /api/messages/{message_id}/forward`
+- `GET /api/presence/online?user_ids=...`
+- `GET /api/conversations/{id}/export`
+- `POST /api/conversations/{id}/archive` / `unarchive`
+- `GET /api/conversations/archived`
+
+### Push / Payments / Ads / Recommendations
+
+- `POST/GET /api/push/tokens`
+- `POST/GET /api/payments/ledger`
+- `POST/GET /api/channels/{channel_id}/campaigns`
+- `GET /api/recommendations/channels`
+
+### Admin DLQ
+
+- `POST /api/admin/dlq/{id}/replay`
+
+## Batch Next-120 APIs
+
+### Admin (requires `ADMIN_USER_IDS`)
+
+- `GET /api/admin/users` — list users
+- `GET /api/admin/reports` — list message reports
+- `GET /api/admin/audit-logs` — list audit entries
+- DLQ list/replay also require admin when `ADMIN_USER_IDS` is set
+
+### GraphQL prototype
+
+- `POST /graphql` body `{ "query": "{ conversations { id title } }" }`
+- `GET /graphql` — GraphiQL HTML when `GRAPHIQL=true`
+
+### Payments / Ads
+
+- `POST /api/payments/ledger/settle` body `{ "reference": "..." }` — idempotent settle
+- `POST /api/channels/{channel_id}/campaigns/{campaign_id}/impressions` — frequency-capped impression
+
+### Encryption / Presence / Recommendations
+
+- `POST/GET /api/encryption/keys` — device public key bundles
+- `GET /api/presence/last-seen?user_ids=...` — last seen timestamps
+- `POST /api/presence/last-seen` — touch current user last-seen
+- `GET /api/recommendations/friends` — mutual-group friend suggestions
+
+### GraphQL mutation
+
+- `POST /graphql` mutation `sendMessage` with variables `conversationId`, `body`
+- `POST /graphql` mutation `addReaction` with variables `messageId`, `emoji`
+
+### Channel entitlements (paid channels)
+
+- `POST /api/channels/{channel_id}/entitlements/grant` — **admin only**; body `{ "user_id": "uuid (optional)", "reference": "..." }`
+- `POST /api/channels/{channel_id}/entitlements/require` — **channel owner only**; body `{ "required": true }`
+- `POST /api/conversations/{id}/subscribe` returns `402 payment_required` when entitlement missing
+- `POST /api/payments/ledger` + `POST /api/payments/ledger/settle` with `reference: "channel:{uuid}"` auto-grants subscriber
+
+## Observability
+
+### GET `/metrics`
+
+Prometheus 指标端点（HTTP 请求计数、WS 连接数、消息发送延迟、outbox pending、MQ 消费计数）。
 
 ## 错误格式
 

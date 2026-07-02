@@ -16,6 +16,7 @@ import (
 	"github.com/echoline/echoline/backend/internal/conversation"
 	"github.com/echoline/echoline/backend/internal/delivery"
 	"github.com/echoline/echoline/backend/internal/message"
+	"github.com/echoline/echoline/backend/internal/metrics"
 )
 
 const (
@@ -35,8 +36,9 @@ var upgrader = websocket.Upgrader{
 
 // Hub tracks active WebSocket connections.
 type Hub struct {
-	mu    sync.RWMutex
-	conns map[uuid.UUID]map[string]*Connection
+	mu            sync.RWMutex
+	conns         map[uuid.UUID]map[string]*Connection
+	onCountChange func(int)
 }
 
 // NewHub creates a connection hub.
@@ -52,6 +54,7 @@ func (h *Hub) Register(userID uuid.UUID, deviceID string, conn *Connection) {
 		h.conns[userID] = make(map[string]*Connection)
 	}
 	h.conns[userID][deviceID] = conn
+	h.emitCountLocked()
 }
 
 // Unregister removes a connection.
@@ -64,6 +67,18 @@ func (h *Hub) Unregister(userID uuid.UUID, deviceID string) {
 			delete(h.conns, userID)
 		}
 	}
+	h.emitCountLocked()
+}
+
+func (h *Hub) emitCountLocked() {
+	if h.onCountChange == nil {
+		return
+	}
+	total := 0
+	for _, devices := range h.conns {
+		total += len(devices)
+	}
+	h.onCountChange(total)
 }
 
 // ConnectionCount returns total active connections.
@@ -85,12 +100,19 @@ type Connection struct {
 	send     chan []byte
 }
 
+// conversationGateway supports fanout and ack flows over WS.
+type conversationGateway interface {
+	ListMemberUserIDs(ctx context.Context, conversationID uuid.UUID) ([]uuid.UUID, error)
+	IsMember(ctx context.Context, conversationID, userID uuid.UUID) (bool, error)
+	MarkRead(ctx context.Context, conversationID, userID uuid.UUID, seq int64) error
+}
+
 // Server handles websocket upgrades and lifecycle.
 type Server struct {
 	auth          *auth.Service
 	hub           *Hub
 	messages      *message.Service
-	conversations *conversation.Repository
+	conversations conversationGateway
 	deliveries    *delivery.Repository
 	presence      PresenceTracker
 	logger        *slog.Logger
@@ -107,7 +129,7 @@ type PresenceTracker interface {
 func NewServer(
 	authSvc *auth.Service,
 	messages *message.Service,
-	conversations *conversation.Repository,
+	conversations conversationGateway,
 	deliveries *delivery.Repository,
 	presence PresenceTracker,
 	logger *slog.Logger,
@@ -125,6 +147,13 @@ func NewServer(
 		messages.SetBroadcaster(s)
 	}
 	return s
+}
+
+// SetHubMetrics enables websocket connection gauge updates.
+func (s *Server) SetHubMetrics() {
+	s.hub.onCountChange = func(n int) {
+		metrics.WSConnections.Set(float64(n))
+	}
 }
 
 // Hub returns the connection hub.
@@ -245,6 +274,10 @@ func (c *Connection) readPump(s *Server) {
 			s.handleMessageSend(c, env)
 		case "message.ack":
 			s.handleMessageAck(c, env)
+		case "typing.start":
+			s.handleTypingStart(c, env)
+		case "typing.stop":
+			s.handleTypingStop(c, env)
 		default:
 			c.sendError(env.RequestID, "unknown_type", "unsupported message type")
 		}
@@ -264,7 +297,12 @@ func (s *Server) handleMessageSend(c *Connection, env Envelope) {
 		return
 	}
 
-	msg, err := s.messages.Send(context.Background(), convID, c.UserID, payload.ClientMsgID, message.Type(payload.Type), payload.Body)
+	msg, err := s.messages.Send(context.Background(), convID, c.UserID, message.SendInput{
+		ClientMsgID: payload.ClientMsgID,
+		Type:        message.Type(payload.Type),
+		Body:        payload.Body,
+		ObjectKey:   payload.AttachmentObjectKey,
+	})
 	if err != nil {
 		if errors.Is(err, conversation.ErrNotMember) {
 			c.sendError(env.RequestID, "forbidden", "not a conversation member")
@@ -338,6 +376,128 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 		"acked_at":   rec.AckedAt,
 	})
 	c.enqueue(resp)
+}
+
+// BroadcastMessageEdited notifies conversation members that a message was edited.
+func (s *Server) BroadcastMessageEdited(ctx context.Context, convID uuid.UUID, msg *message.Message) error {
+	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return err
+	}
+
+	payload := MessageEditedPayload{
+		MessageID:      msg.ID.String(),
+		ConversationID: msg.ConversationID.String(),
+		Body:           msg.Body,
+		UpdatedAt:      msg.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	raw, err := marshalEnvelope("message.edited", "", payload)
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range memberIDs {
+		s.hub.PushToUser(ctx, userID, raw)
+	}
+	return nil
+}
+
+// BroadcastMessageRecalled notifies conversation members that a message was recalled.
+func (s *Server) BroadcastMessageRecalled(ctx context.Context, convID uuid.UUID, msg *message.Message) error {
+	memberIDs, err := s.conversations.ListMemberUserIDs(ctx, convID)
+	if err != nil {
+		return err
+	}
+
+	payload := MessageRecalledPayload{
+		MessageID:      msg.ID.String(),
+		ConversationID: msg.ConversationID.String(),
+		UpdatedAt:      msg.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	raw, err := marshalEnvelope("message.recalled", "", payload)
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range memberIDs {
+		s.hub.PushToUser(ctx, userID, raw)
+	}
+	return nil
+}
+
+func (s *Server) handleTypingStart(c *Connection, env Envelope) {
+	var payload TypingPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid typing.start payload")
+		return
+	}
+
+	convID, err := uuid.Parse(payload.ConversationID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
+		return
+	}
+
+	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
+	if err != nil || !member {
+		c.sendError(env.RequestID, "forbidden", "not a conversation member")
+		return
+	}
+
+	memberIDs, err := s.conversations.ListMemberUserIDs(context.Background(), convID)
+	if err != nil {
+		return
+	}
+
+	indicator, _ := marshalEnvelope("typing.indicator", "", TypingIndicatorPayload{
+		ConversationID: payload.ConversationID,
+		UserID:         c.UserID.String(),
+	})
+
+	ctx := context.Background()
+	for _, uid := range memberIDs {
+		if uid == c.UserID {
+			continue
+		}
+		s.hub.PushToUser(ctx, uid, indicator)
+	}
+}
+
+func (s *Server) handleTypingStop(c *Connection, env Envelope) {
+	var payload TypingStopPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid typing.stop payload")
+		return
+	}
+
+	convID, err := uuid.Parse(payload.ConversationID)
+	if err != nil {
+		c.sendError(env.RequestID, "invalid_request", "invalid conversation_id")
+		return
+	}
+
+	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
+	if err != nil || !member {
+		return
+	}
+
+	memberIDs, err := s.conversations.ListMemberUserIDs(context.Background(), convID)
+	if err != nil {
+		return
+	}
+
+	indicator, _ := marshalEnvelope("typing.stopped", "", TypingIndicatorPayload{
+		ConversationID: payload.ConversationID,
+		UserID:         c.UserID.String(),
+	})
+
+	ctx := context.Background()
+	for _, uid := range memberIDs {
+		if uid == c.UserID {
+			continue
+		}
+		s.hub.PushToUser(ctx, uid, indicator)
+	}
 }
 
 func (c *Connection) sendError(requestID, code, message string) {

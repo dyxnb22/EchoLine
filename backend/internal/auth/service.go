@@ -12,12 +12,19 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/echoline/echoline/backend/internal/user"
+	"github.com/echoline/echoline/backend/internal/validate"
 )
+
+// LoginAuditor records login attempts.
+type LoginAuditor interface {
+	LogLogin(ctx context.Context, userID *uuid.UUID, username string, success bool, ip string) error
+}
 
 // Service handles authentication flows.
 type Service struct {
 	users     *user.Repository
 	jwtSecret []byte
+	auditor   LoginAuditor
 }
 
 // NewService creates an auth service.
@@ -26,6 +33,11 @@ func NewService(users *user.Repository, jwtSecret string) *Service {
 		users:     users,
 		jwtSecret: []byte(jwtSecret),
 	}
+}
+
+// SetLoginAuditor attaches optional login audit logging.
+func (s *Service) SetLoginAuditor(a LoginAuditor) {
+	s.auditor = a
 }
 
 type registerRequest struct {
@@ -82,12 +94,23 @@ func (s *Service) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	req.Username = strings.TrimSpace(req.Username)
 	req.DisplayName = strings.TrimSpace(req.DisplayName)
-	if req.Username == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "username and password are required")
+
+	username, err := validate.Username(req.Username)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	if req.DisplayName == "" {
-		req.DisplayName = req.Username
+	displayName, err := validate.DisplayName(req.DisplayName)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if err := validate.Password(req.Password); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if displayName == "" {
+		displayName = username
 	}
 
 	hash, err := HashPassword(req.Password)
@@ -96,7 +119,7 @@ func (s *Service) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.users.Create(r.Context(), req.Username, req.DisplayName, hash)
+	u, err := s.users.Create(r.Context(), username, displayName, hash)
 	if err != nil {
 		if errors.Is(err, user.ErrDuplicateUsername) {
 			writeError(w, http.StatusConflict, "username_taken", "username already exists")
@@ -130,6 +153,7 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	u, err := s.users.GetByUsername(r.Context(), req.Username)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
+			s.auditLogin(r, nil, req.Username, false)
 			writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 			return
 		}
@@ -139,6 +163,7 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := VerifyPassword(req.Password, u.PasswordHash)
 	if err != nil || !ok {
+		s.auditLogin(r, &u.ID, req.Username, false)
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 		return
 	}
@@ -149,7 +174,19 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.auditLogin(r, &u.ID, req.Username, true)
 	writeJSON(w, http.StatusOK, tokens)
+}
+
+func (s *Service) auditLogin(r *http.Request, userID *uuid.UUID, username string, success bool) {
+	if s.auditor == nil {
+		return
+	}
+	ip := r.RemoteAddr
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ip = xff
+	}
+	_ = s.auditor.LogLogin(r.Context(), userID, username, success, ip)
 }
 
 // HandleRefresh exchanges a refresh token for new access/refresh tokens.
@@ -270,6 +307,11 @@ func RequireAuth(svc *Service, next http.Handler) http.Handler {
 func ClaimsFromContext(ctx context.Context) (*Claims, bool) {
 	claims, ok := ctx.Value(claimsContextKey).(*Claims)
 	return claims, ok
+}
+
+// ContextWithClaims attaches claims for tests.
+func ContextWithClaims(ctx context.Context, claims *Claims) context.Context {
+	return context.WithValue(ctx, claimsContextKey, claims)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

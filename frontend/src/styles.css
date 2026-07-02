@@ -1,0 +1,259 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #111;
+  background: #f4f5f7;
+}
+
+body { margin: 0; }
+
+.shell, .layout { min-height: 100vh; }
+
+.shell {
+  display: grid;
+  place-items: center;
+}
+
+.card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  width: min(360px, 90vw);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+}
+
+aside, .chat {
+  background: white;
+}
+
+aside {
+  border-right: 1px solid #e5e7eb;
+  padding: 1rem;
+}
+
+aside ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+aside button {
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+aside button.active, aside button:hover {
+  background: #eef2ff;
+}
+
+.chat {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+}
+
+.chat header, aside header {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.messages {
+  padding: 1rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.message {
+  background: #f9fafb;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+input, button {
+  font: inherit;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+button {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.error { color: #b91c1c; }
+
+.ws-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.ws-open { background: #dcfce7; color: #166534; }
+.ws-connecting { background: #fef9c3; color: #854d0e; }
+.ws-closed { background: #fee2e2; color: #991b1b; }
+
+.load-more {
+  margin: 0.5rem 1rem;
+  background: #e5e7eb;
+  color: #111;
+}
+
+.search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0 1rem 1rem;
+}
+
+.search-results {
+  list-style: none;
+  padding: 0 1rem;
+  margin: 0 0 1rem;
+}
+
+.search-results button {
+  width: 100%;
+  text-align: left;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.25rem;
+  cursor: pointer;
+}
+
+.message.pending { opacity: 0.6; }
+.message.failed { border: 1px solid #b91c1c; }
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: #fef2f2;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.auth-tabs { display: flex; gap: 0.5rem; }
+.auth-tabs button { background: #e5e7eb; color: #111; }
+.auth-tabs button.active { background: #4f46e5; color: white; }
+
+.notif-badge {
+  background: #ef4444;
+  color: white;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.typing { font-size: 0.85rem; color: #6b7280; margin-left: 0.5rem; }
+
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  aside { border-right: none; border-bottom: 1px solid #e5e7eb; }
+  .chat { min-height: 60vh; }
+}
+
+.filter-tabs, .recs { display: flex; gap: 0.35rem; padding: 0 1rem 0.75rem; flex-wrap: wrap; }
+.filter-tabs button, .recs button { background: #e5e7eb; color: #111; border: none; border-radius: 6px; padding: 0.35rem 0.6rem; cursor: pointer; }
+.filter-tabs button.active { background: #4f46e5; color: white; }
+.theme-toggle { background: transparent; color: inherit; border: 1px solid #d1d5db; padding: 0.2rem 0.5rem; }
+
+.thread-panel, .admin-panel {
+  border-left: 1px solid #e5e7eb;
+  padding: 1rem;
+  min-width: 260px;
+  max-width: 320px;
+  overflow-y: auto;
+}
+
+.thread-panel header, .admin-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.reactions button {
+  background: #f3f4f6;
+  border: none;
+  border-radius: 999px;
+  margin-right: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+}
+
+.dark .thread-panel, .dark .admin-panel { border-color: #374151; }
+.dark .reactions button { background: #374151; color: #f9fafb; }
+
+.conv-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; align-items: center; }
+.conv-actions button { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+.forward-input { font-size: 0.75rem; padding: 0.2rem 0.4rem; max-width: 140px; }
+.friend-chip { background: #e5e7eb; border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.8rem; margin-right: 0.25rem; }
+.dark .friend-chip { background: #374151; }
+.msg-actions { display: inline-flex; gap: 0.25rem; margin-left: 0.5rem; }
+.msg-actions button { font-size: 0.75rem; padding: 0.15rem 0.4rem; background: #e5e7eb; color: #111; }
+
+html.dark { color-scheme: dark; }
+html.dark body { background: #111827; color: #f3f4f6; }
+html.dark .shell, html.dark aside, html.dark .chat, html.dark .card { background: #1f2937; }
+html.dark .message { background: #374151; }
+html.dark aside button:hover, html.dark aside button.active { background: #4338ca; }
+html.dark input { background: #111827; color: #f3f4f6; border-color: #4b5563; }
+
+.notif-panel, .group-settings, .settings-page section {
+  padding: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.notif-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: min(320px, 90vw);
+  height: 100vh;
+  background: white;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.08);
+  z-index: 20;
+  overflow-y: auto;
+}
+
+.settings-page { place-items: start center; padding: 2rem; width: min(480px, 90vw); }
+.settings-page section { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
+.group-settings .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.pins-bar { padding: 0.5rem 1rem; background: #fef3c7; font-size: 0.85rem; }
+.archived-list { margin-bottom: 0.75rem; opacity: 0.85; }
+.hint { color: #6b7280; font-size: 0.85rem; }
+.notif-btn { background: transparent; border: none; cursor: pointer; }
+
+.dark .notif-panel { background: #1f2937; border-color: #374151; }
+.dark .pins-bar { background: #78350f; color: #fef3c7; }
