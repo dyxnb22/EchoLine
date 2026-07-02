@@ -13,6 +13,8 @@ import (
 
 	"log/slog"
 
+	"github.com/google/uuid"
+
 	"github.com/echoline/echoline/backend/internal/config"
 	"github.com/echoline/echoline/backend/internal/db"
 	"github.com/echoline/echoline/backend/internal/migrate"
@@ -114,7 +116,7 @@ func TestIntegrationMessagingFlow(t *testing.T) {
 
 	msgBody, _ := json.Marshal(map[string]string{
 		"body":          "hello integration test",
-		"client_msg_id": fmt.Sprintf("client-%d", time.Now().UnixNano()),
+		"client_msg_id": uuid.New().String(),
 	})
 	sendReq := httptest.NewRequest(http.MethodPost, "/api/conversations/"+groupResp.ID+"/messages", bytes.NewReader(msgBody))
 	sendReq.Header.Set("Content-Type", "application/json")

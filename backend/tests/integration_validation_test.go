@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/echoline/echoline/backend/internal/validate"
 )
 
@@ -40,7 +42,7 @@ func TestIntegrationMessageBodyValidation(t *testing.T) {
 
 	emptyBody, _ := json.Marshal(map[string]string{
 		"body":          "",
-		"client_msg_id": "empty-body",
+		"client_msg_id": uuid.New().String(),
 	})
 	emptyReq := httptest.NewRequest(http.MethodPost, "/api/conversations/"+groupResp.ID+"/messages", bytes.NewReader(emptyBody))
 	emptyReq.Header.Set("Content-Type", "application/json")
@@ -53,7 +55,7 @@ func TestIntegrationMessageBodyValidation(t *testing.T) {
 
 	longBody, _ := json.Marshal(map[string]string{
 		"body":          strings.Repeat("x", validate.MaxMessageBodyLen+1),
-		"client_msg_id": "long-body",
+		"client_msg_id": uuid.New().String(),
 	})
 	longReq := httptest.NewRequest(http.MethodPost, "/api/conversations/"+groupResp.ID+"/messages", bytes.NewReader(longBody))
 	longReq.Header.Set("Content-Type", "application/json")
