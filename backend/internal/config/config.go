@@ -24,6 +24,7 @@ type Config struct {
 	SentryDSN          string
 	GraphiQL           bool
 	PaymentSelfServe   bool
+	MetricsToken       string
 }
 
 // Load reads configuration from environment variables and validates required fields.
@@ -45,6 +46,7 @@ func Load() (Config, error) {
 		SentryDSN:        strings.TrimSpace(os.Getenv("SENTRY_DSN")),
 		GraphiQL:         strings.EqualFold(os.Getenv("GRAPHIQL"), "true"),
 		PaymentSelfServe: strings.EqualFold(os.Getenv("PAYMENT_SELF_SERVE"), "true"),
+		MetricsToken:     strings.TrimSpace(os.Getenv("METRICS_TOKEN")),
 	}
 
 	var missing []string

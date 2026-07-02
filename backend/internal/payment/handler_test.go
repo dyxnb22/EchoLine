@@ -47,3 +47,23 @@ func TestHandleSettleSelfServeDisabled(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusForbidden, rec.Body.String())
 	}
 }
+
+func TestHandleCreateRejectsZeroAmount(t *testing.T) {
+	h := NewHandler(nil)
+	h.SetSelfServe(true)
+
+	body, _ := json.Marshal(map[string]any{
+		"amount_cents": 0,
+		"currency":     "USD",
+		"reference":    "channel:" + uuid.New().String(),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/payments/ledger", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithClaims(req.Context(), &auth.Claims{UserID: uuid.New()}))
+	rec := httptest.NewRecorder()
+
+	h.HandleCreate(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}

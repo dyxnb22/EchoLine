@@ -94,6 +94,10 @@ export async function refreshToken(refresh: string): Promise<TokenPair> {
   }, "refresh failed");
 }
 
+export async function fetchMe(token: string): Promise<{ id: string; username: string; display_name: string }> {
+  return authedJSON(token, "/api/me", {}, "fetch me failed");
+}
+
 export async function createDirectConversation(token: string, userId: string): Promise<Conversation> {
   return authedJSON<Conversation>(token, "/api/conversations/direct", {
     method: "POST",
@@ -207,10 +211,20 @@ export async function sendMessage(
   }, "send failed");
 }
 
+async function sha256Checksum(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  const hex = Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `sha256:${hex}`;
+}
+
 export async function presignUpload(
   token: string,
   file: File,
 ): Promise<{ upload_url: string; object_key: string }> {
+  const checksum = await sha256Checksum(file);
   const data = await authedJSON<{ upload_url: string; object_key: string }>(
     token,
     "/api/media/upload-url",
@@ -219,6 +233,7 @@ export async function presignUpload(
       body: JSON.stringify({
         mime_type: file.type || "application/octet-stream",
         size_bytes: file.size,
+        checksum,
       }),
     },
     "presign upload failed",
@@ -428,6 +443,7 @@ export function connectWS(
   onMessage: (data: unknown) => void,
   onStatus?: (status: WSStatus) => void,
   onOpen?: () => void,
+  refreshAccessToken?: () => Promise<string | null>,
 ): { close: () => void; send: (payload: unknown) => void } {
   let ws: WebSocket | null = null;
   let closed = false;
@@ -446,11 +462,14 @@ export function connectWS(
     if (closed) return;
     attempt += 1;
     const delay = Math.min(30_000, 500 * 2 ** Math.min(attempt, 6));
-    timer = window.setTimeout(connect, delay);
+    timer = window.setTimeout(() => { void connect(); }, delay);
   }
 
-  function connect() {
+  async function connect() {
     if (closed) return;
+    if (refreshAccessToken) {
+      await refreshAccessToken();
+    }
     onStatus?.("connecting");
     ws = new WebSocket(wsURL());
     ws.onopen = () => {
@@ -474,7 +493,7 @@ export function connectWS(
     };
   }
 
-  connect();
+  void connect();
 
   return {
     close: () => {

@@ -8,6 +8,7 @@ import {
   Conversation,
   createPaymentLedger,
   editMessage,
+  fetchMe,
   listArchived,
   listConversations,
   listMessages,
@@ -22,6 +23,7 @@ import {
   presignUpload,
   Reaction,
   recallMessage,
+  refreshToken,
   removeReaction,
   reportMessage,
   searchMessages,
@@ -44,8 +46,9 @@ import { isPaymentRequired } from "../api/http";
 import { useAuth } from "../context/AuthContext";
 
 export function ChatPage() {
-  const { token, logout } = useAuth();
+  const { token, logout, setToken } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
@@ -74,6 +77,7 @@ export function ChatPage() {
   const wsRef = useRef<{ close: () => void; send: (p: unknown) => void } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const seqCursorsRef = useRef<Record<string, number>>({});
+  const conversationsRef = useRef<Conversation[]>([]);
   const pendingSearchSeqRef = useRef<{ conversationId: string; seq: number } | null>(null);
   const typingTimer = useRef<number | undefined>(undefined);
 
@@ -91,6 +95,18 @@ export function ChatPage() {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("echoline_dark", dark ? "1" : "0");
   }, [dark]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!token) {
+      setCurrentUserId(null);
+      return;
+    }
+    fetchMe(token).then((u) => setCurrentUserId(u.id)).catch(() => undefined);
+  }, [token]);
 
   const refreshConversations = useCallback(() => {
     if (!token) return;
@@ -132,8 +148,8 @@ export function ChatPage() {
       conversation_id,
       last_seq,
     }));
-    if (cursors.length === 0 && conversations.length > 0) {
-      for (const c of conversations) {
+    if (cursors.length === 0 && conversationsRef.current.length > 0) {
+      for (const c of conversationsRef.current) {
         cursors.push({ conversation_id: c.id, last_seq: Math.max(0, c.latest_seq - 1) });
       }
     }
@@ -164,7 +180,27 @@ export function ChatPage() {
     } catch {
       // sync is best-effort on reconnect
     }
-  }, [token, deviceId, conversations, refreshConversations, mergeSyncedMessages]);
+  }, [token, deviceId, refreshConversations, mergeSyncedMessages]);
+
+  const runSyncRef = useRef(runSync);
+  useEffect(() => {
+    runSyncRef.current = runSync;
+  }, [runSync]);
+
+  const refreshAccessToken = useCallback(async () => {
+    const refresh = localStorage.getItem("echoline_refresh");
+    if (!refresh) return null;
+    try {
+      const pair = await refreshToken(refresh);
+      localStorage.setItem("echoline_token", pair.access_token);
+      localStorage.setItem("echoline_refresh", pair.refresh_token);
+      setToken(pair.access_token);
+      return pair.access_token;
+    } catch {
+      logout();
+      return null;
+    }
+  }, [logout, setToken]);
 
   useEffect(() => {
     if (!token) return;
@@ -262,7 +298,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!token) return;
     const conn = connectWS(
-      () => token ?? localStorage.getItem("echoline_token") ?? "",
+      () => localStorage.getItem("echoline_token") ?? "",
       deviceId,
       (payload) => {
       const env = payload as {
@@ -314,6 +350,17 @@ export function ChatPage() {
       if (convId === activeIdRef.current && env.payload?.seq) {
         markConversationRead(token, convId, env.payload.seq).catch(() => undefined);
       }
+      if (convId === activeIdRef.current && env.payload?.id && wsRef.current) {
+        wsRef.current.send({
+          type: "message.ack",
+          payload: {
+            conversation_id: convId,
+            message_id: env.payload.id,
+            seq: env.payload.seq,
+            status: "delivered",
+          },
+        });
+      }
       if (convId !== activeIdRef.current) return;
       setMessages((prev) => {
         const seq = env.payload!.seq ?? 0;
@@ -347,10 +394,10 @@ export function ChatPage() {
           client_msg_id: clientMsgId,
         }];
       });
-    }, setWsStatus, () => { void runSync(); });
+    }, setWsStatus, () => { void runSyncRef.current(); }, refreshAccessToken);
     wsRef.current = conn;
     return () => conn.close();
-  }, [token, deviceId, runSync]);
+  }, [token, deviceId, refreshConversations, refreshAccessToken]);
 
   function emitTyping() {
     if (!activeId || !wsRef.current) return;
@@ -662,7 +709,7 @@ export function ChatPage() {
                   <button type="button" onClick={() => void handleEditMessage(m)}>Edit</button>
                   <button type="button" onClick={() => void handleRecallMessage(m)}>Recall</button>
                   <button type="button" onClick={() => reportMessage(token, activeId, m.id, "spam").catch((e) => setError(String(e)))}>Report</button>
-                  {m.sender_id !== "me" && (
+                  {currentUserId && m.sender_id !== currentUserId && (
                     <button type="button" onClick={() => blockUser(token, m.sender_id).catch((e) => setError(String(e)))}>Block</button>
                   )}
                 </span>
