@@ -1,26 +1,27 @@
 # Current State
 
-Current phase: **Engineering review #03** — API layer unification & validation depth.
+Current phase: **Documentation alignment** — post engineering review #03.
 
-Milestone: `reports/engineering-review-03.md`
+Milestone: `FINAL_COMPLETION_MANIFEST.md` (closed) + docs consistency pass.
 
 Last session highlights:
 
-- Frontend: complete `api.ts` → `http.ts` migration (`authedJSON`, `authedVoid`, `authedBlob`)
-- Backend: message Edit sanitize + validate; integration validation test
-- Docs: `docs/README.md` index, architecture mermaid, `make verify`
-- E2EE client uses auth-aware HTTP layer
+- ADR index complete (0001–0031); duplicate ADR 0003 resolved; 0013 superseded by 0019
+- `websocket-protocol.md` aligned with `realtime/protocol.go` (`message.edited`, typing events)
+- `data-model.md` adds `outbox_events`
+- State docs updated: `DONE.md`, `BACKLOG.md`, `ACCEPTANCE_MATRIX.md`, `TASKS.md` closure banners
+- Navigation: `docs/README.md`, `README.md` interview links, `review-docs-consistency.md` refresh
 
 Tests:
 
-- `make verify` — go test + build + playwright
-- `RUN_INTEGRATION=1` — validation + entitlement + messaging flows
+- `make verify` — go test + build + playwright (unchanged by doc-only pass)
 
 Blocker:
 
-- Docker/Postgres unavailable in cloud VM for `make smoke-full`
+- Docker/Postgres unavailable in cloud VM for `make smoke-full` — see `BLOCKERS.md`
 
 Next (optional):
 
 1. Migrate `conversation/handler` to `apierror` envelope (legacy `writeError`)
 2. Local `make dev-up && make smoke-full`
+3. Expand `docs/openapi.yaml` error response examples

@@ -62,9 +62,13 @@ GET /ws?token=<access_token>&device_id=<device_id>
 }
 ```
 
-### `typing.start`
+`status` 取值：`delivered`、`read`。
 
-Ephemeral typing indicator (not persisted).
+### `typing.start` / `typing.stop`
+
+Ephemeral typing indicators (not persisted).
+
+Client → server:
 
 ```json
 {
@@ -75,14 +79,11 @@ Ephemeral typing indicator (not persisted).
 }
 ```
 
-Server broadcasts to conversation members:
-
 ```json
 {
-  "type": "typing.start",
+  "type": "typing.stop",
   "payload": {
-    "conversation_id": "c1",
-    "user_id": "u1"
+    "conversation_id": "c1"
   }
 }
 ```
@@ -91,13 +92,62 @@ Server broadcasts to conversation members:
 
 ### `pong`
 
+响应 `ping`，payload 含 `ts`。
+
 ### `message.created`
 
-### `message.updated`
+新消息持久化后推送，payload 含 `id`, `conversation_id`, `sender_id`, `client_msg_id`, `seq`, `type`, `body`, `created_at`。
+
+### `message.edited`
+
+消息正文编辑后广播（REST `PATCH .../messages/{id}` 也会触发）：
+
+```json
+{
+  "type": "message.edited",
+  "payload": {
+    "message_id": "m1",
+    "conversation_id": "c1",
+    "body": "updated text",
+    "updated_at": "2026-07-01T12:00:00Z"
+  }
+}
+```
 
 ### `message.recalled`
 
+消息撤回后广播：
+
+```json
+{
+  "type": "message.recalled",
+  "payload": {
+    "message_id": "m1",
+    "conversation_id": "c1",
+    "updated_at": "2026-07-01T12:00:00Z"
+  }
+}
+```
+
+### `typing.indicator` / `typing.stopped`
+
+Server → members（不含 `request_id`）：
+
+```json
+{
+  "type": "typing.indicator",
+  "payload": {
+    "conversation_id": "c1",
+    "user_id": "u1"
+  }
+}
+```
+
+`typing.stopped` 使用相同 payload 结构，表示用户停止输入。
+
 ### `presence.updated`
+
+在线状态变更（Redis TTL presence）。
 
 ### `error`
 
@@ -128,3 +178,7 @@ Server broadcasts to conversation members:
 4. 若 token 过期，先 `POST /api/auth/refresh` 再重连。
 5. 推送与 sync 可能短暂重复；客户端以 `conversation_id + seq` 去重。
 
+## 实现文件
+
+- `backend/internal/realtime/protocol.go` — payload 类型
+- `backend/internal/realtime/server.go` — 连接生命周期与 fanout

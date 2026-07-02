@@ -1,6 +1,6 @@
 # EchoLine API 设计
 
-本文档记录 REST API。WebSocket 协议见 `docs/websocket-protocol.md`。
+本文档记录 REST API。WebSocket 协议见 `docs/websocket-protocol.md`。OpenAPI 子集见 `docs/openapi.yaml`（未覆盖全部端点；以本文 + `backend/internal/server/server.go` 为准）。
 
 ## Health
 

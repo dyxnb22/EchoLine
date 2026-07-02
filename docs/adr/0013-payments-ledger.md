@@ -1,8 +1,10 @@
 # ADR 0013: Payments and Ledger Design
 
+> **Superseded:** Use [ADR 0019: Payment Ledger Design](./0019-payment-ledger.md) as the canonical reference. This file is retained for Batch-100 history only.
+
 ## Status
 
-Accepted (design; implementation deferred to extension phase)
+Superseded by ADR 0019 (design; skeleton implemented in `internal/payment/`)
 
 ## Context
 

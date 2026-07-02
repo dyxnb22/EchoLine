@@ -190,6 +190,19 @@ Migration `00014`: boolean admin flag (default false). Runtime admin also via `A
 
 - `BOOLEAN NOT NULL DEFAULT FALSE` on `conversations` — when true, subscribe requires active `channel_entitlements` row
 
+### outbox_events
+
+Transactional outbox for reliable async publish (migration `00004`).
+
+- `id`
+- `topic` — e.g. `message.created`
+- `payload` — JSONB event body
+- `status`: `pending`, `published`, `failed`
+- `attempts`
+- `created_at`, `published_at`
+
+Worker drains `pending` rows with `SKIP LOCKED` (`internal/outbox`, `cmd/worker`).
+
 ### audit_logs
 
 - `id`

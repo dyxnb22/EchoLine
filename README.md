@@ -86,7 +86,7 @@ cd backend && go test ./...
 cd frontend && npm run build && npx playwright test
 ```
 
-当前阶段：**工程审查 #03 完成** — 见 `reports/engineering-review-03.md`、`docs/README.md`。
+当前阶段：**工程审查 #03 完成，文档全面对齐** — 见 `reports/engineering-review-03.md`、`docs/README.md`、`FINAL_COMPLETION_MANIFEST.md`。
 
 ## 核心文档
 
@@ -110,6 +110,8 @@ cd frontend && npm run build && npx playwright test
 - [docs/engineering-standards.md](./docs/engineering-standards.md)：工程标准与约定。
 - [docs/interview-mapping.md](./docs/interview-mapping.md)：面试题映射。
 - [docs/extensions-roadmap.md](./docs/extensions-roadmap.md)：加密、微服务、广告、支付、推荐等未来扩展。
+- [docs/interview-mapping.md](./docs/interview-mapping.md)：面试题与项目模块映射。
+- [docs/interview-system-design.md](./docs/interview-system-design.md)、[docs/interview-reliability.md](./docs/interview-reliability.md)、[docs/interview-fanout.md](./docs/interview-fanout.md)、[docs/interview-multi-device-sync.md](./docs/interview-multi-device-sync.md)：系统设计面试讲述材料。
 
 ## Cursor Cloud Agent 长跑方式
 
