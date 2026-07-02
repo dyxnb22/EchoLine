@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
+	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/user"
 	"github.com/echoline/echoline/backend/internal/validate"
 )
@@ -82,13 +83,13 @@ const claimsContextKey contextKey = "auth_claims"
 // HandleRegister registers a new user account.
 func (s *Service) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
+		writeMethodNotAllowed(w, r)
 		return
 	}
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		writeError(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
 
@@ -97,16 +98,16 @@ func (s *Service) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	username, err := validate.Username(req.Username)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		writeError(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	displayName, err := validate.DisplayName(req.DisplayName)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		writeError(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	if err := validate.Password(req.Password); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		writeError(w, r, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	if displayName == "" {
@@ -115,17 +116,17 @@ func (s *Service) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := HashPassword(req.Password)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to hash password")
+		writeError(w, r, http.StatusInternalServerError, "internal_error", "failed to hash password")
 		return
 	}
 
 	u, err := s.users.Create(r.Context(), username, displayName, hash)
 	if err != nil {
 		if errors.Is(err, user.ErrDuplicateUsername) {
-			writeError(w, http.StatusConflict, "username_taken", "username already exists")
+			writeError(w, r, http.StatusConflict, "username_taken", "username already exists")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create user")
+		writeError(w, r, http.StatusInternalServerError, "internal_error", "failed to create user")
 		return
 	}
 
@@ -140,13 +141,13 @@ func (s *Service) HandleRegister(w http.ResponseWriter, r *http.Request) {
 // HandleLogin authenticates a user and returns JWT tokens.
 func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
+		writeMethodNotAllowed(w, r)
 		return
 	}
 
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		writeError(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
 
@@ -154,23 +155,23 @@ func (s *Service) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
 			s.auditLogin(r, nil, req.Username, false)
-			writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
+			writeError(w, r, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load user")
+		writeError(w, r, http.StatusInternalServerError, "internal_error", "failed to load user")
 		return
 	}
 
 	ok, err := VerifyPassword(req.Password, u.PasswordHash)
 	if err != nil || !ok {
 		s.auditLogin(r, &u.ID, req.Username, false)
-		writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
+		writeError(w, r, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 		return
 	}
 
 	tokens, err := s.issueTokens(u)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to issue token")
+		writeError(w, r, http.StatusInternalServerError, "internal_error", "failed to issue token")
 		return
 	}
 
@@ -192,31 +193,31 @@ func (s *Service) auditLogin(r *http.Request, userID *uuid.UUID, username string
 // HandleRefresh exchanges a refresh token for new access/refresh tokens.
 func (s *Service) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
+		writeMethodNotAllowed(w, r)
 		return
 	}
 
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON body")
+		writeError(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
 
 	claims, err := s.ParseToken(req.RefreshToken)
 	if err != nil || claims.TokenType != TokenTypeRefresh {
-		writeError(w, http.StatusUnauthorized, "invalid_token", "invalid or expired refresh token")
+		writeError(w, r, http.StatusUnauthorized, "invalid_token", "invalid or expired refresh token")
 		return
 	}
 
 	u, err := s.users.GetByID(r.Context(), claims.UserID)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid_token", "invalid or expired refresh token")
+		writeError(w, r, http.StatusUnauthorized, "invalid_token", "invalid or expired refresh token")
 		return
 	}
 
 	tokens, err := s.issueTokens(u)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to issue token")
+		writeError(w, r, http.StatusInternalServerError, "internal_error", "failed to issue token")
 		return
 	}
 
@@ -287,14 +288,14 @@ func RequireAuth(svc *Service, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			writeError(w, http.StatusUnauthorized, "unauthorized", "missing bearer token")
+			apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing bearer token")
 			return
 		}
 
 		token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 		claims, err := svc.ParseToken(token)
 		if err != nil || claims.TokenType != TokenTypeAccess {
-			writeError(w, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
+			apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
 			return
 		}
 
@@ -320,15 +321,10 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{
-		"error": map[string]string{
-			"code":    code,
-			"message": message,
-		},
-	})
+func writeError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
+	apierror.Write(w, r, status, code, message)
 }
 
-func writeMethodNotAllowed(w http.ResponseWriter) {
-	writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+func writeMethodNotAllowed(w http.ResponseWriter, r *http.Request) {
+	apierror.Write(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 }

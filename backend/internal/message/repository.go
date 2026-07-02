@@ -28,8 +28,13 @@ func NewRepository(pool *pgxpool.Pool, outboxRepo *outbox.Repository) *Repositor
 	return &Repository{pool: pool, outbox: outboxRepo}
 }
 
+// CreateOptions optional fields for message creation.
+type CreateOptions struct {
+	ParentMessageID *uuid.UUID
+}
+
 // Create inserts a message and allocates the next conversation seq in one transaction.
-func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.UUID, clientMsgID string, msgType Type, body string, attachmentID *uuid.UUID) (*Message, error) {
+func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.UUID, clientMsgID string, msgType Type, body string, attachmentID *uuid.UUID, opts ...CreateOptions) (*Message, error) {
 	clientMsgID = strings.TrimSpace(clientMsgID)
 	body = strings.TrimSpace(body)
 	if body == "" && attachmentID == nil {
@@ -61,15 +66,19 @@ func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.U
 	}
 
 	msgID := uuid.New()
+	var parentID *uuid.UUID
+	if len(opts) > 0 {
+		parentID = opts[0].ParentMessageID
+	}
 	const insertQ = `
 		INSERT INTO messages (
-			id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
+			id, conversation_id, sender_id, client_msg_id, seq, type, body, status, parent_message_id, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'normal', $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'normal', $8, $9, $10)
 		RETURNING id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
 	`
 
-	row := tx.QueryRow(ctx, insertQ, msgID, conversationID, senderID, clientMsgID, nextSeq, string(msgType), body, now, now)
+	row := tx.QueryRow(ctx, insertQ, msgID, conversationID, senderID, clientMsgID, nextSeq, string(msgType), body, parentID, now, now)
 	msg, err := scanMessage(row)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -112,23 +121,7 @@ func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.U
 	}
 
 	if r.outbox != nil {
-		payloadMap := map[string]any{
-			"id":              msg.ID.String(),
-			"conversation_id": msg.ConversationID.String(),
-			"sender_id":       msg.SenderID.String(),
-			"seq":             msg.Seq,
-			"type":            msg.Type,
-			"body":            msg.Body,
-			"created_at":      msg.CreatedAt.UTC().Format(time.RFC3339),
-		}
-		if attachmentID != nil {
-			payloadMap["attachment_id"] = attachmentID.String()
-		}
-		payload, err := json.Marshal(payloadMap)
-		if err != nil {
-			return nil, fmt.Errorf("marshal outbox payload: %w", err)
-		}
-		if err := r.outbox.EnqueueInTx(ctx, tx, eventbus.TopicMessageCreated, payload); err != nil {
+		if err := r.enqueueCreatedInTx(ctx, tx, msg, attachmentID); err != nil {
 			return nil, err
 		}
 	}
@@ -231,6 +224,38 @@ func (r *Repository) GetByID(ctx context.Context, conversationID, messageID uuid
 	return msg, nil
 }
 
+// GetByMessageID returns a message by id (any conversation).
+func (r *Repository) GetByMessageID(ctx context.Context, messageID uuid.UUID) (*Message, error) {
+	const q = `
+		SELECT id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
+		FROM messages
+		WHERE id = $1
+	`
+	row := r.pool.QueryRow(ctx, q, messageID)
+	msg, err := scanMessage(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return msg, nil
+}
+
+// GetConversationID returns the conversation id for a message.
+func (r *Repository) GetConversationID(ctx context.Context, messageID uuid.UUID) (uuid.UUID, error) {
+	const q = `SELECT conversation_id FROM messages WHERE id = $1`
+	var convID uuid.UUID
+	err := r.pool.QueryRow(ctx, q, messageID).Scan(&convID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, err
+	}
+	return convID, nil
+}
+
 // Edit updates message body for the sender.
 func (r *Repository) Edit(ctx context.Context, conversationID, messageID, senderID uuid.UUID, body string) (*Message, error) {
 	body = strings.TrimSpace(body)
@@ -252,6 +277,9 @@ func (r *Repository) Edit(ctx context.Context, conversationID, messageID, sender
 		}
 		return nil, err
 	}
+	if r.outbox != nil {
+		_ = r.enqueueLifecycle(ctx, eventbus.TopicMessageEdited, msg)
+	}
 	return msg, nil
 }
 
@@ -272,7 +300,50 @@ func (r *Repository) Recall(ctx context.Context, conversationID, messageID uuid.
 		}
 		return nil, err
 	}
+	if r.outbox != nil {
+		_ = r.enqueueLifecycle(ctx, eventbus.TopicMessageRecalled, msg)
+	}
 	return msg, nil
+}
+
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+func (r *Repository) enqueueCreatedInTx(ctx context.Context, tx execer, msg *Message, attachmentID *uuid.UUID) error {
+	payloadMap := map[string]any{
+		"id":              msg.ID.String(),
+		"conversation_id": msg.ConversationID.String(),
+		"sender_id":       msg.SenderID.String(),
+		"seq":             msg.Seq,
+		"type":            msg.Type,
+		"body":            msg.Body,
+		"created_at":      msg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if attachmentID != nil {
+		payloadMap["attachment_id"] = attachmentID.String()
+	}
+	payload, err := json.Marshal(payloadMap)
+	if err != nil {
+		return fmt.Errorf("marshal outbox payload: %w", err)
+	}
+	return r.outbox.EnqueueInTx(ctx, tx, eventbus.TopicMessageCreated, payload)
+}
+
+func (r *Repository) enqueueLifecycle(ctx context.Context, topic string, msg *Message) error {
+	payload, err := json.Marshal(map[string]any{
+		"id":              msg.ID.String(),
+		"conversation_id": msg.ConversationID.String(),
+		"sender_id":       msg.SenderID.String(),
+		"seq":             msg.Seq,
+		"status":          msg.Status,
+		"body":            msg.Body,
+		"updated_at":      msg.UpdatedAt.UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return err
+	}
+	return r.outbox.Enqueue(ctx, topic, payload)
 }
 
 type queryRower interface {

@@ -1,4 +1,4 @@
-package worker
+package main
 
 import (
 	"context"
@@ -116,7 +116,53 @@ func main() {
 			if err := fanoutWorker.Handle(ctx, evt.Payload); err != nil {
 				logger.Error("fanout worker", "error", err)
 			}
+			metrics.MQEventsConsumed.WithLabelValues(evt.Type).Inc()
 			logger.Info("notification worker processed", "topic", evt.Type)
+		}
+	}()
+
+	if kafkaConsumer != nil {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					msg, err := kafkaConsumer.Read(ctx)
+					if err != nil {
+						if ctx.Err() != nil {
+							return
+						}
+						logger.Warn("kafka consumer read", "error", err)
+						continue
+					}
+					if err := msgHandler.Handle(ctx, msg.Value); err != nil {
+						logger.Error("kafka message.created handler", "error", err)
+					}
+					if err := fanoutWorker.Handle(ctx, msg.Value); err != nil {
+						logger.Error("kafka fanout worker", "error", err)
+					}
+					metrics.MQEventsConsumed.WithLabelValues(eventbus.TopicMessageCreated).Inc()
+				}
+			}
+		}()
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cutoff := time.Now().UTC().Add(-24 * time.Hour)
+				if n, err := outboxRepo.CleanupPublished(ctx, cutoff); err != nil {
+					logger.Warn("outbox cleanup", "error", err)
+				} else if n > 0 {
+					logger.Info("outbox cleanup removed", "count", n)
+				}
+			}
 		}
 	}()
 

@@ -107,6 +107,11 @@ type conversationGateway interface {
 	MarkRead(ctx context.Context, conversationID, userID uuid.UUID, seq int64) error
 }
 
+// DeviceTracker optionally persists device sessions.
+type DeviceTracker interface {
+	TouchByClientDevice(ctx context.Context, userID uuid.UUID, clientDeviceID, platform string) error
+}
+
 // Server handles websocket upgrades and lifecycle.
 type Server struct {
 	auth          *auth.Service
@@ -115,6 +120,7 @@ type Server struct {
 	conversations conversationGateway
 	deliveries    *delivery.Repository
 	presence      PresenceTracker
+	devices       DeviceTracker
 	logger        *slog.Logger
 }
 
@@ -147,6 +153,11 @@ func NewServer(
 		messages.SetBroadcaster(s)
 	}
 	return s
+}
+
+// SetDeviceTracker attaches optional device persistence.
+func (s *Server) SetDeviceTracker(d DeviceTracker) {
+	s.devices = d
 }
 
 // SetHubMetrics enables websocket connection gauge updates.
@@ -217,10 +228,13 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		UserID:   claims.UserID,
 		DeviceID: deviceID,
 		conn:     wsConn,
-		send:     make(chan []byte, 16),
+		send:     make(chan []byte, 256),
 	}
 
 	s.hub.Register(claims.UserID, deviceID, conn)
+	if s.devices != nil {
+		_ = s.devices.TouchByClientDevice(r.Context(), claims.UserID, deviceID, "web")
+	}
 	if s.presence != nil {
 		_ = s.presence.Online(r.Context(), claims.UserID.String(), deviceID)
 	}
@@ -512,6 +526,7 @@ func (c *Connection) enqueue(raw []byte) {
 	select {
 	case c.send <- raw:
 	default:
+		metrics.WSMessagesDropped.Inc()
 	}
 }
 
@@ -553,6 +568,7 @@ func (h *Hub) PushToUser(ctx context.Context, userID uuid.UUID, payload []byte) 
 		case <-ctx.Done():
 			return
 		default:
+			metrics.WSMessagesDropped.Inc()
 		}
 	}
 }

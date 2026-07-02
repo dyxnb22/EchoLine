@@ -1,22 +1,4 @@
-// cmd/replay/main.go
-// DLQ replay CLI — replays one or all dead-letter events by calling the
-// EchoLine admin API or directly updating the database.
-//
-// Usage:
-//
-//	go run ./cmd/replay --id <uuid>               # replay one event via API
-//	go run ./cmd/replay --all                     # replay all failed events via API
-//	go run ./cmd/replay --id <uuid> --direct      # direct DB update (no API)
-//	go run ./cmd/replay --list                    # list DLQ events
-//
-// Required environment variables (API mode):
-//
-//	ECHOLINE_BASE_URL  base URL of the EchoLine API   (default: http://localhost:8080)
-//	ECHOLINE_TOKEN     admin JWT
-//
-// Required environment variables (direct DB mode):
-//
-//	DATABASE_URL       postgres DSN
+// cmd/replay/main.go — DLQ replay CLI aligned with dead_letter_events schema.
 package main
 
 import (
@@ -34,30 +16,24 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ── DLQ event ────────────────────────────────────────────────────────────────
-
 type dlqEvent struct {
-	ID          string    `json:"id"`
-	EventType   string    `json:"event_type"`
-	Payload     string    `json:"payload"`
-	Attempts    int       `json:"attempts"`
-	LastError   string    `json:"last_error"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	LastAttempt time.Time `json:"last_attempt"`
+	ID           string          `json:"id"`
+	SourceTopic  string          `json:"source_topic"`
+	Payload      json.RawMessage `json:"payload"`
+	ErrorMessage string          `json:"error_message"`
+	Attempts     int             `json:"attempts"`
+	CreatedAt    time.Time       `json:"created_at"`
 }
 
 type dlqListResp struct {
-	Events []dlqEvent `json:"events"`
+	DeadLetters []dlqEvent `json:"dead_letters"`
 }
-
-// ── flags ─────────────────────────────────────────────────────────────────────
 
 var (
 	flagID     = flag.String("id", "", "DLQ event UUID to replay")
-	flagAll    = flag.Bool("all", false, "Replay all failed events")
-	flagList   = flag.Bool("list", false, "List DLQ events (no replay)")
-	flagDirect = flag.Bool("direct", false, "Directly update DB status (no API call)")
+	flagAll    = flag.Bool("all", false, "Replay all DLQ events via API")
+	flagList   = flag.Bool("list", false, "List DLQ events")
+	flagDirect = flag.Bool("direct", false, "Requeue into outbox via DB (no API)")
 	flagDry    = flag.Bool("dry-run", false, "Print actions without executing")
 )
 
@@ -90,12 +66,9 @@ func main() {
 	runAPI(ctx, baseURL, token)
 }
 
-// ── API mode ──────────────────────────────────────────────────────────────────
-
 func runAPI(ctx context.Context, baseURL, token string) {
 	if *flagList {
-		events := listEvents(ctx, baseURL, token)
-		printEvents(events)
+		printEvents(listEvents(ctx, baseURL, token))
 		return
 	}
 
@@ -107,18 +80,15 @@ func runAPI(ctx context.Context, baseURL, token string) {
 		}
 		ok, fail := 0, 0
 		for _, e := range events {
-			if e.Status != "failed" && e.Status != "" {
-				continue
-			}
 			if *flagDry {
-				fmt.Printf("[dry-run] would replay %s (%s)\n", e.ID, e.EventType)
+				fmt.Printf("[dry-run] would replay %s (%s)\n", e.ID, e.SourceTopic)
 				continue
 			}
 			if err := replayEvent(ctx, baseURL, token, e.ID); err != nil {
 				fmt.Printf("[FAIL] %s: %v\n", e.ID, err)
 				fail++
 			} else {
-				fmt.Printf("[OK]   %s (%s)\n", e.ID, e.EventType)
+				fmt.Printf("[OK]   %s (%s)\n", e.ID, e.SourceTopic)
 				ok++
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -130,7 +100,6 @@ func runAPI(ctx context.Context, baseURL, token string) {
 		return
 	}
 
-	// single event
 	if *flagDry {
 		fmt.Printf("[dry-run] would replay event %s\n", *flagID)
 		return
@@ -138,11 +107,11 @@ func runAPI(ctx context.Context, baseURL, token string) {
 	if err := replayEvent(ctx, baseURL, token, *flagID); err != nil {
 		log.Fatalf("Replay failed: %v", err)
 	}
-	fmt.Printf("Event %s replayed successfully\n", *flagID)
+	fmt.Printf("Event %s replay queued successfully\n", *flagID)
 }
 
 func listEvents(ctx context.Context, baseURL, token string) []dlqEvent {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/admin/dlq", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/admin/dlq", nil)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -159,13 +128,12 @@ func listEvents(ctx context.Context, baseURL, token string) []dlqEvent {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		log.Fatalf("Decode DLQ list: %v", err)
 	}
-	return result.Events
+	return result.DeadLetters
 }
 
 func replayEvent(ctx context.Context, baseURL, token, id string) error {
-	url := fmt.Sprintf("%s/admin/dlq/%s/replay", baseURL, id)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url,
-		bytes.NewBufferString("{}"))
+	url := fmt.Sprintf("%s/api/admin/dlq/%s/replay", baseURL, id)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
@@ -174,20 +142,18 @@ func replayEvent(ctx context.Context, baseURL, token, id string) error {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, body)
 	}
 	var out map[string]any
 	if err := json.Unmarshal(body, &out); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
-	if status, _ := out["status"].(string); status != "replayed" && status != "ok" {
+	if status, _ := out["status"].(string); status != "replay_queued" && status != "replayed" && status != "ok" {
 		return fmt.Errorf("unexpected status %q", status)
 	}
 	return nil
 }
-
-// ── Direct DB mode ────────────────────────────────────────────────────────────
 
 func runDirect(ctx context.Context, dbURL string) {
 	pool, err := pgxpool.New(ctx, dbURL)
@@ -198,103 +164,82 @@ func runDirect(ctx context.Context, dbURL string) {
 
 	if *flagList {
 		rows, err := pool.Query(ctx,
-			`SELECT id, event_type, attempts, last_error, status, created_at
-			 FROM dead_letter ORDER BY created_at DESC LIMIT 100`)
+			`SELECT id, source_topic, error_message, attempts, created_at
+			 FROM dead_letter_events ORDER BY created_at DESC LIMIT 100`)
 		if err != nil {
 			log.Fatalf("Query DLQ: %v", err)
 		}
 		defer rows.Close()
-		fmt.Printf("%-36s  %-20s  %-8s  %-8s  %s\n",
-			"ID", "TYPE", "ATTEMPTS", "STATUS", "LAST_ERROR")
-		fmt.Println("─────────────────────────────────────────────────────────────────────────────────")
+		fmt.Printf("%-36s  %-20s  %-8s  %s\n", "ID", "TOPIC", "ATTEMPTS", "ERROR")
+		fmt.Println("──────────────────────────────────────────────────────────────────────────────")
 		for rows.Next() {
 			var e dlqEvent
-			if err := rows.Scan(&e.ID, &e.EventType, &e.Attempts,
-				&e.LastError, &e.Status, &e.CreatedAt); err != nil {
+			if err := rows.Scan(&e.ID, &e.SourceTopic, &e.ErrorMessage, &e.Attempts, &e.CreatedAt); err != nil {
 				log.Printf("Scan: %v", err)
 				continue
 			}
-			fmt.Printf("%-36s  %-20s  %-8d  %-8s  %s\n",
-				e.ID, e.EventType, e.Attempts, e.Status, truncate(e.LastError, 40))
+			fmt.Printf("%-36s  %-20s  %-8d  %s\n", e.ID, e.SourceTopic, e.Attempts, truncate(e.ErrorMessage, 40))
 		}
 		return
 	}
 
-	updateStatus := func(id string) error {
-		tag, err := pool.Exec(ctx,
-			`UPDATE dead_letter SET status='replayed', attempts=attempts+1,
-			  last_attempt=NOW() WHERE id=$1 AND status='failed'`, id)
+	requeue := func(id string) error {
+		var topic, payload string
+		err := pool.QueryRow(ctx,
+			`SELECT source_topic, payload::text FROM dead_letter_events WHERE id=$1`, id).
+			Scan(&topic, &payload)
 		if err != nil {
 			return err
 		}
-		if tag.RowsAffected() == 0 {
-			return fmt.Errorf("event %s not found or not in 'failed' state", id)
-		}
-		return nil
+		_, err = pool.Exec(ctx,
+			`INSERT INTO outbox_events (id, topic, payload, status, attempts, created_at)
+			 VALUES (gen_random_uuid(), $1, $2::jsonb, 'pending', 0, NOW())`, topic, payload)
+		return err
 	}
 
 	if *flagAll {
-		rows, err := pool.Query(ctx,
-			`SELECT id, event_type FROM dead_letter WHERE status='failed'`)
+		rows, err := pool.Query(ctx, `SELECT id, source_topic FROM dead_letter_events`)
 		if err != nil {
-			log.Fatalf("Query failed events: %v", err)
+			log.Fatalf("Query DLQ: %v", err)
 		}
-		var ids []string
-		var types []string
+		defer rows.Close()
 		for rows.Next() {
-			var id, et string
-			if err := rows.Scan(&id, &et); err != nil {
+			var id, topic string
+			if err := rows.Scan(&id, &topic); err != nil {
 				continue
 			}
-			ids = append(ids, id)
-			types = append(types, et)
-		}
-		rows.Close()
-
-		ok, fail := 0, 0
-		for i, id := range ids {
 			if *flagDry {
-				fmt.Printf("[dry-run] would mark %s (%s) as replayed\n", id, types[i])
+				fmt.Printf("[dry-run] would requeue %s (%s)\n", id, topic)
 				continue
 			}
-			if err := updateStatus(id); err != nil {
+			if err := requeue(id); err != nil {
 				fmt.Printf("[FAIL] %s: %v\n", id, err)
-				fail++
 			} else {
-				fmt.Printf("[OK]   %s (%s)\n", id, types[i])
-				ok++
+				fmt.Printf("[OK]   %s requeued\n", id)
 			}
-		}
-		fmt.Printf("\nDone: %d updated, %d failed\n", ok, fail)
-		if fail > 0 {
-			os.Exit(1)
 		}
 		return
 	}
 
 	if *flagDry {
-		fmt.Printf("[dry-run] would mark %s as replayed in DB\n", *flagID)
+		fmt.Printf("[dry-run] would requeue %s into outbox\n", *flagID)
 		return
 	}
-	if err := updateStatus(*flagID); err != nil {
-		log.Fatalf("Update failed: %v", err)
+	if err := requeue(*flagID); err != nil {
+		log.Fatalf("Requeue failed: %v", err)
 	}
-	fmt.Printf("Event %s marked as replayed\n", *flagID)
+	fmt.Printf("Event %s requeued into outbox\n", *flagID)
 }
-
-// ── helpers ───────────────────────────────────────────────────────────────────
 
 func printEvents(events []dlqEvent) {
 	if len(events) == 0 {
-		fmt.Println("DLQ is empty.")
+		fmt.Println("No events in DLQ.")
 		return
 	}
-	fmt.Printf("%-36s  %-20s  %-8s  %-8s  %s\n",
-		"ID", "TYPE", "ATTEMPTS", "STATUS", "LAST_ERROR")
-	fmt.Println("─────────────────────────────────────────────────────────────────────────────────")
+	fmt.Printf("%-36s  %-20s  %-8s  %s\n", "ID", "TOPIC", "ATTEMPTS", "ERROR")
+	fmt.Println("──────────────────────────────────────────────────────────────────────────────")
 	for _, e := range events {
-		fmt.Printf("%-36s  %-20s  %-8d  %-8s  %s\n",
-			e.ID, e.EventType, e.Attempts, e.Status, truncate(e.LastError, 40))
+		fmt.Printf("%-36s  %-20s  %-8d  %s\n", e.ID, e.SourceTopic, e.Attempts, truncate(e.ErrorMessage, 40))
 	}
 }
 
@@ -302,7 +247,7 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n-3] + "..."
+	return s[:n] + "..."
 }
 
 func envOrDefault(key, def string) string {

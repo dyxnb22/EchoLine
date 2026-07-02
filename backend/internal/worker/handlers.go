@@ -124,32 +124,46 @@ func (w *FanoutWorker) Handle(ctx context.Context, payload []byte) error {
 		return err
 	}
 
-	const q = `
-		SELECT user_id FROM conversation_members
-		WHERE conversation_id = $1 AND user_id != $2
-		LIMIT $3
-	`
-	rows, err := w.pool.Query(ctx, q, convID, senderID, fanoutBatchSize)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
+	offset := 0
 	notified := 0
-	for rows.Next() {
-		var uid uuid.UUID
-		if err := rows.Scan(&uid); err != nil {
+	for {
+		const q = `
+			SELECT user_id FROM conversation_members
+			WHERE conversation_id = $1 AND user_id != $2
+			ORDER BY user_id
+			LIMIT $3 OFFSET $4
+		`
+		rows, err := w.pool.Query(ctx, q, convID, senderID, fanoutBatchSize, offset)
+		if err != nil {
 			return err
 		}
-		if w.push != nil {
-			_ = w.push.NotifyUser(ctx, uid, "New message", evt.Body)
-			notified++
+
+		batch := 0
+		for rows.Next() {
+			var uid uuid.UUID
+			if err := rows.Scan(&uid); err != nil {
+				rows.Close()
+				return err
+			}
+			if w.push != nil {
+				_ = w.push.NotifyUser(ctx, uid, "New message", evt.Body)
+				notified++
+			}
+			batch++
 		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		rows.Close()
+		if batch < fanoutBatchSize {
+			break
+		}
+		offset += fanoutBatchSize
 	}
 	if w.logger != nil {
 		w.logger.Info("fanout worker batch", "conversation_id", evt.ConversationID, "seq", evt.Seq, "notified", notified)
 	}
-	return rows.Err()
+	return nil
 }
 
 // DecodeEvent exposes message.created parsing for worker main.

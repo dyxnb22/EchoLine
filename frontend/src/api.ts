@@ -17,6 +17,8 @@ export type Conversation = {
   title: string;
   unread: number;
   latest_seq: number;
+  role?: string;
+  can_publish?: boolean;
 };
 
 export type Message = {
@@ -27,7 +29,16 @@ export type Message = {
   type?: string;
   pending?: boolean;
   failed?: boolean;
+  client_msg_id?: string;
   attachment?: { object_key: string; mime_type?: string };
+};
+
+export type SyncConversation = {
+  conversation_id: string;
+  messages: Message[];
+  latest_seq: number;
+  unread: number;
+  has_more?: boolean;
 };
 
 export type MessagePage = {
@@ -54,7 +65,7 @@ export type Reaction = { user_id: string; emoji: string; created_at?: string };
 
 export type AdminUser = { id: string; username: string; display_name: string; is_admin: boolean };
 export type AdminReport = { id: string; reason: string; message_id: string; conversation_id: string };
-export type DLQEvent = { id: string; event_type: string; status: string; attempts: number };
+export type DLQEvent = { id: string; source_topic: string; attempts: number };
 
 export type WSStatus = "connecting" | "open" | "closed";
 
@@ -80,6 +91,60 @@ export async function refreshToken(refresh: string): Promise<TokenPair> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: refresh }),
   }, "refresh failed");
+}
+
+export async function createDirectConversation(token: string, userId: string): Promise<Conversation> {
+  return authedJSON<Conversation>(token, "/api/conversations/direct", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  }, "create direct failed");
+}
+
+export async function createGroupConversation(token: string, title: string, memberIds: string[]): Promise<Conversation> {
+  return authedJSON<Conversation>(token, "/api/conversations/groups", {
+    method: "POST",
+    body: JSON.stringify({ title, member_ids: memberIds }),
+  }, "create group failed");
+}
+
+export async function createChannelConversation(token: string, title: string): Promise<Conversation> {
+  return authedJSON<Conversation>(token, "/api/conversations/channels", {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  }, "create channel failed");
+}
+
+export async function syncConversations(
+  token: string,
+  deviceId: string,
+  cursors: { conversation_id: string; last_seq: number }[],
+): Promise<SyncConversation[]> {
+  const data = await authedJSON<{ conversations?: SyncConversation[] }>(token, "/api/sync", {
+    method: "POST",
+    body: JSON.stringify({ device_id: deviceId, cursors }),
+  }, "sync failed");
+  return (data.conversations ?? []).map((c) => ({
+    ...c,
+    messages: (c.messages ?? []) as Message[],
+  }));
+}
+
+export async function createPaymentLedger(
+  token: string,
+  amountCents: number,
+  reference: string,
+): Promise<void> {
+  await authedVoid(token, "/api/payments/ledger", {
+    method: "POST",
+    body: JSON.stringify({ amount_cents: amountCents, currency: "USD", reference }),
+  }, "create ledger failed");
+}
+
+export async function settlePaymentLedger(token: string, reference: string): Promise<void> {
+  await authedVoid(token, "/api/payments/ledger/settle", {
+    method: "POST",
+    body: JSON.stringify({ reference }),
+  }, "settle ledger failed");
 }
 
 export async function listNotifications(token: string): Promise<Notification[]> {
@@ -124,11 +189,13 @@ export async function sendMessage(
   conversationId: string,
   body: string,
   attachmentObjectKey?: string,
+  clientMsgId?: string,
 ): Promise<void> {
+  const msgId = clientMsgId ?? crypto.randomUUID();
   const payload: Record<string, unknown> = {
     type: attachmentObjectKey ? "file" : "text",
     body,
-    client_msg_id: crypto.randomUUID(),
+    client_msg_id: msgId,
   };
   if (attachmentObjectKey) {
     payload.attachment = { object_key: attachmentObjectKey };
@@ -334,8 +401,8 @@ export async function registerPushToken(token: string, deviceId: string, pushTok
 }
 
 export async function adminListDLQ(token: string): Promise<DLQEvent[]> {
-  const data = await authedJSON<{ events?: DLQEvent[] }>(token, "/api/admin/dlq", {}, "dlq list failed");
-  return data.events ?? [];
+  const data = await authedJSON<{ dead_letters?: DLQEvent[] }>(token, "/api/admin/dlq", {}, "dlq list failed");
+  return data.dead_letters ?? [];
 }
 
 export async function adminReplayDLQ(token: string, id: string): Promise<void> {
@@ -359,6 +426,7 @@ export function connectWS(
   deviceId: string,
   onMessage: (data: unknown) => void,
   onStatus?: (status: WSStatus) => void,
+  onOpen?: () => void,
 ): { close: () => void; send: (payload: unknown) => void } {
   let ws: WebSocket | null = null;
   let closed = false;
@@ -383,6 +451,7 @@ export function connectWS(
     ws.onopen = () => {
       attempt = 0;
       onStatus?.("open");
+      onOpen?.();
     };
     ws.onmessage = (evt) => {
       try {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
 )
 
 // Field length limits aligned with DB columns and API docs.
@@ -22,6 +24,8 @@ var (
 	ErrPasswordShort    = fmt.Errorf("password must be at least %d characters", MinPasswordLen)
 	ErrMessageBodyLong  = fmt.Errorf("message body exceeds %d characters", MaxMessageBodyLen)
 	ErrMessageBodyEmpty = errors.New("message body or attachment is required")
+	ErrClientMsgIDEmpty = errors.New("client_msg_id is required")
+	ErrClientMsgIDInvalid = errors.New("client_msg_id must be a valid UUID")
 )
 
 // Username validates registration/login username.
@@ -51,6 +55,18 @@ func Password(raw string) error {
 		return ErrPasswordShort
 	}
 	return nil
+}
+
+// ClientMsgID validates a non-empty UUID client message id.
+func ClientMsgID(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", ErrClientMsgIDEmpty
+	}
+	if _, err := uuid.Parse(s); err != nil {
+		return "", ErrClientMsgIDInvalid
+	}
+	return s, nil
 }
 
 // MessageBody validates message text length (after sanitization).

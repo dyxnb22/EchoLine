@@ -31,3 +31,15 @@ func TestMessageBody(t *testing.T) {
 		t.Fatalf("long body: %v", err)
 	}
 }
+
+func TestClientMsgID(t *testing.T) {
+	if _, err := ClientMsgID(""); err != ErrClientMsgIDEmpty {
+		t.Fatalf("empty: %v", err)
+	}
+	if _, err := ClientMsgID("not-a-uuid"); err != ErrClientMsgIDInvalid {
+		t.Fatalf("invalid: %v", err)
+	}
+	if _, err := ClientMsgID("550e8400-e29b-41d4-a716-446655440000"); err != nil {
+		t.Fatalf("valid uuid: %v", err)
+	}
+}

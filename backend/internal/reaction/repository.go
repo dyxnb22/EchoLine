@@ -2,10 +2,12 @@ package reaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,8 +29,8 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-// Add inserts or ignores a reaction.
-func (r *Repository) Add(ctx context.Context, messageID, userID uuid.UUID, emoji string) (*Reaction, error) {
+// Add inserts or returns an existing reaction (idempotent).
+func (r *Repository) Add(ctx context.Context, messageID, userID uuid.UUID, emoji string) (*Reaction, bool, error) {
 	const q = `
 		INSERT INTO message_reactions (message_id, user_id, emoji, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -39,7 +41,28 @@ func (r *Repository) Add(ctx context.Context, messageID, userID uuid.UUID, emoji
 	row := r.pool.QueryRow(ctx, q, messageID, userID, emoji, now)
 	var rx Reaction
 	if err := row.Scan(&rx.MessageID, &rx.UserID, &rx.Emoji, &rx.CreatedAt); err != nil {
-		return nil, fmt.Errorf("add reaction: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			existing, err := r.get(ctx, messageID, userID, emoji)
+			if err != nil {
+				return nil, false, err
+			}
+			return existing, false, nil
+		}
+		return nil, false, fmt.Errorf("add reaction: %w", err)
+	}
+	return &rx, true, nil
+}
+
+func (r *Repository) get(ctx context.Context, messageID, userID uuid.UUID, emoji string) (*Reaction, error) {
+	const q = `
+		SELECT message_id, user_id, emoji, created_at
+		FROM message_reactions
+		WHERE message_id = $1 AND user_id = $2 AND emoji = $3
+	`
+	row := r.pool.QueryRow(ctx, q, messageID, userID, emoji)
+	var rx Reaction
+	if err := row.Scan(&rx.MessageID, &rx.UserID, &rx.Emoji, &rx.CreatedAt); err != nil {
+		return nil, fmt.Errorf("get reaction: %w", err)
 	}
 	return &rx, nil
 }

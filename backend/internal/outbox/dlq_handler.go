@@ -59,6 +59,21 @@ func (r *DLQRepository) ListLast50(ctx context.Context) ([]DeadLetterEvent, erro
 	return events, rows.Err()
 }
 
+// GetByID returns a single dead letter event.
+func (r *DLQRepository) GetByID(ctx context.Context, id uuid.UUID) (*DeadLetterEvent, error) {
+	const q = `
+		SELECT id, source_topic, payload, error_message, attempts, created_at
+		FROM dead_letter_events
+		WHERE id = $1
+	`
+	var e DeadLetterEvent
+	err := r.pool.QueryRow(ctx, q, id).Scan(&e.ID, &e.SourceTopic, &e.Payload, &e.ErrorMessage, &e.Attempts, &e.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("get dlq: %w", err)
+	}
+	return &e, nil
+}
+
 // DLQHandler exposes admin DLQ endpoint.
 type DLQHandler struct {
 	repo *DLQRepository

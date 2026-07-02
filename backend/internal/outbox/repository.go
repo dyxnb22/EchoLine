@@ -99,6 +99,19 @@ func (r *Repository) CountPending(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+// Enqueue inserts an outbox event outside a caller transaction.
+func (r *Repository) Enqueue(ctx context.Context, topic string, payload []byte) error {
+	const q = `
+		INSERT INTO outbox_events (id, topic, payload, status, attempts, created_at)
+		VALUES ($1, $2, $3, 'pending', 0, $4)
+	`
+	_, err := r.pool.Exec(ctx, q, uuid.New(), topic, payload, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("enqueue outbox: %w", err)
+	}
+	return nil
+}
+
 // MarkPublished marks an event as published.
 func (r *Repository) MarkPublished(ctx context.Context, id uuid.UUID) error {
 	const q = `
@@ -108,6 +121,19 @@ func (r *Repository) MarkPublished(ctx context.Context, id uuid.UUID) error {
 	`
 	_, err := r.pool.Exec(ctx, q, id, time.Now().UTC())
 	return err
+}
+
+// CleanupPublished deletes published outbox rows older than the cutoff.
+func (r *Repository) CleanupPublished(ctx context.Context, olderThan time.Time) (int64, error) {
+	const q = `
+		DELETE FROM outbox_events
+		WHERE status = 'published' AND published_at IS NOT NULL AND published_at < $1
+	`
+	tag, err := r.pool.Exec(ctx, q, olderThan)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // MarkFailed increments attempts, moves to DLQ after threshold, or leaves pending.

@@ -121,10 +121,13 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	osClient := search.NewOpenSearchClient(cfg.OpenSearchURL)
 	searchHandler.SetOpenSearch(osClient)
 
-	adminChecker := admin.NewStaticAdminChecker(cfg.AdminUserIDs)
+	adminChecker := admin.NewCompositeAdminChecker(admin.NewStaticAdminChecker(cfg.AdminUserIDs), pool)
+	deviceRepo := device.NewRepository(pool)
 	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
 	graphHandler.SetMessageSender(msgSvc)
 	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool)))
+
+	rt.SetDeviceTracker(deviceRepo)
 
 	return &Server{
 		cfg:            cfg,
@@ -147,24 +150,24 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		notification:   notification.NewHandler(notifRepo),
 		adminHandler:   admin.NewHandler(pool, authSvc),
 		dlqHandler:     outbox.NewDLQHandler(pool),
-		dlqReplay:      outbox.NewDLQReplayHandler(outbox.NewDLQRepository(pool)),
+		dlqReplay:      outbox.NewDLQReplayHandler(outbox.NewDLQRepository(pool), outboxRepo),
 		userRepo:       userRepo,
 		profileRepo:    user.NewProfileRepository(pool),
 		deviceH:        device.NewHandler(pool),
 		mute:           conversation.NewMuteHandler(pool, convRepo),
-		reaction:       reaction.NewHandler(reaction.NewRepository(pool)),
-		thread:         thread.NewHandler(thread.NewRepository(pool)),
-		forward:        forward.NewHandler(forward.NewRepository(pool)),
+		reaction:       reaction.NewHandler(reaction.NewRepository(pool), convRepo, msgRepo),
+		thread:         thread.NewHandler(msgSvc, convRepo, thread.NewRepository(pool)),
+		forward:        forward.NewHandler(msgSvc),
 		presenceH:      presence.NewOnlineHandler(presenceChecker),
 		lastSeenH:      presence.NewLastSeenHandler(lastSeenStore),
-		export:         export.NewHandler(export.NewRepository(pool)),
+		export:         export.NewHandler(export.NewRepository(pool), convRepo),
 		push:           push.NewHandler(push.NewRepository(pool)),
 		payment:        func() *payment.Handler {
 			ph := payment.NewHandler(payment.NewRepository(pool))
 			ph.SetEntitlementGranter(entitlementRepo)
 			return ph
 		}(),
-		ads:            ads.NewHandler(ads.NewRepository(pool)),
+		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo)),
 		recommendation: recommendation.NewHandler(recommendation.NewRepository(pool)),
 		archive:        conversation.NewArchiveHandler(archiveRepo, convRepo),
 		encryption:     encryption.NewHandler(encryption.NewRepository(pool)),

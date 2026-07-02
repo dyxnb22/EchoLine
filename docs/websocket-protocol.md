@@ -145,9 +145,9 @@ Server → members（不含 `request_id`）：
 
 `typing.stopped` 使用相同 payload 结构，表示用户停止输入。
 
-### `presence.updated`
+### `presence.updated` (proposed — not yet emitted)
 
-在线状态变更（Redis TTL presence）。
+Server-side presence changes are tracked in Redis TTL keys; clients should rely on `POST /api/sync` after reconnect until this event is implemented.
 
 ### `error`
 
