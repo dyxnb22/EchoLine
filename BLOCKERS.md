@@ -2,6 +2,8 @@
 
 ## 2026-07-01 - Docker/PostgreSQL unavailable in cloud VM
 
+Status: **Resolved locally on 2026-07-02**. OrbStack/Docker daemon was started in this workspace, compose dependencies and app containers launched, and full API + WS smoke passed. This entry remains as historical context for cloud VM sessions that lack Docker/Postgres.
+
 Task: A004-A018 integration verification, `make dev-up`, full API smoke.
 
 Attempts:
@@ -28,7 +30,7 @@ Proceed with unit tests and code implementation. Re-run integration smoke when P
 
 Next unblocked task:
 
-A019, A011, C003, B001 (code + unit tests).
+Optional post-closure quality work in `NEXT_ACTIONS.md`.
 
 ## Blocker Template
 
@@ -49,4 +51,3 @@ Decision:
 
 Next unblocked task:
 ```
-

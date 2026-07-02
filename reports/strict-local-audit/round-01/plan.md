@@ -1,6 +1,6 @@
 # Strict Local Audit — Round 01 Plan
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02
 **Mode:** Zero-trust full audit (treat as first audit; ignore prior completion claims)
 
 ## Stop Condition (global)
@@ -73,11 +73,11 @@ Latest full audit finds only P3/P4/P5 (or no issues). No open P0/P1/P2.
 
 ## Evidence Priority
 
-1. Runtime behavior  
-2. Test results  
-3. Source code  
-4. DB schema/migrations  
-5. Product docs  
+1. Runtime behavior
+2. Test results
+3. Source code
+4. DB schema/migrations
+5. Product docs
 6. ADR/reports (reference only)
 
 ## Deliverables (round-01)

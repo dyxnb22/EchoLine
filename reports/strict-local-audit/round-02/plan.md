@@ -1,6 +1,6 @@
 # Strict Local Audit — Round 02 Plan
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02
 **Mode:** Fresh full audit (ignore round-01 "fixed" assumptions; re-verify from code + runtime)
 
 ## Objectives
@@ -27,5 +27,5 @@ Same command matrix as round-01 — all must pass for stop condition.
 
 ## Stop gate for this round
 
-If only P3/P4/P5 found → proceed to final.md  
+If only P3/P4/P5 found → proceed to final.md
 If any P0/P1/P2 → fix and start round-03

@@ -49,7 +49,8 @@ func (s *LastSeenStore) Get(ctx context.Context, userID string) (string, error) 
 
 // LastSeenHandler exposes last-seen REST endpoints.
 type LastSeenHandler struct {
-	store *LastSeenStore
+	store    *LastSeenStore
+	contacts contactGate
 }
 
 // NewLastSeenHandler creates a last-seen handler.
@@ -57,10 +58,15 @@ func NewLastSeenHandler(store *LastSeenStore) *LastSeenHandler {
 	return &LastSeenHandler{store: store}
 }
 
+// SetContactGate restricts lookups to users who share a conversation with the caller.
+func (h *LastSeenHandler) SetContactGate(g contactGate) {
+	h.contacts = g
+}
+
 // HandleGet returns last-seen for user IDs.
 // GET /api/presence/last-seen?user_ids=...
 func (h *LastSeenHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.ClaimsFromContext(r.Context())
+	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
@@ -70,8 +76,15 @@ func (h *LastSeenHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	result := make(map[string]string)
 	for _, part := range strings.Split(raw, ",") {
 		part = strings.TrimSpace(part)
-		if _, err := uuid.Parse(part); err != nil {
+		targetID, err := uuid.Parse(part)
+		if err != nil {
 			continue
+		}
+		if h.contacts != nil && targetID != claims.UserID {
+			shared, err := h.contacts.ShareAnyConversation(r.Context(), claims.UserID, targetID)
+			if err != nil || !shared {
+				continue
+			}
 		}
 		if h.store != nil {
 			if ts, _ := h.store.Get(r.Context(), part); ts != "" {

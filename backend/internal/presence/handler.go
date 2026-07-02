@@ -35,6 +35,11 @@ func (c *RedisOnlineChecker) IsOnline(ctx context.Context, userID string) (bool,
 // OnlineHandler exposes GET /api/presence/online endpoint.
 type OnlineHandler struct {
 	checker OnlineChecker
+	contacts contactGate
+}
+
+type contactGate interface {
+	ShareAnyConversation(ctx context.Context, userA, userB uuid.UUID) (bool, error)
 }
 
 // NewOnlineHandler creates a presence online handler.
@@ -42,10 +47,15 @@ func NewOnlineHandler(checker OnlineChecker) *OnlineHandler {
 	return &OnlineHandler{checker: checker}
 }
 
+// SetContactGate restricts lookups to users who share a conversation with the caller.
+func (h *OnlineHandler) SetContactGate(g contactGate) {
+	h.contacts = g
+}
+
 // HandleOnline returns online status for a list of user_ids.
 // GET /api/presence/online?user_ids=uuid1,uuid2,...
 func (h *OnlineHandler) HandleOnline(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.ClaimsFromContext(r.Context())
+	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
 		apierror.Write(w, r, http.StatusUnauthorized, "unauthorized", "missing auth")
 		return
@@ -62,8 +72,15 @@ func (h *OnlineHandler) HandleOnline(w http.ResponseWriter, r *http.Request) {
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if _, err := uuid.Parse(part); err != nil {
+		targetID, err := uuid.Parse(part)
+		if err != nil {
 			continue
+		}
+		if h.contacts != nil && targetID != claims.UserID {
+			shared, err := h.contacts.ShareAnyConversation(r.Context(), claims.UserID, targetID)
+			if err != nil || !shared {
+				continue
+			}
 		}
 		if h.checker == nil {
 			result[part] = false

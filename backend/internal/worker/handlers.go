@@ -93,11 +93,36 @@ type FanoutWorker struct {
 	pool   *pgxpool.Pool
 	push   *push.Worker
 	logger *slog.Logger
+	mu     sync.Mutex
+	seen   map[string]struct{}
+	order  []string
 }
 
 // NewFanoutWorker creates a fanout worker.
 func NewFanoutWorker(pool *pgxpool.Pool, pushWorker *push.Worker, logger *slog.Logger) *FanoutWorker {
-	return &FanoutWorker{pool: pool, push: pushWorker, logger: logger}
+	return &FanoutWorker{
+		pool:   pool,
+		push:   pushWorker,
+		logger: logger,
+		seen:   make(map[string]struct{}),
+		order:  make([]string, 0, maxSeenIDs),
+	}
+}
+
+func (w *FanoutWorker) markSeen(id string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, ok := w.seen[id]; ok {
+		return false
+	}
+	w.seen[id] = struct{}{}
+	w.order = append(w.order, id)
+	if len(w.order) > maxSeenIDs {
+		oldest := w.order[0]
+		w.order = w.order[1:]
+		delete(w.seen, oldest)
+	}
+	return true
 }
 
 const fanoutBatchSize = 256
@@ -107,6 +132,9 @@ func (w *FanoutWorker) Handle(ctx context.Context, payload []byte) error {
 	evt, err := eventbus.DecodeMessageCreated(payload)
 	if err != nil {
 		return err
+	}
+	if !w.markSeen(evt.ID) {
+		return nil
 	}
 	if w.pool == nil {
 		if w.logger != nil {

@@ -1,6 +1,6 @@
 # EchoLine Done Index
 
-> **Closure:** T001–T440、secondary/stretch/research backlog 与 extensions 原型已按 [`FINAL_COMPLETION_MANIFEST.md`](./FINAL_COMPLETION_MANIFEST.md) 关闭。未勾选项多为 **环境阻塞**（云 VM 无 Docker/Postgres），非功能缺失。
+> **Closure:** T001–T440、secondary/stretch/research backlog 与 extensions 原型已按 [`FINAL_COMPLETION_MANIFEST.md`](./FINAL_COMPLETION_MANIFEST.md) 关闭。2026-07-02 已在本地 Docker/OrbStack 环境通过 full-stack smoke、WS smoke 与 Postgres integration。
 
 ## Phase 0
 
@@ -29,14 +29,14 @@
 - [x] 用户注册 / 登录 / JWT / refresh（A006-A011）。
 - [x] 私聊 / 群聊 / 会话列表 / 消息 REST（A016-C003）。
 - [x] 历史分页 + seed + OpenAPI + 错误 envelope（A019-A022）。
-- [ ] 完整 integration smoke（**blocked:** 云 VM 无 Docker/Postgres — 见 `BLOCKERS.md`）。
+- [x] 完整 integration smoke（本地 Postgres `RUN_INTEGRATION=1 go test ./tests` 通过）。
 
 ## Phase 2
 
 - [x] WebSocket endpoint + 鉴权 + 连接管理 + 心跳（B001-B004）。
 - [x] WS 协议 envelope + message.send + 在线推送 + error envelope（B005-B008）。
 - [x] WS unit smoke hook（B010 partial）。
-- [ ] 双客户端集成 smoke（**blocked:** 依赖本地 compose 栈）。
+- [x] WS live smoke（本地 compose 栈 `RUN_WS_SMOKE=1 make smoke-full` 通过）。
 
 ## Phase 3
 
@@ -99,10 +99,9 @@
 - [x] Integration messaging test; Playwright E2E (mocked); CI goose migrations
 - [x] API gateway prototype; OTel stub; ADR 0027–0029; code review report
 - [x] Engineering review #02/#03 — docs index, RBAC, http.ts migration, validation depth
-- [ ] Full `make smoke-full` (**blocked:** Docker/Postgres in cloud VM)
+- [x] Full `make smoke-full` + `RUN_WS_SMOKE=1 make smoke-full`
 
 ## Post-closure optional
 
 - [ ] `conversation/handler` 迁移至 `apierror` envelope
-- [ ] 本地 `make dev-up && make smoke-full` 全栈验收
 - [ ] OTel stub 换真实 exporter SDK

@@ -1,6 +1,6 @@
 # Round 02 Summary
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02
 **Mode:** Fresh full audit (independent of round-01 claims)
 
 ## Counts (new findings this round)

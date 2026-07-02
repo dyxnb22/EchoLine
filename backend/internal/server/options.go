@@ -57,7 +57,14 @@ func NewWithOptions(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, 
 func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts Options) *Server {
 	userRepo := user.NewRepository(pool)
 	authSvc := auth.NewService(userRepo, cfg.JWTSecret)
-	authSvc.SetRefreshStore(auth.NewMemoryRefreshStore())
+	if opts.Redis != nil {
+		authSvc.SetRefreshStore(auth.NewRedisRefreshStore(opts.Redis))
+	} else {
+		authSvc.SetRefreshStore(auth.NewMemoryRefreshStore())
+	}
+	if cfg.PaymentSelfServe {
+		logger.Warn("PAYMENT_SELF_SERVE is enabled — channel entitlements can be self-granted without payment verification")
+	}
 	auditRepo := audit.NewRepository(pool)
 	authSvc.SetLoginAuditor(auditRepo)
 
@@ -127,46 +134,57 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 	adminChecker := admin.NewCompositeAdminChecker(admin.NewStaticAdminChecker(cfg.AdminUserIDs), pool)
 	deviceRepo := device.NewRepository(pool)
-	graphHandler := graph.NewHandler(convRepo, cfg.GraphiQL)
-	graphHandler.SetMessageSender(msgSvc)
-	graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool), convRepo, msgRepo))
+	var graphHandler *graph.Handler
+	if cfg.GraphQLEnabled {
+		graphHandler = graph.NewHandler(convRepo, cfg.GraphiQL)
+		graphHandler.SetMessageSender(msgSvc)
+		graphHandler.SetReactionAdder(graph.NewReactionService(reaction.NewRepository(pool), convRepo, msgRepo))
+	}
 
 	rt.SetDeviceTracker(deviceRepo)
 
+	syncHandler := sync.NewHandler(convRepo, msgSvc, cursorRepo)
+	syncHandler.SetAttachments(attachmentRepo)
+
+	presenceHandler := presence.NewOnlineHandler(presenceChecker)
+	presenceHandler.SetContactGate(convRepo)
+	lastSeenHandler := presence.NewLastSeenHandler(lastSeenStore)
+	lastSeenHandler.SetContactGate(convRepo)
+
 	return &Server{
-		cfg:            cfg,
-		pool:           pool,
-		logger:         logger,
-		auth:           authSvc,
-		conv:           convHandler,
-		msg:            msgHandler,
-		sync:           sync.NewHandler(convRepo, msgSvc, cursorRepo),
-		search:         searchHandler,
-		delivery:       delivery.NewHandler(deliveryRepo, convRepo, msgRepo),
-		realtime:       rt,
-		limiter:        limiter,
-		memBus:         memBus,
-		outboxRepo:     outboxRepo,
-		media:          mediaHandler,
-		pin:            pin.NewHandler(pinRepo, convRepo, msgRepo),
-		block:          block.NewHandler(blockRepo),
-		report:         report.NewHandler(reportRepo, convRepo, msgRepo),
-		notification:   notification.NewHandler(notifRepo),
-		adminHandler:   admin.NewHandler(pool, authSvc),
-		dlqHandler:     outbox.NewDLQHandler(pool),
-		dlqReplay:      outbox.NewDLQReplayHandler(outbox.NewDLQRepository(pool), outboxRepo),
-		userRepo:       userRepo,
-		profileRepo:    user.NewProfileRepository(pool),
-		deviceH:        device.NewHandler(pool),
-		mute:           conversation.NewMuteHandler(pool, convRepo),
-		reaction:       reaction.NewHandler(reaction.NewRepository(pool), convRepo, msgRepo),
-		thread:         thread.NewHandler(msgSvc, convRepo, thread.NewRepository(pool)),
-		forward:        forward.NewHandler(msgSvc),
-		presenceH:      presence.NewOnlineHandler(presenceChecker),
-		lastSeenH:      presence.NewLastSeenHandler(lastSeenStore),
-		export:         export.NewHandler(export.NewRepository(pool), convRepo),
-		push:           push.NewHandler(push.NewRepository(pool)),
-		payment:        func() *payment.Handler {
+		cfg:          cfg,
+		pool:         pool,
+		logger:       logger,
+		auth:         authSvc,
+		conv:         convHandler,
+		msg:          msgHandler,
+		sync:         syncHandler,
+		search:       searchHandler,
+		delivery:     delivery.NewHandler(deliveryRepo, convRepo, msgRepo),
+		realtime:     rt,
+		limiter:      limiter,
+		memBus:       memBus,
+		outboxRepo:   outboxRepo,
+		media:        mediaHandler,
+		pin:          pin.NewHandler(pinRepo, convRepo, msgRepo),
+		block:        block.NewHandler(blockRepo),
+		report:       report.NewHandler(reportRepo, convRepo, msgRepo),
+		notification: notification.NewHandler(notifRepo),
+		adminHandler: admin.NewHandler(pool, authSvc),
+		dlqHandler:   outbox.NewDLQHandler(pool),
+		dlqReplay:    outbox.NewDLQReplayHandler(outbox.NewDLQRepository(pool), outboxRepo),
+		userRepo:     userRepo,
+		profileRepo:  user.NewProfileRepository(pool),
+		deviceH:      device.NewHandler(pool),
+		mute:         conversation.NewMuteHandler(pool, convRepo),
+		reaction:     reaction.NewHandler(reaction.NewRepository(pool), convRepo, msgRepo),
+		thread:       thread.NewHandler(msgSvc, convRepo, thread.NewRepository(pool)),
+		forward:      forward.NewHandler(msgSvc),
+		presenceH:    presenceHandler,
+		lastSeenH:    lastSeenHandler,
+		export:       export.NewHandler(export.NewRepository(pool), convRepo),
+		push:         push.NewHandler(push.NewRepository(pool)),
+		payment: func() *payment.Handler {
 			ph := payment.NewHandler(payment.NewRepository(pool))
 			ph.SetEntitlementGranter(entitlementRepo)
 			ph.SetSelfServe(cfg.PaymentSelfServe)
@@ -187,50 +205,50 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 
 // Server is the HTTP API server.
 type Server struct {
-	cfg          config.Config
-	pool         *pgxpool.Pool
-	logger       *slog.Logger
-	httpServer   *http.Server
-	auth         *auth.Service
-	conv         *conversation.Handler
-	msg          *message.Handler
-	sync         *sync.Handler
-	search       *search.Handler
-	delivery     *delivery.Handler
-	realtime     *realtime.Server
-	limiter      rate_limit.Limiter
-	memBus       *eventbus.MemoryPublisher
-	outboxRepo   *outbox.Repository
-	media        *media.Handler
-	pin          *pin.Handler
-	block        *block.Handler
-	report       *report.Handler
-	notification *notification.Handler
-	adminHandler *admin.Handler
-	dlqHandler   *outbox.DLQHandler
-	dlqReplay    *outbox.DLQReplayHandler
-	userRepo     *user.Repository
-	profileRepo  *user.ProfileRepository
-	deviceH      *device.Handler
-	mute         *conversation.MuteHandler
-	reaction     *reaction.Handler
-	thread       *thread.Handler
-	forward      *forward.Handler
-	presenceH    *presence.OnlineHandler
-	lastSeenH    *presence.LastSeenHandler
-	export       *export.Handler
-	push         *push.Handler
-	payment      *payment.Handler
-	ads          *ads.Handler
+	cfg            config.Config
+	pool           *pgxpool.Pool
+	logger         *slog.Logger
+	httpServer     *http.Server
+	auth           *auth.Service
+	conv           *conversation.Handler
+	msg            *message.Handler
+	sync           *sync.Handler
+	search         *search.Handler
+	delivery       *delivery.Handler
+	realtime       *realtime.Server
+	limiter        rate_limit.Limiter
+	memBus         *eventbus.MemoryPublisher
+	outboxRepo     *outbox.Repository
+	media          *media.Handler
+	pin            *pin.Handler
+	block          *block.Handler
+	report         *report.Handler
+	notification   *notification.Handler
+	adminHandler   *admin.Handler
+	dlqHandler     *outbox.DLQHandler
+	dlqReplay      *outbox.DLQReplayHandler
+	userRepo       *user.Repository
+	profileRepo    *user.ProfileRepository
+	deviceH        *device.Handler
+	mute           *conversation.MuteHandler
+	reaction       *reaction.Handler
+	thread         *thread.Handler
+	forward        *forward.Handler
+	presenceH      *presence.OnlineHandler
+	lastSeenH      *presence.LastSeenHandler
+	export         *export.Handler
+	push           *push.Handler
+	payment        *payment.Handler
+	ads            *ads.Handler
 	recommendation *recommendation.Handler
-	archive      *conversation.ArchiveHandler
-	encryption   *encryption.Handler
-	entitlement  *entitlement.Handler
-	webhook      *webhook.Dispatcher
-	webhookRepo  *webhook.Repository
-	opensearch   *search.OpenSearchClient
-	adminChecker admin.AdminChecker
-	graph        *graph.Handler
+	archive        *conversation.ArchiveHandler
+	encryption     *encryption.Handler
+	entitlement    *entitlement.Handler
+	webhook        *webhook.Dispatcher
+	webhookRepo    *webhook.Repository
+	opensearch     *search.OpenSearchClient
+	adminChecker   admin.AdminChecker
+	graph          *graph.Handler
 }
 
 // WebhookRepo exposes webhook delivery repository for workers.
@@ -255,6 +273,11 @@ func (s *Server) applyRateLimits(mux *http.ServeMux) {
 	refreshMW := rate_limit.Middleware(s.limiter, "refresh", 30, time.Minute, rate_limit.IPKey)
 	convSendMW := rate_limit.AuthConversationMiddleware(s.limiter, "conv_send", 60, time.Minute)
 	graphqlSendMW := rate_limit.Middleware(s.limiter, "graphql_send", 60, time.Minute, rate_limit.AuthUserKey)
+	syncMW := rate_limit.Middleware(s.limiter, "sync", 120, time.Minute, rate_limit.AuthUserKey)
+	ackMW := rate_limit.Middleware(s.limiter, "message_ack", 120, time.Minute, rate_limit.AuthUserKey)
+	searchMW := rate_limit.Middleware(s.limiter, "search", 60, time.Minute, rate_limit.AuthUserKey)
+	exportMW := rate_limit.Middleware(s.limiter, "export", 10, time.Minute, rate_limit.AuthUserKey)
+	mediaMW := rate_limit.Middleware(s.limiter, "media_presign", 60, time.Minute, rate_limit.AuthUserKey)
 
 	mux.Handle("POST /api/auth/register", registerMW(http.HandlerFunc(s.auth.HandleRegister)))
 	mux.Handle("POST /api/auth/refresh", refreshMW(http.HandlerFunc(s.auth.HandleRefresh)))
@@ -269,4 +292,14 @@ func (s *Server) applyRateLimits(mux *http.ServeMux) {
 			auth.RequireAuth(s.auth, graphqlSendMW(http.HandlerFunc(s.graph.HandleGraphQL))),
 		)
 	}
+	mux.Handle("POST /api/sync", auth.RequireAuth(s.auth, syncMW(http.HandlerFunc(s.sync.HandleSync))))
+	mux.Handle("POST /api/messages/ack", auth.RequireAuth(s.auth, ackMW(http.HandlerFunc(s.delivery.HandleACK))))
+	mux.Handle("GET /api/search/messages", auth.RequireAuth(s.auth, searchMW(http.HandlerFunc(s.search.HandleSearch))))
+	mux.Handle("GET /api/conversations/{id}/export", auth.RequireAuth(s.auth, exportMW(http.HandlerFunc(s.export.HandleExport))))
+	if s.media != nil {
+		mux.Handle("POST /api/media/upload-url", auth.RequireAuth(s.auth, mediaMW(http.HandlerFunc(s.media.HandlePresignUpload))))
+		mux.Handle("POST /api/media/download-url", auth.RequireAuth(s.auth, mediaMW(http.HandlerFunc(s.media.HandlePresignDownload))))
+	}
+	wsMW := rate_limit.Middleware(s.limiter, "ws_upgrade", 30, time.Minute, rate_limit.IPKey)
+	mux.Handle("GET /ws", wsMW(http.HandlerFunc(s.realtime.HandleWS)))
 }

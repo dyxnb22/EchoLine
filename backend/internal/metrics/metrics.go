@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,9 +61,14 @@ func Handler() http.Handler {
 }
 
 // ProtectedHandler returns a Prometheus handler optionally gated by bearer token.
-func ProtectedHandler(token string) http.Handler {
+func ProtectedHandler(token, appEnv string) http.Handler {
 	base := promhttp.Handler()
 	if token == "" {
+		if strings.EqualFold(appEnv, "production") {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "metrics disabled", http.StatusForbidden)
+			})
+		}
 		return base
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -370,6 +370,26 @@ func scanConversation(row scannable) (*Conversation, error) {
 	return &conv, nil
 }
 
+// ShareAnyConversation reports whether two users belong to at least one shared conversation.
+func (r *Repository) ShareAnyConversation(ctx context.Context, userA, userB uuid.UUID) (bool, error) {
+	if userA == userB {
+		return true, nil
+	}
+	const q = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM conversation_members m1
+			INNER JOIN conversation_members m2 ON m1.conversation_id = m2.conversation_id
+			WHERE m1.user_id = $1 AND m2.user_id = $2
+		)
+	`
+	var shared bool
+	if err := r.pool.QueryRow(ctx, q, userA, userB).Scan(&shared); err != nil {
+		return false, fmt.Errorf("share any conversation: %w", err)
+	}
+	return shared, nil
+}
+
 type execer interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 }

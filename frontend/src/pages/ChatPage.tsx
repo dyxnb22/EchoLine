@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { getOrCreateDeviceId } from "../lib/deviceId";
 import {
   addReaction,
   adminListUsers,
@@ -24,7 +25,7 @@ import {
   presignUpload,
   Reaction,
   recallMessage,
-  refreshToken,
+  refreshTokenOnce,
   removeReaction,
   reportMessage,
   searchMessages,
@@ -47,7 +48,7 @@ import { isPaymentRequired } from "../api/http";
 import { useAuth } from "../context/AuthContext";
 
 export function ChatPage() {
-  const { token, logout, setToken } = useAuth();
+  const { token, logout } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -88,12 +89,7 @@ export function ChatPage() {
     pendingSeqRef.current -= 1;
     return pendingSeqRef.current;
   }, []);
-
-  const deviceId = useMemo(() => localStorage.getItem("echoline_device") ?? crypto.randomUUID(), []);
-
-  useEffect(() => {
-    localStorage.setItem("echoline_device", deviceId);
-  }, [deviceId]);
+ const deviceId = useMemo(() => getOrCreateDeviceId(), []);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -118,7 +114,13 @@ export function ChatPage() {
 
   const refreshConversations = useCallback(() => {
     if (!token) return;
-    listConversations(token).then(setConversations).catch((e) => setError(String(e)));
+    const active = activeIdRef.current;
+    listConversations(token).then((list) => {
+      setConversations(() => {
+        if (!active) return list;
+        return list.map((c) => (c.id === active ? { ...c, unread: 0 } : c));
+      });
+    }).catch((e) => setError(String(e)));
   }, [token]);
 
   const clearUnread = useCallback((conversationId: string) => {
@@ -127,13 +129,11 @@ export function ChatPage() {
     )));
   }, []);
 
-  const markActiveRead = useCallback((conversationId: string, seq: number) => {
-    if (!token) return;
-    clearUnread(conversationId);
-    markConversationRead(token, conversationId, seq)
-      .then(() => refreshConversations())
-      .catch(() => undefined);
-  }, [token, clearUnread, refreshConversations]);
+ const markActiveRead = useCallback((conversationId: string, seq: number) => {
+	if (!token) return;
+	clearUnread(conversationId);
+	markConversationRead(token, conversationId, seq).catch(() => undefined);
+  }, [token, clearUnread]);
 
   const activeConv = conversations.find((c) => c.id === activeId);
   const canPublish = activeConv
@@ -166,15 +166,18 @@ export function ChatPage() {
 
   const runSync = useCallback(async () => {
     if (!token) return;
-    const cursors = Object.entries(seqCursorsRef.current).map(([conversation_id, last_seq]) => ({
+    const cursorMap = new Map<string, number>(
+      Object.entries(seqCursorsRef.current).map(([id, seq]) => [id, seq]),
+    );
+    for (const c of conversationsRef.current) {
+      if (!cursorMap.has(c.id)) {
+        cursorMap.set(c.id, Math.max(0, c.latest_seq - 1));
+      }
+    }
+    const cursors = [...cursorMap.entries()].map(([conversation_id, last_seq]) => ({
       conversation_id,
       last_seq,
     }));
-    if (cursors.length === 0 && conversationsRef.current.length > 0) {
-      for (const c of conversationsRef.current) {
-        cursors.push({ conversation_id: c.id, last_seq: Math.max(0, c.latest_seq - 1) });
-      }
-    }
     if (cursors.length === 0) return;
     try {
       const allBlocks: { conversation_id: string; messages?: Message[] }[] = [];
@@ -198,11 +201,18 @@ export function ChatPage() {
         seqCursorsRef.current[cursor.conversation_id] = lastSeq;
       }
       mergeSyncedMessages(allBlocks);
+      for (const block of allBlocks) {
+        if (block.conversation_id === activeIdRef.current && block.messages?.length) {
+          const maxSeq = Math.max(...block.messages.map((m) => m.seq));
+          markActiveRead(block.conversation_id, maxSeq);
+          break;
+        }
+      }
       refreshConversations();
     } catch {
       // sync is best-effort on reconnect
     }
-  }, [token, deviceId, refreshConversations, mergeSyncedMessages]);
+  }, [token, deviceId, refreshConversations, mergeSyncedMessages, markActiveRead]);
 
   const runSyncRef = useRef(runSync);
   useEffect(() => {
@@ -222,16 +232,31 @@ export function ChatPage() {
     const refresh = localStorage.getItem("echoline_refresh");
     if (!refresh) return null;
     try {
-      const pair = await refreshToken(refresh);
+      const pair = await refreshTokenOnce(refresh);
       localStorage.setItem("echoline_token", pair.access_token);
       localStorage.setItem("echoline_refresh", pair.refresh_token);
-      setToken(pair.access_token);
       return pair.access_token;
     } catch {
       logout();
       return null;
     }
-  }, [logout, setToken]);
+  }, [logout]);
+
+  const loggedIn = !!token;
+  const prevWsStatusRef = useRef(wsStatus);
+
+  useEffect(() => {
+    if (prevWsStatusRef.current === "open" && wsStatus !== "open") {
+      void runSyncRef.current();
+    }
+    prevWsStatusRef.current = wsStatus;
+  }, [wsStatus]);
+
+  useEffect(() => {
+    if (!loggedIn || wsStatus === "open") return;
+    const timer = window.setInterval(() => { void runSyncRef.current(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [loggedIn, wsStatus]);
 
   useEffect(() => {
     if (!token) return;
@@ -243,8 +268,9 @@ export function ChatPage() {
 
   const prefetchReactions = useCallback(async (msgs: Message[]) => {
     if (!token) return;
+    const recent = msgs.slice(-20);
     const results = await Promise.all(
-      msgs.map(async (m) => {
+      recent.map(async (m) => {
         try {
           const rx = await listReactions(token, m.id);
           return [m.id, rx] as const;
@@ -272,9 +298,10 @@ export function ChatPage() {
       void prefetchReactions(ordered);
     }
     setNextBefore(page.next_before);
-    if (ordered.length > 0) {
+    if (beforeSeq == null && ordered.length > 0) {
       const maxSeq = Math.max(...ordered.map((m) => m.seq));
-      seqCursorsRef.current[conversationId] = maxSeq;
+      const prev = seqCursorsRef.current[conversationId] ?? 0;
+      seqCursorsRef.current[conversationId] = Math.max(prev, maxSeq);
     }
     return ordered;
   }, [token, prefetchReactions]);
@@ -319,7 +346,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!token) return;
     listNotifications(token).then(setNotifications).catch(() => undefined);
-  }, [token, messages.length]);
+  }, [token, activeId]);
 
   useEffect(() => {
     if (!token || !showArchived) return;
@@ -327,7 +354,7 @@ export function ChatPage() {
   }, [token, showArchived]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!loggedIn) return;
     const conn = connectWS(
       () => localStorage.getItem("echoline_token") ?? "",
       deviceId,
@@ -376,14 +403,18 @@ export function ChatPage() {
         )));
         return;
       }
-      if (env.type !== "message.created") return;
-      const convId = env.payload?.conversation_id;
-      const isActive = convId === activeIdRef.current;
+	  if (env.type !== "message.created") return;
+	  const convId = env.payload?.conversation_id;
+	  if (convId && env.payload?.seq) {
+		const prev = seqCursorsRef.current[convId] ?? 0;
+		seqCursorsRef.current[convId] = Math.max(prev, env.payload.seq);
+	  }
+	  const isActive = convId === activeIdRef.current;
       if (isActive && env.payload?.seq) {
         markActiveRead(convId!, env.payload.seq);
-      } else {
-        refreshConversations();
-      }
+	  } else {
+		refreshConversations();
+	  }
       if (isActive && env.payload?.id && wsRef.current) {
         wsRef.current.send({
           type: "message.ack",
@@ -437,9 +468,9 @@ export function ChatPage() {
         }];
       });
     }, setWsStatus, () => { void runSyncRef.current(); }, refreshAccessToken);
-    wsRef.current = conn;
-    return () => conn.close();
-  }, [token, deviceId, refreshConversations, refreshAccessToken, markActiveRead]);
+	wsRef.current = conn;
+	return () => conn.close();
+  }, [loggedIn, deviceId, refreshConversations, refreshAccessToken, markActiveRead]);
 
   function emitTyping() {
     if (!activeId || !wsRef.current) return;

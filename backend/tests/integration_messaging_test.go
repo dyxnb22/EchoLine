@@ -26,6 +26,7 @@ func setupIntegrationServer(t *testing.T) (http.Handler, string) {
 	if !integrationEnabled() {
 		t.Skip("integration tests require RUN_INTEGRATION=1 and DATABASE_URL")
 	}
+	ensureIntegrationEnv(t)
 
 	t.Setenv("PAYMENT_SELF_SERVE", "true")
 

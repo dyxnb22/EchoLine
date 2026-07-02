@@ -1,6 +1,6 @@
 # Round 01 Summary
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02
 **Mode:** Zero-trust full audit
 
 ## Counts

@@ -37,6 +37,9 @@ func checkWSOrigin(r *http.Request) bool {
 
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if origin == "" {
+		if strings.EqualFold(os.Getenv("APP_ENV"), "production") {
+			return strings.EqualFold(os.Getenv("WS_ALLOW_EMPTY_ORIGIN"), "true")
+		}
 		return true
 	}
 

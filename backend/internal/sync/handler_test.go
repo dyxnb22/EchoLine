@@ -24,6 +24,12 @@ func TestSyncPaginationMeta(t *testing.T) {
 	}
 }
 
+func TestMaxSyncCursors(t *testing.T) {
+	if maxSyncCursors != 50 {
+		t.Fatalf("maxSyncCursors = %d, want 50", maxSyncCursors)
+	}
+}
+
 func TestSyncNextSeqUsesPageMax(t *testing.T) {
 	lastSeq := int64(100)
 	maxSeq := int64(250)

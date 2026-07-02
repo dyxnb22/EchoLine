@@ -52,6 +52,9 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
 
 	hits, err := h.repo.Search(r.Context(), claims.UserID, q, limit)
 	if err != nil && h.opensearch != nil && h.opensearch.Enabled() {
