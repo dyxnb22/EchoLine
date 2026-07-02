@@ -101,7 +101,7 @@ func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uu
 
 	const countQ = `
 		SELECT COUNT(*) FROM ad_impressions
-		WHERE campaign_id = $1 AND user_id = $2 AND created_at::date = CURRENT_DATE
+		WHERE campaign_id = $1 AND user_id = $2 AND impression_day = CURRENT_DATE
 	`
 	var count int
 	if err := r.pool.QueryRow(ctx, countQ, campaignID, userID).Scan(&count); err != nil {
@@ -112,8 +112,8 @@ func (r *Repository) RecordImpression(ctx context.Context, campaignID, userID uu
 	}
 
 	const insQ = `
-		INSERT INTO ad_impressions (id, campaign_id, user_id, created_at)
-		VALUES (gen_random_uuid(), $1, $2, NOW())
+		INSERT INTO ad_impressions (id, campaign_id, user_id, created_at, impression_day)
+		VALUES (gen_random_uuid(), $1, $2, NOW(), CURRENT_DATE)
 	`
 	if _, err := r.pool.Exec(ctx, insQ, campaignID, userID); err != nil {
 		return false, fmt.Errorf("record impression: %w", err)

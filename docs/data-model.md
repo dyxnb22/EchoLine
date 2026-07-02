@@ -178,6 +178,10 @@ Migration `00014`: boolean admin flag (default false). Runtime admin also via `A
 
 - `budget_cents`, `frequency_cap` (default 3 impressions/user/day)
 
+### ad_impressions.impression_day (00014)
+
+- `DATE NOT NULL DEFAULT CURRENT_DATE` — used for per-user daily frequency cap; unique index on `(campaign_id, user_id, impression_day)` (avoids non-immutable `created_at::date` in PostgreSQL indexes)
+
 ### channel_entitlements (00015)
 
 - `user_id`, `channel_id`, `status`, `reference`, `expires_at` — paid channel access skeleton
