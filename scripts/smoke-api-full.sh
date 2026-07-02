@@ -19,7 +19,7 @@
 #
 # Environment:
 #   API_BASE_URL  - default: http://localhost:8080
-#   RUN_WS_SMOKE  - set to any value to run WS tests (requires wscat)
+#   RUN_WS_SMOKE  - set to any value to run WS tests (requires Node 22+ or wscat)
 #   VERBOSE       - set to 1 to print full response bodies
 
 set -euo pipefail
@@ -30,6 +30,7 @@ TIMESTAMP=$(date +%s)
 SMOKE_MSG1_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
 SMOKE_MSG2_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
 SMOKE_GROUP_MSG_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
+SMOKE_DEVICE_ID=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -74,6 +75,86 @@ get_json() {
   local token="${2:-}"
   curl -s -X GET "${API_BASE}${url}" \
     ${token:+-H "Authorization: Bearer ${token}"}
+}
+
+run_with_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout > /dev/null 2>&1; then
+    timeout "${seconds}" "$@"
+    return $?
+  fi
+
+  if command -v gtimeout > /dev/null 2>&1; then
+    gtimeout "${seconds}" "$@"
+    return $?
+  fi
+
+  if command -v python3 > /dev/null 2>&1; then
+    python3 - "${seconds}" "$@" <<'PY'
+import subprocess
+import sys
+
+seconds = float(sys.argv[1])
+cmd = sys.argv[2:]
+try:
+    raise SystemExit(subprocess.run(cmd, timeout=seconds).returncode)
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+PY
+    return $?
+  fi
+
+  "$@"
+}
+
+node_has_websocket() {
+  command -v node > /dev/null 2>&1 && [ "$(node -e 'process.stdout.write(typeof WebSocket)')" = "function" ]
+}
+
+ws_probe_node() {
+  local url="$1"
+  local mode="$2"
+  local seconds="$3"
+
+  node - "${url}" "${mode}" "${seconds}" <<'NODE'
+const url = process.argv[2];
+const mode = process.argv[3];
+const seconds = Number(process.argv[4]);
+let settled = false;
+
+function finish(ok, message) {
+  if (settled) return;
+  settled = true;
+  if (message) console.log(message);
+  process.exit(ok ? 0 : 1);
+}
+
+const ws = new WebSocket(url);
+const timer = setTimeout(() => finish(false, "timeout"), seconds * 1000);
+
+ws.addEventListener("open", () => {
+  clearTimeout(timer);
+  if (mode === "open") {
+    ws.close();
+    finish(true, "open");
+  } else {
+    ws.close();
+    finish(false, "unexpected open");
+  }
+});
+
+ws.addEventListener("error", () => {
+  clearTimeout(timer);
+  finish(mode === "reject", "error");
+});
+
+ws.addEventListener("close", () => {
+  clearTimeout(timer);
+  if (!settled) finish(mode === "reject", "closed");
+});
+NODE
 }
 
 # ─── Pre-flight ───────────────────────────────────────────────────────────────
@@ -282,24 +363,36 @@ fi
 section "Step 9: WebSocket (optional)"
 
 if [ -n "${RUN_WS_SMOKE:-}" ]; then
-  if command -v wscat > /dev/null 2>&1; then
+  if node_has_websocket; then
+    if WS_RESULT=$(ws_probe_node "ws://localhost:8080/ws?token=${TOKEN_ALICE}&device_id=${SMOKE_DEVICE_ID}" open 5 2>&1); then
+      pass "WS connection established"
+    else
+      fail "WS connection failed: ${WS_RESULT}"
+    fi
+
+    if WS_BAD=$(ws_probe_node "ws://localhost:8080/ws?token=invalid&device_id=${SMOKE_DEVICE_ID}" reject 3 2>&1); then
+      pass "WS rejects invalid token"
+    else
+      skip "WS invalid token test inconclusive (node output: ${WS_BAD})"
+    fi
+  elif command -v wscat > /dev/null 2>&1; then
     # Test WS connection with valid token
-    WS_RESULT=$(timeout 5 wscat -c "ws://localhost:8080/ws?token=${TOKEN_ALICE}" --no-color 2>&1 || true)
+    WS_RESULT=$(run_with_timeout 5 wscat -c "ws://localhost:8080/ws?token=${TOKEN_ALICE}&device_id=${SMOKE_DEVICE_ID}" --no-color 2>&1 || true)
     if echo "${WS_RESULT}" | grep -q "Connected"; then
       pass "WS connection established"
     else
       fail "WS connection failed: ${WS_RESULT}"
     fi
-  else
-    skip "wscat not installed; skipping WS test (npm install -g wscat)"
-  fi
 
-  # Test WS with invalid token
-  WS_BAD=$(timeout 3 wscat -c "ws://localhost:8080/ws?token=invalid" --no-color 2>&1 || true)
-  if echo "${WS_BAD}" | grep -q "401\|Unauthorized\|403"; then
-    pass "WS rejects invalid token"
+    # Test WS with invalid token
+    WS_BAD=$(run_with_timeout 3 wscat -c "ws://localhost:8080/ws?token=invalid&device_id=${SMOKE_DEVICE_ID}" --no-color 2>&1 || true)
+    if echo "${WS_BAD}" | grep -q "401\|Unauthorized\|403"; then
+      pass "WS rejects invalid token"
+    else
+      skip "WS invalid token test inconclusive (wscat output: ${WS_BAD})"
+    fi
   else
-    skip "WS invalid token test inconclusive (wscat output: ${WS_BAD})"
+    skip "Node WebSocket and wscat unavailable; skipping WS test"
   fi
 else
   skip "WS smoke skipped (set RUN_WS_SMOKE=1 to enable)"

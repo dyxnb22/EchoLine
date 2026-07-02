@@ -2,6 +2,30 @@
 
 本文件采用追加式记录。每轮执行结束时在顶部或底部追加均可，但必须包含任务、文件、测试、阻塞和下一步。
 
+## 2026-07-02 Full-stack smoke + WS live verification
+
+任务：继续解决 post-closure 剩余验收，启动本地 Docker/OrbStack 栈并复跑 full API smoke、Postgres integration 与 live WS smoke。
+
+修复：
+
+- `scripts/smoke-api-full.sh`：WS smoke 改为优先使用 Node 22+ 内置 WebSocket 探针；保留 `wscat` fallback；补齐 `/ws` 所需 `device_id`；移除对 GNU `timeout` 的硬依赖。
+- `backend/internal/metrics/middleware.go`：metrics `statusRecorder` 增加 `Unwrap`、`Flush`、`Hijack`、`Push` 透传，避免 WebSocket upgrade 被 ResponseWriter 包装破坏。
+- `backend/internal/metrics/middleware_test.go`：新增 Hijacker 透传回归测试。
+- 状态文档更新：`CURRENT_STATE.md`、`NEXT_ACTIONS.md`、`DONE.md`、`BLOCKERS.md`、`reports/iteration-07.md`。
+
+测试：
+
+- `cd backend && go test ./...` 通过。
+- `cd backend && go vet ./...` 通过。
+- `RUN_INTEGRATION=1 DATABASE_URL=postgres://echoline:echoline@localhost:5432/echoline?sslmode=disable go test ./tests` 通过。
+- `make smoke` 通过。
+- `make smoke-full` 通过。
+- `RUN_WS_SMOKE=1 make smoke-full` 通过，18 pass / 0 fail / 0 skip。
+
+阻塞：无。历史 Docker/Postgres blocker 已在本地环境解除；云 VM 无 Docker 的限制保留为历史记录。
+
+下一步：可选质量项：`conversation/handler` 迁移至 `apierror` envelope、OTel stub 接真实 exporter、OpenAPI body schema 扩展。
+
 ## 2026-07-02 Post-audit recheck
 
 任务：在 deep-review 与 strict-audit 后重新检查项目状态。
