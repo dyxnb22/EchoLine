@@ -272,6 +272,7 @@ export function ChatPage() {
           seq?: number;
           body?: string;
           id?: string;
+          message_id?: string;
           sender_id?: string;
           user_id?: string;
           client_msg_id?: string;
@@ -292,7 +293,7 @@ export function ChatPage() {
         return;
       }
       if (env.type === "message.edited" && env.payload?.conversation_id === activeIdRef.current) {
-        const id = env.payload.id;
+        const id = env.payload.id ?? env.payload.message_id;
         if (!id) return;
         setMessages((prev) => prev.map((m) => (
           m.id === id ? { ...m, body: env.payload!.body ?? m.body } : m
@@ -300,7 +301,7 @@ export function ChatPage() {
         return;
       }
       if (env.type === "message.recalled" && env.payload?.conversation_id === activeIdRef.current) {
-        const id = env.payload.id;
+        const id = env.payload.id ?? env.payload.message_id;
         if (!id) return;
         setMessages((prev) => prev.map((m) => (
           m.id === id ? { ...m, body: "", status: "recalled" } : m

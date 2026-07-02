@@ -2,6 +2,7 @@ package report
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -10,17 +11,19 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 // Handler exposes the report REST endpoint.
 type Handler struct {
 	repo     *Repository
 	convRepo *conversation.Repository
+	messages *message.Repository
 }
 
 // NewHandler creates a report handler.
-func NewHandler(repo *Repository, convRepo *conversation.Repository) *Handler {
-	return &Handler{repo: repo, convRepo: convRepo}
+func NewHandler(repo *Repository, convRepo *conversation.Repository, messages *message.Repository) *Handler {
+	return &Handler{repo: repo, convRepo: convRepo, messages: messages}
 }
 
 type createReportRequest struct {
@@ -57,6 +60,15 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	member, err := h.convRepo.IsMember(r.Context(), convID, claims.UserID)
 	if err != nil || !member {
 		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+		return
+	}
+
+	if _, err := h.messages.GetByID(r.Context(), convID, msgID); err != nil {
+		if errors.Is(err, message.ErrNotFound) {
+			apierror.Write(w, r, http.StatusNotFound, "not_found", "message not found")
+			return
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to resolve message")
 		return
 	}
 

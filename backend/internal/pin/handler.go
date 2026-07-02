@@ -11,17 +11,19 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 // Handler exposes pin/unpin REST endpoints.
 type Handler struct {
 	repo     *Repository
 	convRepo *conversation.Repository
+	messages *message.Repository
 }
 
 // NewHandler creates a pin handler.
-func NewHandler(repo *Repository, convRepo *conversation.Repository) *Handler {
-	return &Handler{repo: repo, convRepo: convRepo}
+func NewHandler(repo *Repository, convRepo *conversation.Repository, messages *message.Repository) *Handler {
+	return &Handler{repo: repo, convRepo: convRepo, messages: messages}
 }
 
 func parseConvAndMessageID(path string) (uuid.UUID, uuid.UUID, error) {
@@ -50,6 +52,19 @@ func parseConvID(path string) (uuid.UUID, error) {
 	return uuid.Parse(parts[2])
 }
 
+func (h *Handler) requireMessageInConversation(w http.ResponseWriter, r *http.Request, convID, msgID uuid.UUID) bool {
+	_, err := h.messages.GetByID(r.Context(), convID, msgID)
+	if err != nil {
+		if errors.Is(err, message.ErrNotFound) {
+			apierror.Write(w, r, http.StatusNotFound, "not_found", "message not found")
+			return false
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to resolve message")
+		return false
+	}
+	return true
+}
+
 // HandlePin pins a message.
 func (h *Handler) HandlePin(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
@@ -67,6 +82,9 @@ func (h *Handler) HandlePin(w http.ResponseWriter, r *http.Request) {
 	member, err := h.convRepo.IsMember(r.Context(), convID, claims.UserID)
 	if err != nil || !member {
 		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+		return
+	}
+	if !h.requireMessageInConversation(w, r, convID, msgID) {
 		return
 	}
 
@@ -105,6 +123,9 @@ func (h *Handler) HandleUnpin(w http.ResponseWriter, r *http.Request) {
 	member, err := h.convRepo.IsMember(r.Context(), convID, claims.UserID)
 	if err != nil || !member {
 		apierror.Write(w, r, http.StatusForbidden, "forbidden", "not a conversation member")
+		return
+	}
+	if !h.requireMessageInConversation(w, r, convID, msgID) {
 		return
 	}
 

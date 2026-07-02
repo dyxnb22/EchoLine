@@ -20,15 +20,15 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-// ListReplies returns all direct replies to a parent message.
-func (r *Repository) ListReplies(ctx context.Context, parentMsgID uuid.UUID) ([]message.Message, error) {
+// ListReplies returns direct replies to a parent message within a conversation.
+func (r *Repository) ListReplies(ctx context.Context, convID, parentMsgID uuid.UUID) ([]message.Message, error) {
 	const q = `
 		SELECT id, conversation_id, sender_id, client_msg_id, seq, type, body, status, created_at, updated_at
 		FROM messages
-		WHERE parent_message_id = $1
+		WHERE parent_message_id = $1 AND conversation_id = $2
 		ORDER BY seq ASC
 	`
-	rows, err := r.pool.Query(ctx, q, parentMsgID)
+	rows, err := r.pool.Query(ctx, q, parentMsgID, convID)
 	if err != nil {
 		return nil, fmt.Errorf("list replies: %w", err)
 	}

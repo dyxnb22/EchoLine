@@ -50,7 +50,9 @@ sequenceDiagram
 
 ## 3. 付费频道订阅
 
-前端 `ChatPage` 在收到 `402 payment_required` 时自动执行 ledger create → settle → 重试 subscribe（`docs/business-flows.md` 与 `frontend/src/api.ts` 对齐）。
+默认情况下 `POST /api/payments/ledger` 与 `POST /api/payments/ledger/settle` 返回 `403 payment_self_serve_disabled`，防止用户自助绕过付费门控。本地原型可设置 `PAYMENT_SELF_SERVE=true`（见 `docker-compose.yml` api 服务）。
+
+启用 self-serve 时，前端 `ChatPage` 在收到 `402 payment_required` 后自动执行 ledger create → settle → 重试 subscribe。
 
 ```mermaid
 sequenceDiagram
@@ -81,7 +83,7 @@ sequenceDiagram
 |------|--------|
 | `entitlements/require` | 频道 `owner` |
 | `entitlements/grant` | `ADMIN_USER_IDS` 配置的管理员 |
-| 支付 settle 自动 grant | 支付 reference 为 `channel:{uuid}` 的本人 |
+| 支付 settle 自动 grant | **仅** `PAYMENT_SELF_SERVE=true` 时，用户可对本人 `channel:{uuid}` reference settle；生产须 webhook |
 | `subscribe` | 任意用户（若需付费则须有效 entitlement） |
 
 ## 4. 离线推送 Fanout（Worker）

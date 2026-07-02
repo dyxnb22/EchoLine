@@ -409,6 +409,7 @@ func (s *Server) BroadcastMessageEdited(ctx context.Context, convID uuid.UUID, m
 	}
 
 	payload := MessageEditedPayload{
+		ID:             msg.ID.String(),
 		MessageID:      msg.ID.String(),
 		ConversationID: msg.ConversationID.String(),
 		Body:           msg.Body,
@@ -433,6 +434,7 @@ func (s *Server) BroadcastMessageRecalled(ctx context.Context, convID uuid.UUID,
 	}
 
 	payload := MessageRecalledPayload{
+		ID:             msg.ID.String(),
 		MessageID:      msg.ID.String(),
 		ConversationID: msg.ConversationID.String(),
 		UpdatedAt:      msg.UpdatedAt.UTC().Format(time.RFC3339),

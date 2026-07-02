@@ -27,6 +27,8 @@ func setupIntegrationServer(t *testing.T) (http.Handler, string) {
 		t.Skip("integration tests require RUN_INTEGRATION=1 and DATABASE_URL")
 	}
 
+	t.Setenv("PAYMENT_SELF_SERVE", "true")
+
 	ctx := context.Background()
 	dbURL := os.Getenv("DATABASE_URL")
 	if err := migrate.Up(ctx, dbURL); err != nil {

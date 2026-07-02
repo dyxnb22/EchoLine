@@ -75,6 +75,7 @@ type TypingStopPayload struct {
 
 // MessageEditedPayload is broadcast when a message body is updated.
 type MessageEditedPayload struct {
+	ID             string `json:"id"`
 	MessageID      string `json:"message_id"`
 	ConversationID string `json:"conversation_id"`
 	Body           string `json:"body"`
@@ -83,6 +84,7 @@ type MessageEditedPayload struct {
 
 // MessageRecalledPayload is broadcast when a message is recalled.
 type MessageRecalledPayload struct {
+	ID             string `json:"id"`
 	MessageID      string `json:"message_id"`
 	ConversationID string `json:"conversation_id"`
 	UpdatedAt      string `json:"updated_at"`

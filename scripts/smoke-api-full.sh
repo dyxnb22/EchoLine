@@ -165,8 +165,8 @@ if [ -z "${BOB_ID:-}" ]; then
   skip "Bob ID not available; skipping DM creation"
   DM_CONV_ID=""
 else
-  DM_BODY="{\"target_user_id\":\"${BOB_ID}\"}"
-  DM_RESP=$(post_json "/api/conversations/dm" "${DM_BODY}" "${TOKEN_ALICE}")
+  DM_BODY="{\"user_id\":\"${BOB_ID}\"}"
+  DM_RESP=$(post_json "/api/conversations/direct" "${DM_BODY}" "${TOKEN_ALICE}")
   if echo "${DM_RESP}" | grep -q '"id"'; then
     pass "DM conversation created"
     DM_CONV_ID=$(echo "${DM_RESP}" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
