@@ -113,11 +113,17 @@ type EntitlementGranter interface {
 type Handler struct {
 	repo         *Repository
 	entitlements EntitlementGranter
+	selfServe    bool
 }
 
 // NewHandler creates a payment handler.
 func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// SetSelfServe enables prototype create/settle endpoints (disabled by default).
+func (h *Handler) SetSelfServe(enabled bool) {
+	h.selfServe = enabled
 }
 
 // SetEntitlementGranter enables auto-grant on settle for channel references.
@@ -145,6 +151,10 @@ func (h *Handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Currency == "" {
 		req.Currency = "USD"
+	}
+	if !h.selfServe {
+		apierror.Write(w, r, http.StatusForbidden, "payment_self_serve_disabled", "payment ledger create is disabled; use a trusted payment webhook")
+		return
 	}
 
 	entry, err := h.repo.Create(r.Context(), claims.UserID, req.AmountCents, req.Currency, "pending", req.Reference)
@@ -193,6 +203,10 @@ func (h *Handler) HandleSettle(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Reference == "" {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "reference is required")
+		return
+	}
+	if !h.selfServe {
+		apierror.Write(w, r, http.StatusForbidden, "payment_self_serve_disabled", "payment settle is disabled; use a trusted payment webhook")
 		return
 	}
 

@@ -65,6 +65,7 @@ services:
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
       S3_BUCKET: echoline
+      PAYMENT_SELF_SERVE: "true"
     depends_on:
       - postgres
       - redis

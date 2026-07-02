@@ -106,6 +106,7 @@ Client → server:
 {
   "type": "message.edited",
   "payload": {
+    "id": "m1",
     "message_id": "m1",
     "conversation_id": "c1",
     "body": "updated text",
@@ -116,12 +117,13 @@ Client → server:
 
 ### `message.recalled`
 
-消息撤回后广播：
+消息撤回后广播（`id` 与 `message_id` 同值）：
 
 ```json
 {
   "type": "message.recalled",
   "payload": {
+    "id": "m1",
     "message_id": "m1",
     "conversation_id": "c1",
     "updated_at": "2026-07-01T12:00:00Z"

@@ -93,7 +93,16 @@ func (h *Handler) HandleListReplies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	replies, err := h.repo.ListReplies(r.Context(), parentMsgID)
+	if _, err := h.messages.GetByID(r.Context(), convID, parentMsgID); err != nil {
+		if errors.Is(err, message.ErrNotFound) {
+			apierror.Write(w, r, http.StatusNotFound, "not_found", "parent message not found")
+			return
+		}
+		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to resolve parent message")
+		return
+	}
+
+	replies, err := h.repo.ListReplies(r.Context(), convID, parentMsgID)
 	if err != nil {
 		apierror.Write(w, r, http.StatusInternalServerError, "internal_error", "failed to list replies")
 		return

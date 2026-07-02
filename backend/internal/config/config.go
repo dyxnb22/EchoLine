@@ -20,9 +20,10 @@ type Config struct {
 	S3Bucket      string
 	OpenSearchURL string
 	WebhookURL    string
-	AdminUserIDs  string
-	SentryDSN     string
-	GraphiQL      bool
+	AdminUserIDs       string
+	SentryDSN          string
+	GraphiQL           bool
+	PaymentSelfServe   bool
 }
 
 // Load reads configuration from environment variables and validates required fields.
@@ -40,9 +41,10 @@ func Load() (Config, error) {
 		S3Bucket:      envOrDefault("S3_BUCKET", "echoline"),
 		OpenSearchURL: strings.TrimSpace(os.Getenv("OPENSEARCH_URL")),
 		WebhookURL:    strings.TrimSpace(os.Getenv("WEBHOOK_URL")),
-		AdminUserIDs:  strings.TrimSpace(os.Getenv("ADMIN_USER_IDS")),
-		SentryDSN:     strings.TrimSpace(os.Getenv("SENTRY_DSN")),
-		GraphiQL:      strings.EqualFold(os.Getenv("GRAPHIQL"), "true"),
+		AdminUserIDs:     strings.TrimSpace(os.Getenv("ADMIN_USER_IDS")),
+		SentryDSN:        strings.TrimSpace(os.Getenv("SENTRY_DSN")),
+		GraphiQL:         strings.EqualFold(os.Getenv("GRAPHIQL"), "true"),
+		PaymentSelfServe: strings.EqualFold(os.Getenv("PAYMENT_SELF_SERVE"), "true"),
 	}
 
 	var missing []string

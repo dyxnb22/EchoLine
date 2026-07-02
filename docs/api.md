@@ -413,7 +413,7 @@ WebSocket 实时网关。查询参数：`token`（access JWT）、`device_id`。
 - `POST /api/channels/{channel_id}/entitlements/grant` — **admin only**; body `{ "user_id": "uuid (optional)", "reference": "..." }`
 - `POST /api/channels/{channel_id}/entitlements/require` — **channel owner only**; body `{ "required": true }`
 - `POST /api/conversations/{id}/subscribe` returns `402 payment_required` when entitlement missing
-- `POST /api/payments/ledger` + `POST /api/payments/ledger/settle` with `reference: "channel:{uuid}"` auto-grants subscriber
+- `POST /api/payments/ledger` + `POST /api/payments/ledger/settle` with `reference: "channel:{uuid}"` auto-grants subscriber **only when** `PAYMENT_SELF_SERVE=true` (prototype/dev). Default is `403 payment_self_serve_disabled`; production must use a trusted payment webhook to settle.
 
 ## Observability
 

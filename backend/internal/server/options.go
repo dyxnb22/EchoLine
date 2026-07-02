@@ -144,9 +144,9 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		memBus:         memBus,
 		outboxRepo:     outboxRepo,
 		media:          mediaHandler,
-		pin:            pin.NewHandler(pinRepo, convRepo),
+		pin:            pin.NewHandler(pinRepo, convRepo, msgRepo),
 		block:          block.NewHandler(blockRepo),
-		report:         report.NewHandler(reportRepo, convRepo),
+		report:         report.NewHandler(reportRepo, convRepo, msgRepo),
 		notification:   notification.NewHandler(notifRepo),
 		adminHandler:   admin.NewHandler(pool, authSvc),
 		dlqHandler:     outbox.NewDLQHandler(pool),
@@ -165,6 +165,7 @@ func newServer(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger, opts 
 		payment:        func() *payment.Handler {
 			ph := payment.NewHandler(payment.NewRepository(pool))
 			ph.SetEntitlementGranter(entitlementRepo)
+			ph.SetSelfServe(cfg.PaymentSelfServe)
 			return ph
 		}(),
 		ads:            ads.NewHandler(ads.NewRepository(pool), conversation.NewOwnerChecker(convRepo)),
