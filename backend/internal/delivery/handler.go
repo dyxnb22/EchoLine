@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -9,17 +10,19 @@ import (
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
 	"github.com/echoline/echoline/backend/internal/conversation"
+	"github.com/echoline/echoline/backend/internal/message"
 )
 
 // Handler exposes delivery ACK REST endpoints.
 type Handler struct {
 	repo          *Repository
 	conversations *conversation.Repository
+	messages      *message.Repository
 }
 
 // NewHandler creates a delivery handler.
-func NewHandler(repo *Repository, conversations *conversation.Repository) *Handler {
-	return &Handler{repo: repo, conversations: conversations}
+func NewHandler(repo *Repository, conversations *conversation.Repository, messages *message.Repository) *Handler {
+	return &Handler{repo: repo, conversations: conversations, messages: messages}
 }
 
 type ackRequest struct {
@@ -61,6 +64,13 @@ func (h *Handler) HandleACK(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.messages != nil {
+		if _, err := h.messages.GetByID(r.Context(), convID, msgID); err != nil {
+			apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "message not in conversation")
+			return
+		}
+	}
+
 	status := Status(req.Status)
 	if status != StatusDelivered && status != StatusRead {
 		apierror.Write(w, r, http.StatusBadRequest, "invalid_request", "status must be delivered or read")
@@ -69,7 +79,7 @@ func (h *Handler) HandleACK(w http.ResponseWriter, r *http.Request) {
 
 	rec, err := h.repo.UpsertACK(r.Context(), msgID, claims.UserID, req.DeviceID, status)
 	if err != nil {
-		if err == ErrInvalidTransition {
+		if errors.Is(err, ErrInvalidTransition) {
 			apierror.Write(w, r, http.StatusConflict, "invalid_transition", "status cannot move backward")
 			return
 		}

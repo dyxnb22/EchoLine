@@ -315,13 +315,18 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 		if cached, hit, err := h.cache.Get(r.Context(), userKey); err == nil && hit {
 			items := make([]map[string]any, 0, len(cached))
 			for _, c := range cached {
-				items = append(items, map[string]any{
+				item := map[string]any{
 					"id":         c.ID,
 					"type":       c.Type,
 					"title":      c.Title,
 					"unread":     c.Unread,
 					"latest_seq": c.LatestSeq,
-				})
+				}
+				if c.Role != "" {
+					item["role"] = c.Role
+				}
+				item["can_publish"] = c.CanPublish
+				items = append(items, item)
 			}
 			writeJSON(w, r, http.StatusOK, map[string]any{"conversations": items, "cached": true})
 			return
@@ -339,17 +344,21 @@ func (h *Handler) HandleList(w http.ResponseWriter, r *http.Request) {
 	for i, conv := range conversations {
 		item := toConversationResponse(&conv)
 		item["unread"] = unreads[i]
+		var role Role
 		if member, err := h.repo.GetMember(r.Context(), conv.ID, claims.UserID); err == nil {
+			role = member.Role
 			item["role"] = member.Role
 			item["can_publish"] = CanPublish(conv.Type, member.Role)
 		}
 		items = append(items, item)
 		cacheItems = append(cacheItems, cache.ConversationSummary{
-			ID:        conv.ID.String(),
-			Type:      string(conv.Type),
-			Title:     conv.Title,
-			Unread:    unreads[i],
-			LatestSeq: conv.LatestSeq,
+			ID:         conv.ID.String(),
+			Type:       string(conv.Type),
+			Title:      conv.Title,
+			Unread:     unreads[i],
+			LatestSeq:  conv.LatestSeq,
+			Role:       string(role),
+			CanPublish: CanPublish(conv.Type, role),
 		})
 	}
 

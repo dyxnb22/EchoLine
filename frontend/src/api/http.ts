@@ -12,6 +12,27 @@ export type ApiErrorBody = {
   message?: string;
 };
 
+/** Structured API error with optional machine-readable code. */
+export class ApiError extends Error {
+  code?: string;
+  status: number;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function isPaymentRequired(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    return err.status === 402 || err.code === "payment_required";
+  }
+  const msg = String(err);
+  return msg.includes("402") || msg.includes("payment_required");
+}
+
 /** Parses JSON API responses and surfaces server error messages. */
 export async function parseResponse<T>(res: Response, fallback: string): Promise<T> {
   if (res.ok) {
@@ -21,13 +42,15 @@ export async function parseResponse<T>(res: Response, fallback: string): Promise
     return JSON.parse(text) as T;
   }
   let message = fallback;
+  let code: string | undefined;
   try {
     const body = JSON.parse(await res.text()) as ApiErrorBody;
     message = body.error?.message ?? body.message ?? fallback;
+    code = body.error?.code;
   } catch {
     // non-JSON error body
   }
-  throw new Error(message);
+  throw new ApiError(message, res.status, code);
 }
 
 export type AuthFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

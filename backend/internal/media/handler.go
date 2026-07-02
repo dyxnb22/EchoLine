@@ -4,19 +4,23 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/echoline/echoline/backend/internal/apierror"
 	"github.com/echoline/echoline/backend/internal/auth"
+	"github.com/echoline/echoline/backend/internal/conversation"
 )
 
 // Handler exposes media upload endpoints.
 type Handler struct {
-	client     *Client
-	attachments *Repository
+	client        *Client
+	attachments   *Repository
+	conversations *conversation.Repository
 }
 
 // NewHandler creates a media handler.
-func NewHandler(client *Client, attachments *Repository) *Handler {
-	return &Handler{client: client, attachments: attachments}
+func NewHandler(client *Client, attachments *Repository, conversations *conversation.Repository) *Handler {
+	return &Handler{client: client, attachments: attachments, conversations: conversations}
 }
 
 type uploadURLRequest struct {
@@ -88,7 +92,12 @@ func (h *Handler) HandlePresignDownload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	att, err := h.attachments.GetByObjectKey(r.Context(), claims.UserID, req.ObjectKey)
+	att, err := h.attachments.GetAccessible(r.Context(), claims.UserID, req.ObjectKey, func(convID, userID uuid.UUID) (bool, error) {
+		if h.conversations == nil {
+			return false, nil
+		}
+		return h.conversations.IsMember(r.Context(), convID, userID)
+	})
 	if err != nil {
 		apierror.Write(w, r, http.StatusForbidden, "forbidden", "attachment not accessible")
 		return

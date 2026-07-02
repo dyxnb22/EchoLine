@@ -218,11 +218,11 @@ Transactional outbox for reliable async publish (migration `00004`).
 - `id`
 - `topic` — e.g. `message.created`
 - `payload` — JSONB event body
-- `status`: `pending`, `published`, `failed`
+- `status`: `pending`, `processing`, `published`, `failed` (migration `00017` adds `processing` claim state)
 - `attempts`
 - `created_at`, `published_at`
 
-Worker drains `pending` rows with `SKIP LOCKED` (`internal/outbox`, `cmd/worker`).
+Worker claims `pending` rows into `processing` with `SKIP LOCKED` before publish (`internal/outbox`, `cmd/worker`).
 
 ### audit_logs
 

@@ -44,6 +44,19 @@ func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.U
 		msgType = TypeText
 	}
 
+	if clientMsgID != "" {
+		existing, lookupErr := r.getByClientMsgID(ctx, r.pool, senderID, clientMsgID)
+		if lookupErr == nil {
+			if existing.ConversationID != conversationID {
+				return nil, ErrDuplicateClientID
+			}
+			return existing, nil
+		}
+		if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+			return nil, lookupErr
+		}
+	}
+
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -86,9 +99,10 @@ func (r *Repository) Create(ctx context.Context, conversationID, senderID uuid.U
 			if clientMsgID != "" {
 				existing, lookupErr := r.getByClientMsgID(ctx, tx, senderID, clientMsgID)
 				if lookupErr == nil {
-					if err := tx.Commit(ctx); err == nil {
-						return existing, nil
+					if existing.ConversationID != conversationID {
+						return nil, ErrDuplicateClientID
 					}
+					return existing, nil
 				}
 			}
 			return nil, ErrDuplicateClientID
@@ -348,6 +362,22 @@ func (r *Repository) enqueueLifecycle(ctx context.Context, topic string, msg *Me
 
 type queryRower interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// GetByClientMsgID returns an existing message for idempotent retries.
+func (r *Repository) GetByClientMsgID(ctx context.Context, senderID uuid.UUID, clientMsgID string) (*Message, error) {
+	clientMsgID = strings.TrimSpace(clientMsgID)
+	if clientMsgID == "" {
+		return nil, pgx.ErrNoRows
+	}
+	msg, err := r.getByClientMsgID(ctx, r.pool, senderID, clientMsgID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		return nil, err
+	}
+	return msg, nil
 }
 
 func (r *Repository) getByClientMsgID(ctx context.Context, q queryRower, senderID uuid.UUID, clientMsgID string) (*Message, error) {

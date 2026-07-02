@@ -148,6 +148,13 @@ func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input Se
 	}
 	input.ClientMsgID = clientMsgID
 
+	if existing, lookupErr := s.repo.GetByClientMsgID(ctx, senderID, clientMsgID); lookupErr == nil {
+		if existing.ConversationID != convID {
+			return nil, ErrDuplicateClientID
+		}
+		return existing, nil
+	}
+
 	msgType := input.Type
 	if msgType == "" {
 		msgType = TypeText
@@ -181,6 +188,11 @@ func (s *Service) Send(ctx context.Context, convID, senderID uuid.UUID, input Se
 		_ = s.broadcaster.BroadcastMessageCreated(ctx, convID, msg, true, senderID)
 	}
 	return msg, nil
+}
+
+// GetByID returns a message when it belongs to the conversation.
+func (s *Service) GetByID(ctx context.Context, convID, messageID uuid.UUID) (*Message, error) {
+	return s.repo.GetByID(ctx, convID, messageID)
 }
 
 // ListSince returns messages with seq greater than afterSeq.

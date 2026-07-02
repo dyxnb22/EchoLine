@@ -1,14 +1,13 @@
 # Current State
 
-Current phase: **Full audit fix — Phases 0–4 complete**.
+Current phase: **Deep review complete — stop condition met (P3/P4 only remain)**.
 
 Last session highlights:
 
-- **P0:** thread/forward via `message.Service`; RBAC on export/reaction/thread/forward/ads; frontend typing/sync/composer fixes
-- **P1:** paid channel UI flow; DLQ replay requeue; reaction idempotent; apierror envelope; device WS touch; composite admin RBAC; fanout pagination; create-conversation modal
-- **P2:** WS buffer 256 + drop metric; outbox publisher fix; sync `has_more`; client_msg_id UUID required; Kafka consumer in worker; outbox cleanup job; edit/recall outbox
-- **P3:** integration RBAC tests; CI worker job; dual-client WS unit test; Playwright extended smoke
-- **P4:** admin-panel.md, business-flows, websocket-protocol alignment
+- **P0:** sync cursor + frontend `has_more` pagination (message loss on reconnect)
+- **P1:** idempotent send side effects, media member download, outbox processing claim, payment 402 detection, WS token refresh, sender dedup, upload pending, unread while viewing
+- **P2:** ACK message binding, admin health RBAC, cache `can_publish`, WS edit/recall handlers
+- **P3/P4:** presigned URL sharing (wontfix MVP), outbox stale processing reaper, download UI, loading polish
 
 Tests:
 
@@ -19,7 +18,12 @@ Blocker:
 
 - Docker/Postgres unavailable in cloud VM for `make smoke-full` — see `BLOCKERS.md`
 
+Reports:
+
+- `reports/deep-review-final.md`
+
 Next (optional):
 
 1. Local `make dev-up && make smoke-full`
-2. Full-stack Playwright against running compose stack
+2. Outbox stale `processing` reaper
+3. Frontend attachment download UI

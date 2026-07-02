@@ -322,6 +322,10 @@ func (s *Server) handleMessageSend(c *Connection, env Envelope) {
 			c.sendError(env.RequestID, "forbidden", "not a conversation member")
 			return
 		}
+		if errors.Is(err, conversation.ErrCannotPublish) {
+			c.sendError(env.RequestID, "forbidden", "cannot publish to this conversation")
+			return
+		}
 		c.sendError(env.RequestID, "invalid_request", err.Error())
 		return
 	}
@@ -367,6 +371,11 @@ func (s *Server) handleMessageAck(c *Connection, env Envelope) {
 	member, err := s.conversations.IsMember(context.Background(), convID, c.UserID)
 	if err != nil || !member {
 		c.sendError(env.RequestID, "forbidden", "not a conversation member")
+		return
+	}
+
+	if _, err := s.messages.GetByID(context.Background(), convID, msgID); err != nil {
+		c.sendError(env.RequestID, "invalid_request", "message not in conversation")
 		return
 	}
 
